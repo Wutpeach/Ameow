@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-20T08:06:36.794941Z",
+  "generatedAt": "2026-11-21T07:50:55.763864Z",
   "title": "Design System: Ameow",
   "extensions": {
     "colorMeta": {
@@ -421,7 +421,7 @@
   ],
   "narrative": {
     "northStar": "安静地呈现下载",
-    "overview": "Ameow 的界面用圆环、图标、短标签和稳定的布局呈现下载。操作靠近对象，状态反馈发生在原位；已经由图形、标题或当前值表达的信息，不再堆成副标题、长按钮或说明段落。Compact 只承担收起外观，下载信息集中在 Full；设置与诊断按需提供完整信息。\n\n本文记录截至 2026-11-20 的用户确认边界与现行代码配置。设计边界约束后续修改；具体实现值以 [tokens.rs](src/tokens.rs)、[download_ui.rs](src/download_ui.rs)、[settings_window.rs](src/settings_window.rs) 和对应 owner 为准。发现差异时先查用户最新决定与受影响实现，不能把偶发现象或旧证据中的废弃样式重新立为规则。",
+    "overview": "Ameow 的界面用圆环、图标、短标签和稳定的布局呈现下载。操作靠近对象，状态反馈发生在原位；已经由图形、标题或当前值表达的信息，不再堆成副标题、长按钮或说明段落。Compact 只承担收起外观，下载信息集中在 Full；设置与诊断按需提供完整信息。\n\n本文记录截至 2026-11-21 的用户确认边界与现行代码配置。设计边界约束后续修改；具体实现值以 [tokens.rs](src/tokens.rs)、[download_ui.rs](src/download_ui.rs)、[settings_window.rs](src/settings_window.rs) 和对应 owner 为准。发现差异时先查用户最新决定与受影响实现，不能把偶发现象或旧证据中的废弃样式重新立为规则。",
     "keyCharacteristics": [
       "密度紧凑，标题、状态、操作各司其职。",
       "按容器选择形状，同类同密度操作保持一致。",
@@ -484,6 +484,11 @@
         "name": "设置页行列与字级",
         "body": "设置的同类标签／控件行使用 48px 最小高；常规下拉与快捷键字段共用 192px 右侧列、32px 控件高，字段值左对齐。常规、下载、组件与更新开关复用同一行节奏，段落之间以 24px 区分；必要多行内容可增高。正文／控件使用 13px，短标题使用 15px，分组标题使用 13px 中等字重；12px 仅用于版本、路径、许可正文与已包装的辅助信息。不要为页面整齐裁掉必要说明、缩小长标签或移动焦点顺序。",
         "section": "layout"
+      },
+      {
+        "name": "Browser Session Simplicity",
+        "body": "2026-11-21本人手动Gallery反馈取代connect-v8默认呈现。默认只显示实际授权站点品牌徽章与站名，删除常驻共享详情、状态行、来源/快照时间和技术正文。实心主题角标有描边留白，与站点图形/选中环分层；整徽章hover和键盘focus获得同样短状态说明，失败不冒充未授权。徽章操作按需提供移除/诊断；未知长域短标签，完整值由提示或诊断取得。配置扩展/Set up extension一击执行既有真实配置并直接展示同页真实路径/复制+独立Demo，不保留中间确认页/页码、EdgeChrome或播放暂停控件。普通模式自动9秒四步鼠标，Reduced完整静态，离屏隐藏停止刷新。桌面/Popup技术字段只在折叠诊断文本框，复制既有安全投影，不含Cookie值、凭据、账号或私密URL；Popup保持当前站点/必要授权范围/有用动作/简短恢复。复用Palette、UI字体、control/circle圆角、锚定提示与焦点生命周期，实际值以src/settings_browser_sessions.rs为准。",
+        "section": "components"
       }
     ],
     "dos": [

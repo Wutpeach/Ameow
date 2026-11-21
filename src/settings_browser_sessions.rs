@@ -1,5 +1,8 @@
 use super::*;
-use ameow_next::browser_sessions::{SiteView, SyncError};
+use ameow_next::browser_sessions::SiteView;
+use gpui_base::ElementExt as _;
+#[cfg(test)]
+use ameow_next::browser_sessions::SyncError;
 use std::time::{Duration, Instant};
 
 pub(super) struct BrowserUi {
@@ -7,12 +10,12 @@ pub(super) struct BrowserUi {
     pub(super) guide_focus_pending: bool,
     selected: Option<String>,
     pub(super) details: bool,
+    pub(super) menu_focus_pending: bool,
+    badge_focus: RefCell<HashMap<String, Rc<Cell<bool>>>>,
+    copy_error: bool,
     setup_requested: bool,
     setup_error: Option<String>,
     path: Option<PathBuf>,
-    chrome: bool,
-    paused: bool,
-    manual_motion: bool,
     elapsed: Duration,
     tick: Option<Instant>,
     visible: Rc<Cell<bool>>,
@@ -21,14 +24,24 @@ pub(super) struct BrowserUi {
 }
 impl Default for BrowserUi {
     fn default() -> Self {
-        Self { guide: 0, guide_focus_pending: false, selected: None, details: false, setup_requested: false,
-            setup_error: None, path: None, chrome: false, paused: false, manual_motion: false,
+        Self { guide: 0, guide_focus_pending: false, selected: None, details: false, menu_focus_pending: false, badge_focus: RefCell::new(HashMap::new()), copy_error: false, setup_requested: false,
+            setup_error: None, path: None,
             elapsed: Duration::ZERO, tick: None, visible: Rc::new(Cell::new(false)),
             anchors: Rc::new(RefCell::new([None; 4])), origin: Rc::new(Cell::new(None)) }
     }
 }
 impl BrowserUi {
     pub(super) fn preview_path(&mut self) { self.path = Some(PathBuf::from(r"C:\Apps\Ameow\browser-extension")); }
+    pub(super) fn has_selected(&self) -> bool { self.selected.is_some() }
+    pub(super) fn clear_menu(&mut self) { self.selected = None; self.details = false; self.menu_focus_pending = false; }
+    fn begin_setup(&mut self) { self.path = None; self.setup_error = None; self.copy_error = false; }
+    fn finish_setup(&mut self, result: Result<PathBuf, String>) {
+        match result {
+            Ok(path) => { self.path = Some(path); self.setup_error = None; },
+            Err(error) => { self.path = None; self.setup_error = Some(error); },
+        }
+    }
+    fn copy_path(&self) -> Option<&Path> { self.path.as_deref() }
 }
 
 fn brand(site: &str) -> (&str, &'static str) {
@@ -46,12 +59,22 @@ fn brand_size(site: &str) -> f32 {
     match site { "youtube.com" => 30., "x.com" => 26., "bilibili.com" | "bsky.app" | "imgur.com" | "vimeo.com" => 28., _ => 26. }
 }
 fn failed(site: &SiteView) -> bool { site.last_result.as_ref().is_some_and(|r| r.error.is_some()) }
-fn show_latest_on_summary(site: &SiteView) -> bool { site.cookie_count > 0 || failed(site) }
+fn session_diagnostic(site: &SiteView, l: Language) -> String {
+    let result = match site.last_result.as_ref() {
+        None => l.text("未知", "Unknown"),
+        Some(r) if r.error.is_some() => l.text("失败", "Failed"),
+        Some(_) => l.text("成功", "Succeeded"),
+    };
+    format!("{}: {}\n{}: {}\n{}: {}\n{}: {}\n{}: {}",
+        l.text("站点", "Site"), site.site, l.text("来源安装 ID", "Source installation ID"), site.source_id, l.text("上次快照", "Last snapshot"),
+        ameow_next::browser_sessions::utc_timestamp(site.synced_at), l.text("最近同步", "Latest sync"), result,
+        l.text("可用 / 排除的分区 Cookie", "Available / excluded partitioned cookies"), format!("{} / {}", site.cookie_count, site.skipped_partitioned))
+}
 fn short_status(site: &SiteView, l: Language) -> &'static str {
-    if failed(site) { l.text("最近失败", "Latest failed") }
-    else if site.cookie_count == 0 { l.text("空会话", "Empty session") }
-    else if site.last_result.is_none() { l.text("结果未知", "Result unknown") }
-    else { l.text("已存快照", "Snapshot saved") }
+    if failed(site) { l.text("已授权；最近同步未完成", "Authorized; latest sync failed") }
+    else if site.cookie_count == 0 { l.text("已授权；没有可用会话", "Authorized; no usable session") }
+    else if site.last_result.is_none() { l.text("已授权；同步结果未知", "Authorized; sync result unknown") }
+    else { l.text("已授权；上次同步成功", "Authorized; last sync succeeded") }
 }
 fn setup_error(code: &str, l: Language) -> &'static str {
     match code {
@@ -65,17 +88,24 @@ fn setup_error(code: &str, l: Language) -> &'static str {
 }
 
 impl SettingsWindow {
+    pub(super) fn close_browser_site_menu(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        let Some(id) = self.browser_ui.selected.take() else { return false; };
+        self.browser_ui.clear_menu();
+        if self.page == Page::Download && self.browser_ui.guide == 0 {
+            if let Some(focus) = self.control_focus.borrow().get(&format!("browser-site:{id}")) { window.focus(focus, cx); }
+            else { window.focus(&self.focus, cx); }
+        } else { window.focus(&self.focus, cx); }
+        cx.notify(); true
+    }
     pub(super) fn browser_setup_observe(&mut self, next: &Projection) {
         if self.browser_ui.guide != 1 || !self.browser_ui.setup_requested || next.bridge_config_pending { return; }
         if let Some(result) = &next.bridge_config_result {
             self.browser_ui.setup_requested = false;
-            match result {
-                Ok(()) => match ameow_next::browser_sessions::native::extension_directory() {
-                    Ok(path) => { self.browser_ui.path = Some(path); self.browser_ui.guide = 2; self.browser_ui.guide_focus_pending = true; self.scroll.set_offset(point(px(0.), px(0.))); }
-                    Err(error) => self.browser_ui.setup_error = Some(error),
-                },
-                Err(error) => self.browser_ui.setup_error = Some(error.clone()),
-            }
+            let path = match result {
+                Ok(()) => ameow_next::browser_sessions::native::extension_directory(),
+                Err(error) => Err(error.clone()),
+            };
+            self.browser_ui.finish_setup(path);
         }
     }
     pub(super) fn close_browser_guide(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -99,159 +129,150 @@ impl SettingsWindow {
     pub(super) fn browser_sessions_section(&self, cx: &mut Context<Self>) -> AnyElement {
         let p = Palette::new(self.projection.night); let l = self.projection.language;
         let status = self.projection.queue.as_ref().map(|q| q.browser_sessions.clone()).unwrap_or_default();
-        let selected = self.browser_ui.selected.as_ref().and_then(|id| status.sites.iter().find(|s| &s.grant_id == id)).or_else(|| status.sites.first());
         let mut body = div().mt(px(24.)).border_t_1().border_color(p.border).pt(px(20.))
             .child(div().flex().flex_wrap().items_center().justify_between().gap(px(12.))
                 .child(div().text_size(px(15.)).font_weight(FontWeight::MEDIUM).child(l.text("浏览器会话", "Browser sessions")))
-                .child(self.button("browser-connect", l.text("连接浏览器", "Connect browser"), true, ButtonStyle::Standard, cx, |this, _, cx| {
-                    this.browser_ui.guide = 1; this.browser_ui.guide_focus_pending = true; this.browser_ui.setup_error = None;
-                    this.browser_ui.setup_requested = false; this.scroll.set_offset(point(px(0.), px(0.))); cx.notify();
-                })))
-            .child(div().mt(px(12.)).text_color(p.neutral).child(authorized_count(status.sites.len(), l)));
+                .child(self.button("browser-connect", l.text("配置扩展", "Set up extension"), true, ButtonStyle::Standard, cx, |this, _, cx| {
+                    this.browser_ui.guide = 1; this.browser_ui.guide_focus_pending = true;
+                    this.browser_ui.selected = None; this.browser_ui.details = false;
+                    this.browser_ui.elapsed = Duration::ZERO; this.browser_ui.tick = None; this.browser_ui.copy_error = false;
+                    this.scroll.set_offset(point(px(0.), px(0.))); this.start_browser_setup(cx);
+                })));
         if status.error.is_some() {
-            body = body.child(div().mt(px(12.)).child(inline_notice(p, l.text("会话缓存暂不可读，请重试。", "Session cache is unavailable. Try again."), true)));
+            body = body.child(div().mt(px(12.)).child(inline_notice(p, l.text("会话暂不可用，请重试。", "Sessions are unavailable. Try again."), true)));
         } else if status.notice.as_ref().is_some_and(|s| s != "installed") {
             body = body.child(div().mt(px(12.)).child(inline_notice(p, l.text("操作未完成，请重试。", "The operation did not finish. Try again."), true)));
         }
         let mut badges = div().mt(px(16.)).flex().flex_wrap().gap(px(12.));
-        for session in &status.sites {
-            let (name, icon) = brand(&session.site); let name = name.to_owned();
-            let icon_size = brand_size(&session.site);
-            let selected_badge = selected.is_some_and(|s| s.grant_id == session.grant_id);
-            let id = session.grant_id.clone(); let key = format!("browser-site:{id}");
+        for site in &status.sites {
+            let (name, icon) = brand(&site.site); let name = name.to_owned();
+            let id = site.grant_id.clone(); let key = format!("browser-site:{id}");
             let (container, focus) = self.control_container(&key, true, cx);
-            let state_color = if failed(session) { error_text(p) } else { p.neutral };
-            let state_icon = if failed(session) { "icons/circle-alert.svg" } else if session.cookie_count == 0 || session.last_result.is_none() { "icons/info.svg" } else { "icons/check.svg" };
+            let is_open = self.browser_ui.selected.as_deref() == Some(id.as_str());
+            let focused = self.browser_ui.badge_focus.borrow_mut().entry(id.clone()).or_insert_with(|| Rc::new(Cell::new(false))).clone();
+            let keyboard_hint = focused.get() && self.keyboard_focus && !is_open;
+            let state = short_status(site, l); let tip = format!("{} · {}", site.site, state);
+            let tooltip = tip.clone(); let icon_size = brand_size(&site.site);
+            let error = failed(site); let badge_color = if error { p.red } else if site.cookie_count == 0 || site.last_result.is_none() { p.neutral } else { p.green };
+            let state_icon = if error { "icons/circle-alert.svg" } else if site.cookie_count == 0 || site.last_result.is_none() { "icons/info.svg" } else { "icons/check.svg" };
+            let focus_for_paint = focus.clone(); let focused_for_paint = focused.clone();
             let control = gpui_base::Button::new(SharedString::from(key)).track_focus(&focus).disabled(self.passive.get())
-                .accessibility_label(format!("{} · {}", name, short_status(session, l)))
-                .w(px(100.)).min_h(px(110.)).flex().flex_col().items_center().gap(px(4.))
+                .accessibility_label(tip.clone()).w(px(100.)).min_h(px(90.)).flex().flex_col().items_center().gap(px(4.))
                 .border_1().border_color(transparent_black()).rounded(px(8.))
                 .when(self.keyboard_focus, |s| s.focus(move |s| s.border_color(p.blue)))
+                .on_prepaint(move |_, window, _| {
+                    let next = focus_for_paint.is_focused(window);
+                    if focused_for_paint.replace(next) != next { window.request_animation_frame(); }
+                })
+                .tooltip_above(&self.tooltips, move |_, cx| cx.new(|_| HelpTooltip { text: tooltip.clone(), night: p.night }).into())
                 .cursor_pointer().hover(move |s| s.bg(p.badge.opacity(0.4)))
-                .on_click(cx.listener(move |this, _, _, cx| { this.browser_ui.selected = Some(id.clone()); this.browser_ui.details = false; cx.notify(); }))
-                .child(div().relative().size(px(60.)).rounded_full().border_2().border_color(if selected_badge { p.blue } else { transparent_black() }).p(px(2.))
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.browser_ui.selected = if this.browser_ui.selected.as_deref() == Some(id.as_str()) { None } else { Some(id.clone()) };
+                    this.browser_ui.menu_focus_pending = this.browser_ui.selected.is_some() && this.keyboard_focus;
+                    this.browser_ui.details = false; this.browser_ui.copy_error = false; cx.notify();
+                }))
+                .child(div().relative().size(px(60.)).rounded_full().border_2().border_color(if is_open { p.blue } else { transparent_black() }).p(px(2.))
                     .child(div().size_full().rounded_full().bg(p.badge).flex().items_center().justify_center()
                         .child(svg().path(icon).size(px(icon_size)).text_color(p.primary_text())))
-                    .child(div().absolute().right_0().bottom_0().size(px(18.)).rounded_full().bg(p.surface).flex().items_center().justify_center()
-                        .child(svg().path(state_icon).size(px(14.)).text_color(state_color))))
-                .child(div().w_full().text_size(px(13.)).truncate().child(name))
-                .child(div().text_size(px(12.)).text_color(state_color).child(short_status(session, l)));
-            badges = badges.child(container.child(control));
+                    .child(div().absolute().right_0().bottom_0().size(px(20.)).rounded_full().border_2().border_color(p.surface).bg(badge_color)
+                        .flex().items_center().justify_center().child(svg().path(state_icon).size(px(12.)).text_color(p.surface))))
+                .child(div().w_full().text_size(px(13.)).truncate().child(name));
+            let mut item = container.relative().flex_none().child(control);
+            if keyboard_hint {
+                item = item.child(div().absolute().left_0().bottom(px(84.)).child(deferred(anchored().anchor(gpui::Anchor::BottomLeft)
+                    .snap_to_window_with_margin(Edges::all(px(12.))).child(div().max_w(px(260.)).p(px(8.)).rounded(px(6.))
+                        .bg(p.surface).border_1().border_color(p.control_border()).text_size(px(12.)).child(break_long(&tip))))));
+            }
+            if is_open && !self.passive.get() { item = item.child(self.browser_site_menu(site, cx)); }
+            badges = badges.child(item);
         }
-        body = body.child(badges);
-        if let Some(site) = selected {
-            let (name, _) = brand(&site.site); let site_name = site.site.clone(); let grant = site.grant_id.clone();
-            let source_name = if site.source_name.trim().is_empty() { l.text("未知来源", "Unknown source") } else { &site.source_name };
-            let latest = match &site.last_result {
-                None => l.text("最近同步结果未知", "Latest sync result unknown").to_owned(),
-                Some(result) => {
-                    let text = match result.error {
-                        Some(SyncError::Storage) => l.text("存储失败；保留旧缓存", "Storage failed; previous snapshot retained"),
-                        Some(SyncError::Bridge) => l.text("连接失败；保留旧缓存", "Connection failed; previous snapshot retained"),
-                        Some(SyncError::CookieRead) => l.text("读取失败；保留旧缓存", "Read failed; previous snapshot retained"),
-                        Some(_) => l.text("同步失败；保留旧缓存", "Sync failed; previous snapshot retained"),
-                        None => l.text("最近同步成功", "Latest sync succeeded"),
-                    };
-                    format!("{} · {}", text, ameow_next::browser_sessions::utc_timestamp(result.at))
-                }
-            };
-            let mut detail = div().mt(px(20.)).pt(px(16.)).border_t_1().border_color(p.border)
-                .child(div().flex().flex_wrap().items_center().justify_between().gap(px(8.))
-                    .child(div().min_w(px(0.)).flex_1().child(format!("{} · {}", name, break_long(&site.site))))
-                    .child(self.button("remove-browser-session", l.text("移除", "Remove"), true, ButtonStyle::Standard, cx, move |this, _, cx| {
-                        if this.projection.preview {
-                            if let Some(snapshot) = this.projection.queue.as_mut() { std::sync::Arc::make_mut(snapshot).browser_sessions.sites.retain(|s| s.grant_id != grant); }
-                            this.browser_ui.selected = None; cx.notify();
-                        } else { this.session_command(ameow_next::download::queue::QueueCommand::RemoveBrowserSession { site: site_name.clone(), grant_id: grant.clone() }, cx); }
-                    })))
-                .child(div().mt(px(8.)).text_color(p.neutral).child(break_long(source_name)))
-                .child(div().text_color(p.neutral).child(format!("{} · {}", l.text("快照", "Snapshot"), ameow_next::browser_sessions::utc_timestamp(site.synced_at))));
-            if show_latest_on_summary(site) {
-                detail = detail.child(div().mt(px(6.)).text_color(if failed(site) { error_text(p) } else { p.neutral }).child(latest.clone()));
-            }
-            if site.cookie_count == 0 {
-                detail = detail.child(div().mt(px(8.)).child(l.text("没有可用 Cookie", "No usable cookies")))
-                    .child(div().text_color(p.neutral).child(l.text("请在浏览器登录后重新同步。", "Sign in in your browser, then sync again.")));
-            }
-            if site.skipped_partitioned > 0 { detail = detail.child(div().mt(px(6.)).text_color(p.neutral).child(l.text("分区 Cookie 已排除。", "Partitioned cookies were excluded."))); }
-            detail = detail.child(self.button("browser-source-details", l.text("来源与快照", "Source and snapshot"), true, ButtonStyle::Quiet, cx, |this, _, cx| { this.browser_ui.details = !this.browser_ui.details; cx.notify(); }));
-            if self.browser_ui.details {
-                detail = detail.child(div().mt(px(4.)).p(px(10.)).rounded(px(6.)).bg(p.badge.opacity(0.55)).text_color(p.neutral)
-                    .child(format!("{}: {}", l.text("来源", "Source"), break_long(source_name)))
-                    .child(div().child(format!("ID: {}", break_long(&site.source_id))))
-                    .child(div().child(format!("{}: {}", l.text("上次成功缓存", "Last successful snapshot"), ameow_next::browser_sessions::utc_timestamp(site.synced_at))))
-                    .when(!show_latest_on_summary(site), |s| s.child(div().child(latest)))
-                    .child(div().child(format!("Cookie: {}", site.cookie_count))));
-            }
-            body = body.child(detail);
+        body.child(badges).into_any_element()
+    }
+
+    fn browser_site_menu(&self, site: &SiteView, cx: &mut Context<Self>) -> Div {
+        let p = Palette::new(self.projection.night); let l = self.projection.language;
+        let domain = site.site.clone(); let grant = site.grant_id.clone();
+        let report = session_diagnostic(site, l); let copy_report = report.clone();
+        let mut panel = div().w(px(280.)).max_w_full().p(px(8.)).rounded(px(8.)).bg(p.surface)
+            .border_1().border_color(p.control_border()).occlude().flex().flex_col().gap(px(4.))
+            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+            .on_mouse_down_out(cx.listener(|this, _, window, cx| {
+                let menu_has_focus = ["browser-site-remove", "browser-site-diagnostics", "browser-copy-diagnostic"].iter()
+                    .any(|id| this.control_focus.borrow().get(*id).is_some_and(|focus| focus.is_focused(window)));
+                this.browser_ui.clear_menu();
+                if menu_has_focus { window.focus(&this.focus, cx); }
+                cx.notify();
+            }))
+            .child(self.button("browser-site-remove", l.text("移除", "Remove"), true, ButtonStyle::Menu, cx, move |this, window, cx| {
+                if this.projection.preview {
+                    if let Some(snapshot) = this.projection.queue.as_mut() { std::sync::Arc::make_mut(snapshot).browser_sessions.sites.retain(|s| s.grant_id != grant); }
+                } else { this.session_command(ameow_next::download::queue::QueueCommand::RemoveBrowserSession { site: domain.clone(), grant_id: grant.clone() }, cx); }
+                this.browser_ui.selected = None; this.browser_ui.details = false; window.focus(&this.focus, cx); cx.notify();
+            }))
+            .child(self.button("browser-site-diagnostics", l.text("诊断", "Diagnostics"), true, ButtonStyle::Menu, cx, |this, _, cx| { this.browser_ui.details = !this.browser_ui.details; cx.notify(); }));
+        if self.browser_ui.details {
+            let copied = self.copy_feedback.contains_key("browser-diagnostic");
+            panel = panel.child(div().p(px(8.)).rounded(px(6.)).bg(p.badge.opacity(0.55)).text_size(px(12.)).child(break_long(&report)))
+                .child(self.button("browser-copy-diagnostic", if copied { l.text("已复制", "Copied") } else { l.text("复制诊断报告", "Copy diagnostic report") }, true, ButtonStyle::Standard, cx, move |this, window, cx| {
+                    let result = if this.projection.preview { Ok(()) } else { crate::tray::copy_text(hwnd(window), &copy_report) };
+                    this.browser_ui.copy_error = result.is_err();
+                    if result.is_ok() { this.reset_copy_feedback_later("browser-diagnostic", cx); } cx.notify();
+                }));
+            if self.browser_ui.copy_error { panel = panel.child(inline_notice(p, l.text("复制失败，请重试。", "Copy failed. Try again."), true)); }
         }
-        body.into_any_element()
+        div().absolute().left_0().top(px(88.)).child(deferred(anchored().anchor(gpui::Anchor::TopLeft)
+            .snap_to_window_with_margin(Edges::all(px(12.))).child(panel)))
+    }
+
+    fn start_browser_setup(&mut self, cx: &mut Context<Self>) {
+        self.browser_ui.begin_setup();
+        self.copy_feedback.remove("browser-extension");
+        if self.projection.preview { self.browser_ui.preview_path(); self.browser_ui.setup_requested = false; cx.notify(); return; }
+        let accepted = self.main.update(cx, |main, cx| {
+            let now = main.now();
+            let accepted = main.downloads.as_mut().is_some_and(|ui| ui.send(ameow_next::download::queue::QueueCommand::InstallBrowserBridge, now));
+            cx.notify(); accepted
+        }).unwrap_or(false);
+        self.browser_ui.setup_requested = accepted;
+        if !accepted { self.browser_ui.setup_error = Some("E_REQUEST".into()); }
+        cx.notify();
     }
 
     pub(super) fn browser_guide(&self, cx: &mut Context<Self>) -> AnyElement {
         let p = Palette::new(self.projection.night); let l = self.projection.language;
-        let second = self.browser_ui.guide == 2;
         let mut page = div().w_full().flex().flex_col()
             .child(div().flex().items_center().gap(px(8.))
-                .child(self.icon_button("browser-guide-back", "icons/chevron-left.svg", l.text("返回", "Back"), true, cx, |this, window, cx| {
-                    if this.browser_ui.guide == 2 { this.browser_ui.guide = 1; this.browser_ui.guide_focus_pending = true; this.browser_ui.tick = None; cx.notify(); }
-                    else { this.close_browser_guide(window, cx); }
-                }))
-                .child(div().flex_1().min_w(px(0.)).text_size(px(15.)).font_weight(FontWeight::MEDIUM)
-                    .child(if second { l.text("加载浏览器扩展", "Load browser extension") } else { l.text("连接浏览器", "Connect browser") }))
-                .child(div().text_color(p.neutral).child(if second { "2 / 2" } else { "1 / 2" }))
+                .child(self.icon_button("browser-guide-back", "icons/chevron-left.svg", l.text("返回", "Back"), true, cx, |this, window, cx| this.close_browser_guide(window, cx)))
+                .child(div().flex_1().min_w(px(0.)).text_size(px(15.)).font_weight(FontWeight::MEDIUM).child(l.text("配置扩展", "Set up extension")))
                 .child(self.icon_button("browser-guide-close", "icons/x.svg", l.text("关闭引导", "Close guide"), true, cx, |this, window, cx| this.close_browser_guide(window, cx))));
-        if !second {
-            page = page.child(div().mt(px(24.)).text_size(px(15.)).font_weight(FontWeight::MEDIUM).child(l.text("配置本机连接", "Set up this computer")))
-                .child(div().mt(px(8.)).text_color(p.neutral).child(l.text("配置 Ameow 与浏览器扩展之间的本机连接。", "Set up the connection between Ameow and the browser extension.")));
-            if let Some(error) = self.browser_ui.setup_error.as_deref() {
-                page = page.child(div().mt(px(12.)).child(inline_notice(p, setup_error(error, l), true)));
-            }
-            let busy = self.browser_ui.setup_requested || self.projection.bridge_config_pending;
-            let label = if busy { l.text("正在配置…", "Setting up…") } else if self.browser_ui.setup_error.is_some() { l.text("重试配置", "Retry setup") } else { l.text("配置本机连接", "Set up this computer") };
-            page = page.child(div().mt(px(20.)).child(self.button("browser-setup", label, !busy, ButtonStyle::Standard, cx, |this, window, cx| {
-                this.browser_ui.setup_error = None;
-                if let Some(focus) = this.control_focus.borrow().get("browser-guide-back") { window.focus(focus, cx); }
-                if this.projection.preview {
-                    this.browser_ui.preview_path();
-                    this.browser_ui.guide = 2;
-                    this.browser_ui.guide_focus_pending = true;
-                } else {
-                    let accepted = this.main.update(cx, |main, cx| {
-                        let now = main.now();
-                        let accepted = main.downloads.as_mut().is_some_and(|ui| ui.send(ameow_next::download::queue::QueueCommand::InstallBrowserBridge, now));
-                        cx.notify(); accepted
-                    }).unwrap_or(false);
-                    this.browser_ui.setup_requested = accepted;
-                    if !accepted { this.browser_ui.setup_error = Some("E_REQUEST".into()); }
-                }
-                cx.notify();
-            })));
-        } else {
-            let path = self.browser_ui.path.as_ref().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| l.text("扩展路径不可用", "Extension path unavailable").into());
-            let copied = self.copy_feedback.contains_key("browser-extension");
-            page = page.child(div().mt(px(24.)).p(px(12.)).rounded(px(8.)).bg(p.badge.opacity(0.55)).flex().flex_wrap().items_center().gap(px(8.))
-                .child(div().flex_1().min_w(px(0.)).text_size(px(12.)).font(tokens::ui_font()).child(break_long(&path)))
-                .child(self.button("browser-copy-path", if copied { l.text("已复制", "Copied") } else { l.text("复制路径", "Copy path") }, self.browser_ui.path.is_some(), ButtonStyle::Standard, cx, |this, window, cx| {
-                    if let Some(path) = &this.browser_ui.path {
-                        let result = if this.projection.preview { Ok(()) } else { crate::tray::copy_text(hwnd(window), &path.to_string_lossy()) };
-                        if result.is_ok() { this.browser_ui.setup_error = None; this.reset_copy_feedback_later("browser-extension", cx); }
-                        else { this.browser_ui.setup_error = Some("E_COPY".into()); }
-                        cx.notify();
-                    }
-                })));
-            if self.browser_ui.setup_error.as_deref() == Some("E_COPY") {
-                page = page.child(div().mt(px(8.)).child(inline_notice(p, l.text("无法复制路径，请重试。", "Cannot copy the path. Try again."), true)));
-            }
-            page = page.child(self.browser_demo(cx));
+        if self.browser_ui.setup_requested || self.projection.bridge_config_pending {
+            page = page.child(div().mt(px(12.)).text_color(p.neutral).child(l.text("正在配置…", "Setting up…")));
         }
-        page.into_any_element()
+        if let Some(error) = self.browser_ui.setup_error.as_deref().filter(|e| *e != "E_COPY") {
+            page = page.child(div().mt(px(12.)).child(inline_notice(p, setup_error(error, l), true)))
+                .child(self.button("browser-setup-retry", l.text("重试", "Retry"), !self.projection.bridge_config_pending, ButtonStyle::Standard, cx, |this, window, cx| {
+                    if let Some(focus) = this.control_focus.borrow().get("browser-guide-back") { window.focus(focus, cx); } this.start_browser_setup(cx);
+                }));
+        }
+        let path = self.browser_ui.path.as_ref().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| l.text("扩展路径不可用", "Extension path unavailable").into());
+        let copied = self.copy_feedback.contains_key("browser-extension");
+        page = page.child(div().mt(px(24.)).p(px(12.)).rounded(px(8.)).bg(p.badge.opacity(0.55)).flex().flex_wrap().items_center().gap(px(8.))
+            .child(div().flex_1().min_w(px(0.)).text_size(px(12.)).font(tokens::ui_font()).child(break_long(&path)))
+            .child(self.button("browser-copy-path", if copied { l.text("已复制", "Copied") } else { l.text("复制路径", "Copy path") }, self.browser_ui.copy_path().is_some(), ButtonStyle::Standard, cx, |this, window, cx| {
+                if let Some(path) = this.browser_ui.copy_path() {
+                    let result = if this.projection.preview { Ok(()) } else { crate::tray::copy_text(hwnd(window), &path.to_string_lossy()) };
+                    if result.is_ok() { this.browser_ui.copy_error = false; this.reset_copy_feedback_later("browser-extension", cx); }
+                    else { this.browser_ui.copy_error = true; } cx.notify();
+                }
+            })));
+        if self.browser_ui.copy_error { page = page.child(div().mt(px(8.)).child(inline_notice(p, l.text("无法复制路径，请重试。", "Cannot copy the path. Try again."), true))); }
+        page.child(self.browser_demo(cx)).into_any_element()
     }
 
-    fn browser_demo(&self, cx: &mut Context<Self>) -> AnyElement {
+    fn browser_demo(&self, _cx: &mut Context<Self>) -> AnyElement {
         let p = Palette::new(self.projection.night);
         let l = self.projection.language;
-        let reduced = self.projection.reduced && !self.browser_ui.manual_motion;
+        let reduced = self.projection.reduced;
         let at = if reduced { 0.8 } else { (self.browser_ui.elapsed.as_secs_f32() % 9.) / 9. };
         let reset = if at >= 0.945 { (1. - ((at - 0.945) / 0.02)).clamp(0., 1.) } else { 1. };
         let toggle = ((at - 0.155) / 0.017).clamp(0., 1.) * reset;
@@ -274,7 +295,7 @@ impl SettingsWindow {
                     .child(l.text("加载已解压的扩展", "Load unpacked")).into_any_element()));
         let browser = div().w_full().rounded(px(8.)).border_1().border_color(p.border).bg(p.surface).overflow_hidden()
             .child(div().px(px(12.)).py(px(8.)).border_b_1().border_color(p.border).text_color(p.neutral)
-                .child(if self.browser_ui.chrome { "chrome://extensions" } else { "edge://extensions" }))
+                .child(l.text("浏览器扩展", "Browser extensions")))
             .child(div().p(px(12.)).flex().flex_col().gap(px(12.)).child(top).child(load));
         let address = div().flex().items_center().gap(px(8.)).child(pin("3", p))
             .child(demo_anchor(anchors.clone(), 2, div().flex_1().min_w(px(0.)).px(px(8.)).py(px(5.))
@@ -308,20 +329,12 @@ impl SettingsWindow {
                     .child(demo_cursor(p).absolute().left(x).top(y));
             }
         }
-        let header = div().flex().flex_wrap().items_center().gap(px(8.))
-            .child(div().flex_1().min_w(px(80.)).font_weight(FontWeight::MEDIUM).child(l.text("操作演示", "Demo")))
-            .child(self.button("browser-demo-edge", "Edge", true, if self.browser_ui.chrome { ButtonStyle::Quiet } else { ButtonStyle::Standard }, cx, |this, _, cx| { this.browser_ui.chrome = false; cx.notify(); }))
-            .child(self.button("browser-demo-chrome", "Chrome", true, if self.browser_ui.chrome { ButtonStyle::Standard } else { ButtonStyle::Quiet }, cx, |this, _, cx| { this.browser_ui.chrome = true; cx.notify(); }))
-            .child(self.button("browser-demo-play", if self.browser_ui.paused || reduced { l.text("播放", "Play") } else { l.text("暂停", "Pause") }, true, ButtonStyle::Quiet, cx, |this, _, cx| {
-                if this.projection.reduced && !this.browser_ui.manual_motion { this.browser_ui.manual_motion = true; this.browser_ui.paused = false; }
-                else { this.browser_ui.paused = !this.browser_ui.paused; }
-                this.browser_ui.tick = None; cx.notify();
-            }));
+        let header = div().font_weight(FontWeight::MEDIUM).child(l.text("操作演示", "Demo"));
         div().mt(px(24.)).p(px(12.)).rounded(px(8.)).bg(p.badge).child(header).child(div().mt(px(12.)).child(stage)).into_any_element()
     }
 
     pub(super) fn browser_demo_tick(&mut self, window: &mut Window) {
-        let run = self.page == Page::Download && self.browser_ui.guide == 2 && !self.browser_ui.paused && (!self.projection.reduced || self.browser_ui.manual_motion) && self.browser_ui.visible.get() && window.is_window_active();
+        let run = self.page == Page::Download && self.browser_ui.guide > 0 && !self.projection.reduced && self.browser_ui.visible.get() && window.is_window_active();
         let now = Instant::now();
         if run {
             if let Some(previous) = self.browser_ui.tick { self.browser_ui.elapsed += now.saturating_duration_since(previous); }
@@ -355,9 +368,6 @@ fn demo_cursor(p: Palette) -> impl IntoElement + Styled {
         if let Ok(path) = fill_path.build() { window.paint_path(path, p.surface); }
         if let Ok(path) = border.build() { window.paint_path(path, p.primary_text()); }
     }).w(px(24.)).h(px(28.))
-}
-fn authorized_count(count: usize, l: Language) -> String {
-    format!("{} {}", count, l.text("个已授权站点", if count == 1 { "authorized site" } else { "authorized sites" }))
 }
 fn break_long(text: &str) -> String {
     let mut result = String::new();
@@ -395,6 +405,30 @@ fn demo_points(anchors: &[Option<Bounds<Pixels>>; 4], t: f32) -> Option<Point<Pi
 mod tests {
     use super::*;
     #[::core::prelude::v1::test]
+    fn copy_path_requires_successful_current_setup() {
+        let mut ui = BrowserUi::default();
+        ui.preview_path();
+        assert!(ui.copy_path().is_some());
+        ui.begin_setup();
+        assert!(ui.copy_path().is_none()); // Pending, including a retry after earlier success.
+        ui.finish_setup(Err("E_SESSION_REGISTRATION".into()));
+        assert!(ui.copy_path().is_none());
+        ui.begin_setup();
+        ui.finish_setup(Err("E_SESSION_HOST_MISSING".into()));
+        assert!(ui.copy_path().is_none());
+        ui.begin_setup();
+        ui.finish_setup(Ok(PathBuf::from("extension")));
+        assert_eq!(ui.copy_path(), Some(Path::new("extension")));
+    }
+    #[::core::prelude::v1::test]
+    fn dismissing_menu_clears_pending_focus_and_diagnostic() {
+        let mut ui = BrowserUi::default();
+        ui.selected = Some("grant".into()); ui.details = true; ui.menu_focus_pending = true;
+        ui.clear_menu();
+        assert!(!ui.has_selected());
+        assert!(!ui.details && !ui.menu_focus_pending);
+    }
+    #[::core::prelude::v1::test]
     fn pointer_follows_four_distinct_steps_and_loops() {
         let anchors = [0., 20., 40., 60.].map(|y| Some(Bounds::new(point(px(0.), px(y)), size(px(10.), px(10.)))));
         for (time, y) in [(0.155, 5.), (0.34, 25.), (0.515, 45.), (0.70, 65.)] {
@@ -418,21 +452,20 @@ mod tests {
     #[::core::prelude::v1::test]
     fn failed_and_empty_snapshots_are_distinct() {
         let mut site = SiteView { site: "example.com".into(), source_id: "源".into(), source_name: "Unknown".into(), grant_id: "x".into(), synced_at: 1, cookie_count: 0, skipped_partitioned: 2, last_result: None };
-        assert_eq!(short_status(&site, Language::Chinese), "空会话");
-        assert!(!show_latest_on_summary(&site));
+        assert_eq!(short_status(&site, Language::Chinese), "已授权；没有可用会话");
         site.last_result = Some(ameow_next::browser_sessions::SyncResult { at: 2, error: None });
-        assert!(!show_latest_on_summary(&site));
         site.last_result = Some(ameow_next::browser_sessions::SyncResult { at: 3, error: Some(SyncError::Bridge) });
-        assert!(show_latest_on_summary(&site));
         site.last_result = None;
         site.cookie_count = 3;
-        assert_eq!(short_status(&site, Language::Chinese), "结果未知");
+        assert_eq!(short_status(&site, Language::Chinese), "已授权；同步结果未知");
         site.last_result = Some(ameow_next::browser_sessions::SyncResult { at: 2, error: Some(SyncError::Bridge) });
-        assert_eq!(short_status(&site, Language::Chinese), "最近失败");
+        assert_eq!(short_status(&site, Language::Chinese), "已授权；最近同步未完成");
         assert_eq!(site.synced_at, 1);
         assert_eq!(break_long("源"), "源");
-        assert_eq!(authorized_count(1, Language::English), "1 authorized site");
-        assert_eq!(authorized_count(0, Language::English), "0 authorized sites");
-        assert_eq!(authorized_count(2, Language::English), "2 authorized sites");
+        let report = session_diagnostic(&site, Language::English);
+        assert!(report.contains("example.com"));
+        assert!(report.contains("Failed"));
+        assert!(report.contains(&site.source_id));
+        assert!(!report.contains(&site.source_name));
     }
 }

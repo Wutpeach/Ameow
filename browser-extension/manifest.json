@@ -5,7 +5,7 @@
   "description": "在播放器旁下载整段或选择片段，按需授权站点会话到本机 Ameow。",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAmG3mmWaNNOIRwH32fHpAQzlQomu+4jdaWEIqZuUM02qJrih0mQgUdLszD8I2VRgBW6+QFqFxrO9L9mv5Qd2w4KV4zxdx6kie+1DyNVH8gXrBbweuVEXvstrMT6MIEs95+yBgTyfSAD46Fk/Ur3ykvxbIWoBhjS0H+68lYilqq/6afFSk/EEwmLPfojH7PFtrWM/1jf+sZCFfWQlV9hLekbC1yGhkaCU9apxbyinZxDbbKhSeZicEyv5SqM6w7TvKSua4F91nDIx7bQGQbfy9fcXLgCR5HGz/ujN+Qw9d8AMjMor8gRm/fTx8X/lPwXwA6/BQQP3ekqauJ2rFSszJtwIDAQAB",
   "minimum_chrome_version": "120",
-  "permissions": ["activeTab", "cookies", "storage", "alarms", "nativeMessaging", "scripting"],
+  "permissions": ["activeTab", "cookies", "storage", "alarms", "nativeMessaging", "scripting", "clipboardWrite"],
   "optional_host_permissions": ["http://*/*", "https://*/*"],
   "background": { "service_worker": "background.js", "type": "module" },
   "action": { "default_popup": "popup.html", "default_title": "Ameow 下载与站点授权" },

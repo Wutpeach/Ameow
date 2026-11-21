@@ -13,7 +13,7 @@ async function openPopup(sessions) {
   }};
   const chrome = {tabs:{query:async()=>[{url:'https://www.example.com/fixture'}]},runtime:{sendMessage:async()=>({ok:true,value:await sessions.status('example.com')})}};
   await vm.runInNewContext('(async()=>{' + popup + '})()', {document,chrome,navigator:{userAgent:'Edg/156'},siteFromUrl,scope,SYNC_ERRORS,PAGE_ORIGINS,pageHost,Date});
-  return { status:elements.get('status'), detail:elements.get('status-detail'), connection:elements.get('connection') };
+  return { status:elements.get('status'), detail:elements.get('status-detail'), diagnostic:elements.get('diagnostic-report'), connection:elements.get('connection') };
 }
 for (const code of ['E_SESSION_STORAGE', 'E_BRIDGE', 'E_COOKIE_READ']) test(`failed ${code} survives popup reopen until a fresh sync succeeds`, async () => {
   const saved = {}; let fault; let rows = []; let cookieReads = 0; const messages = [];
@@ -32,7 +32,7 @@ for (const code of ['E_SESSION_STORAGE', 'E_BRIDGE', 'E_COOKIE_READ']) test(`fai
   assert.equal(saved.grants['example.com'].error,code); assert.equal(rows[0].synced_at,cached);
   fault=undefined; const reads=cookieReads;
   const reopened=await openPopup(sessions);
-  assert(reopened.status.attrs.has('data-error')); assert(reopened.detail.textContent.includes(SYNC_ERRORS[code]));
+  assert(reopened.status.attrs.has('data-error')); assert(reopened.diagnostic.textContent.includes(SYNC_ERRORS[code]));
   assert.equal(cookieReads,reads,'opening status must not refresh cookies or claim a new sync');
   assert.equal(rows[0].last_result.error,code); assert.equal(rows[0].synced_at,cached);
   const recoveryStart=messages.length; await sessions.sync();
@@ -40,5 +40,5 @@ for (const code of ['E_SESSION_STORAGE', 'E_BRIDGE', 'E_COOKIE_READ']) test(`fai
   assert(recovery.indexOf('report_failure')<recovery.indexOf('sync'));
   assert.equal(saved.grants['example.com'].error,null); assert.equal(rows[0].last_result.error,null);
   const recovered=await openPopup(sessions); assert(!recovered.status.attrs.has('data-error'));
-  assert(recovered.status.textContent.includes('快照已更新'));
+  assert(recovered.status.textContent.includes('已同步'));
 });

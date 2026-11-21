@@ -1148,6 +1148,7 @@ impl SettingsWindow {
                     for select in &mut this.selects { select.open = false; }
                     this.page = page;
                     this.browser_ui.guide = 0;
+                    this.browser_ui.clear_menu();
                     this.finish_shortcut(cx);
                     this.notices_open = false;
                     this.component_menu_open = false;
@@ -1161,6 +1162,7 @@ impl SettingsWindow {
                 for select in &mut this.selects { select.open = false; }
                 this.page = page;
                 this.browser_ui.guide = 0;
+                this.browser_ui.clear_menu();
                 this.finish_shortcut(cx);
                 this.notices_open = false;
                 this.component_menu_open = false;
@@ -1603,6 +1605,15 @@ impl Render for SettingsWindow {
         let forward = self.previous_page.is_none_or(|(page, notices)| (self.page as u8, self.notices_open) >= (page as u8, notices));
         let direction = if forward { 1. } else { -1. };
         let current = build(self, self.page, self.notices_open, cx);
+        if self.browser_ui.menu_focus_pending {
+            self.browser_ui.menu_focus_pending = false;
+            if let Some(focus) = self.control_focus.borrow().get("browser-site-diagnostics").cloned() {
+                let owner = cx.entity().downgrade();
+                window.on_next_frame(move |window, cx| { let _ = owner.update(cx, |this, cx| {
+                    if this.page == Page::Download && this.browser_ui.guide == 0 && this.browser_ui.has_selected() { window.focus(&focus, cx); }
+                }); });
+            }
+        }
         if self.page == Page::Download && self.browser_ui.guide > 0 && self.browser_ui.guide_focus_pending {
             self.browser_ui.guide_focus_pending = false;
             let guide = self.browser_ui.guide;
@@ -1662,6 +1673,7 @@ impl Render for SettingsWindow {
                     cx.stop_propagation();
                     return;
                 }
+                if event.keystroke.key == "escape" && this.close_browser_site_menu(window, cx) { cx.stop_propagation(); return; }
                 if event.keystroke.key == "escape" && this.help_open.take().is_some() {
                     cx.notify(); cx.stop_propagation(); return;
                 }
@@ -2219,10 +2231,10 @@ impl Prototype {
                 view.health = Some(Ok(()));
                 view.notice = None;
                 view.browser_ui = browser_sessions_ui::BrowserUi::default();
-                view.browser_ui.guide = match scene.state.as_str() { "browser-connect" => 1, "browser-connect-demo" => 2, _ => 0 };
+                view.browser_ui.guide = match scene.state.as_str() { "browser-connect" | "browser-connect-demo" => 1, _ => 0 };
                 view.browser_ui.guide_focus_pending = view.browser_ui.guide > 0;
                 view.browser_ui.details = scene.state == "browser-session-long";
-                if view.browser_ui.guide == 2 { view.browser_ui.preview_path(); }
+                if view.browser_ui.guide > 0 { view.browser_ui.preview_path(); }
                 view.open_pending = scene.state == "folder-opening";
                 view.help_open = match scene.state.as_str() {
                     "app-help" => Some("update-auto-check-help"),
