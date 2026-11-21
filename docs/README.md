@@ -4,8 +4,11 @@
 
 | 入口 | 用途 |
 | --- | --- |
+| [CLI 使用与安装](../site/src/content/docs/docs/cli.md) · [English](../site/src/content/docs/en/docs/cli.md) | 版本可用性、包内入口和日常调用；[完整调用契约](cli.md) |
+| [CLI 开发入口](developer-cli.md) | 隔离有限执行、离线场景、证据与旧工具替代 |
 | [预览指南](preview.md) | Windows Gallery、原生场景与截图工具 |
 | [规范维护](spec-maintenance.md) | OpenSpec 更新与验证范围 |
+| [浏览器会话](browser-sessions.md) | 扩展加载、站点授权、自动同步及隔离验证 |
 | [发行构建](../distribution/packaging.md) | 构建输入、签名、许可材料与发行检查 |
 | [Windows 交付](../distribution/windows-delivery.md) | 安装版、便携版及更新资产 |
 | [Mac 打包脚本](../scripts/package_macos.sh) | Apple Silicon 应用包入口 |

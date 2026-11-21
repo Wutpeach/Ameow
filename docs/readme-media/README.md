@@ -1,0 +1,70 @@
+# README media production
+
+Only the README and its four product-interface demonstrations are produced here.
+See [media sources](../images/readme/README.md) for provenance and illustration
+boundaries. Temporary captures, cached GitHub CSS and check results go to ignored
+`.work/`; no product or documentation-site implementation is modified.
+
+## Native cat and paste
+
+`cat-paste/record.py` requires Windows and Python with Pillow. It uses an owned,
+visible Gallery Preview and a 320px neutral backdrop. Arrange available desktop
+time before running it. It never sends
+physical input, reads the clipboard or starts real downloads. It pins the
+EXE hash, uses a unique control directory, and closes only its own processes and
+background. The outer Windows Job and 60-second supervisor bound the run.
+
+```powershell
+$previewExe = '<absolute-path-to-hash-matched-ameow.exe>'
+python docs/readme-media/cat-paste/record.py --exe $previewExe
+```
+
+Supply the Windows EXE matching the SHA256 in the [media sources](../images/readme/README.md).
+The command rejects other binaries; its pin does not identify a generic 0.5.0
+build. Review a different binary and its actual Gallery catalog before changing
+the pin. New recordings produce raw media for review.
+
+## Extension session sync
+
+The popup's HTML, CSS and built JS are used unchanged. The renderer checks the
+build's source hash against pinned PR63 source, injects only a synthetic browser
+transport, and blocks external requests. No extension is installed.
+
+```powershell
+$env:PLAYWRIGHT_MODULE = '<absolute-path-to-playwright-core/index.mjs>'
+$env:CHROMIUM_PATH = '<absolute-path-to-headless-chromium-executable>'
+$extensionDist = '<absolute-path-to-PR63/browser-extension/dist>'
+node docs/readme-media/session-sync/render.mjs $extensionDist
+```
+
+Use the pinned PR63 source object and a matching extension build produced with
+its lockfile. Set `PLAYWRIGHT_MODULE` to an installed `playwright-core` module
+file and `CHROMIUM_PATH` to the Chromium executable to use. These variables also
+apply to `check.mjs`; provide your own paths explicitly. Node.js and FFmpeg must
+be available. No project dependencies are added.
+
+## Existing clip assets
+
+Reuse `clip-selection.gif` and its poster without re-encoding. Their two hashes
+are documented in the media sources and checked by `check.mjs`.
+
+## README preview and checks
+
+```powershell
+node docs/readme-media/preview.mjs --build
+node docs/readme-media/preview.mjs
+# In a second terminal:
+node docs/readme-media/check.mjs
+```
+
+The first command uses the authenticated `gh` CLI for GitHub Markdown rendering
+and caches GitHub's public styles. Browser checks require the two tool paths
+above, FFmpeg/FFprobe, and Python. The server binds only
+`http://127.0.0.1:8871/`. Its controls switch language, GitHub light/dark and
+GIF/static poster views; they do not change the README. Stop it with Ctrl+C.
+
+Checks decode every GIF frame with FFmpeg, check both clip hashes,
+README image/alt/local-link paths and six badge slots, then inspect both languages
+at desktop and 320px in GitHub light/dark. Tight section screenshots and a short
+result JSON stay in `.work/check/`. These checks verify the media and reading
+surface; they do not repeat Rust, account, browser-permission or download tests.

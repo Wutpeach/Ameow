@@ -17,3 +17,7 @@ Prefer:
 - `fff-multi-grep` for broader multi-query grep tasks.
 
 Only fall back to default tools if `fff` is unavailable or the target is outside the indexed project.
+
+## Development contracts
+
+Use [OpenSpec](openspec/README.md) as the formal behavior specification and GitHub Issues/Projects/PRs for task and delivery records. Read only the relevant capability specs. Follow [spec maintenance](docs/spec-maintenance.md); its migration map supplies historical reference evidence. Use Cindy native history for session recall.

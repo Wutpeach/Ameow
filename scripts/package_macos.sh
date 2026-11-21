@@ -11,6 +11,7 @@ executable=$1
 destination=$2
 updater="$(dirname "$executable")/ameow-updater"
 cli="$(dirname "$executable")/ameow-cli"
+browser_host="$(dirname "$executable")/ameow-browser-host"
 if [[ $(uname -s) != Darwin || $(uname -m) != arm64 ]]; then
     printf 'Packaging requires an Apple Silicon Mac.\n' >&2
     exit 1
@@ -27,6 +28,12 @@ if [[ ! -f $cli || ! -x $cli || $(lipo -archs "$cli") != arm64 ]]; then
     printf 'Expected an arm64 ameow-cli beside the application executable.\n' >&2
     exit 1
 fi
+if [[ ! -f $browser_host || ! -x $browser_host || $(lipo -archs "$browser_host") != arm64 ]]; then
+    printf 'Expected an arm64 ameow-browser-host beside the application executable.\n' >&2
+    exit 1
+fi
+npm ci --prefix "$repository/browser-extension" --ignore-scripts
+npm --prefix "$repository/browser-extension" run build
 if [[ $destination != /* || $(basename "$destination") != Ameow.app || -e $destination || -L $destination ]]; then
     printf 'Choose an absolute, unused Ameow.app path.\n' >&2
     exit 1
@@ -40,8 +47,9 @@ version=$(sed -n 's/^version = "\([0-9][0-9.]*\)"$/\1/p' "$repository/Cargo.toml
 minimum=$(xcrun vtool -show-build "$executable" | awk '/^[[:space:]]*minos / { print $2; exit }')
 updater_minimum=$(xcrun vtool -show-build "$updater" | awk '/^[[:space:]]*minos / { print $2; exit }')
 cli_minimum=$(xcrun vtool -show-build "$cli" | awk '/^[[:space:]]*minos / { print $2; exit }')
-if [[ -z $version || -z $minimum || $minimum != "$updater_minimum" || $minimum != "$cli_minimum" ]]; then
-    printf 'Cannot determine matching deployment targets for the application, updater, and CLI.\n' >&2
+browser_minimum=$(xcrun vtool -show-build "$browser_host" | awk '/^[[:space:]]*minos / { print $2; exit }')
+if [[ -z $version || -z $minimum || $minimum != "$updater_minimum" || $minimum != "$cli_minimum" || $minimum != "$browser_minimum" ]]; then
+    printf 'Cannot determine matching deployment targets for the application, updater, CLI and browser bridge.\n' >&2
     exit 1
 fi
 minimum_major=${minimum%%.*}
@@ -56,6 +64,8 @@ mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources" "$staging/ameow.i
 cp "$executable" "$bundle/Contents/MacOS/ameow"
 cp "$updater" "$bundle/Contents/MacOS/ameow-updater"
 cp "$cli" "$bundle/Contents/MacOS/ameow-cli"
+cp "$browser_host" "$bundle/Contents/MacOS/ameow-browser-host"
+cp -R "$repository/browser-extension/dist" "$bundle/Contents/Resources/browser-extension"
 cp "$repository/site/public/ameow-logo.png" "$staging/ameow.iconset/icon_256x256.png"
 cp "$repository/site/public/ameow-logo.png" "$staging/ameow.iconset/icon_128x128@2x.png"
 iconutil -c icns "$staging/ameow.iconset" -o "$bundle/Contents/Resources/ameow.icns"
@@ -80,6 +90,7 @@ PLIST
 plutil -lint "$bundle/Contents/Info.plist"
 codesign --force --sign - "$bundle/Contents/MacOS/ameow-updater"
 codesign --force --sign - "$bundle/Contents/MacOS/ameow-cli"
+codesign --force --sign - "$bundle/Contents/MacOS/ameow-browser-host"
 codesign --force --sign - "$bundle"
 codesign --verify --deep --strict "$bundle"
 mv "$bundle" "$destination"

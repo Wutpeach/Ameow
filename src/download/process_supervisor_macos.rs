@@ -762,7 +762,7 @@ impl Owner {
         if self.root_wait_status.is_none() || self.root_wait_status != self.trusted_wait_status {
             return Err("owned root wait status disagreed with trusted normal exit".into());
         }
-        if !contract.complete(&spec.cwd) {
+        if !contract.complete(&spec.cwd, self.exit_code) {
             return Err("managed component completion evidence is missing or unsupported".into());
         }
         Ok(true)
@@ -1801,6 +1801,8 @@ mod macos_tests {
         for (case_name, mode, metadata, settles) in [
             ("success", "fork-complete", Some(valid.as_slice()), true),
             ("failure", "fork-failure", Some(valid.as_slice()), true),
+            ("preselection-failure", "fork-failure", None, true),
+            ("empty-success", "fork-complete", None, false),
             ("missing", "fork-complete", None, false),
             (
                 "missing-selection",
@@ -1838,6 +1840,10 @@ mod macos_tests {
                 std::process::id()
             ));
             fs::create_dir(&workspace).unwrap();
+            if matches!(case_name, "preselection-failure" | "empty-success") {
+                fs::write(workspace.join("selection.txt"), []).unwrap();
+                fs::write(workspace.join("final-object.txt"), []).unwrap();
+            }
             if let Some(metadata) = metadata {
                 fs::write(workspace.join("media.info.json"), metadata).unwrap();
                 if case_name != "missing-selection" {

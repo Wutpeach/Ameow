@@ -993,6 +993,7 @@ impl Render for Prototype {
                 .child(if self.downloads.is_some() { indicator::label_with_text(frame, self.live_label()).into_any_element() } else { indicator::label(frame).into_any_element() }))
             .when(directory_feedback.is_none() && (stage.active() || matches!(stage, Stage::Failure | Stage::Partial)), |s| {
                 let copy = matches!(stage, Stage::Failure | Stage::Partial);
+                let enabled = copy || self.main_cancel_allowed();
                 s.child(
                     div()
                         .id("state-action")
@@ -1002,16 +1003,17 @@ impl Render for Prototype {
                         .top(px(83.))
                         .size(px(tokens::FULL_ACTION_SIZE))
                         .rounded_full()
-                        .cursor_pointer()
+                        .when(enabled, |s| s.cursor_pointer())
+                        .opacity(if enabled { 1. } else { 0.35 })
                         .flex()
                         .items_center()
                         .justify_center()
                         .text_color(p.neutral)
-                        .hover(move |s| {
+                        .when(enabled, |s| s.hover(move |s| {
                             if copy { tokens::icon_hover(s, p).shadow(tokens::state_action_shadow(p.neutral)) } else {
                                 s.bg(p.red).text_color(gpui::white()).shadow(tokens::state_action_shadow(p.red))
                             }
-                        })
+                        }))
                         .child(
                             svg()
                                 .path(if matches!(stage, Stage::Failure | Stage::Partial) {
@@ -1025,13 +1027,14 @@ impl Render for Prototype {
                                 })
                                 .size(px(if matches!(stage, Stage::Failure | Stage::Partial) { 10. } else { 16. }))
                                 .text_color(p.neutral)
-                                .group_hover("state-action", move |s| s.text_color(if copy { p.neutral } else { gpui::white() })),
+                                .when(enabled, |icon| icon.group_hover("state-action", move |s| s.text_color(if copy { p.neutral } else { gpui::white() }))),
                         )
                         .on_mouse_down(
                             MouseButton::Left,
                             cx.listener(|this, _, _, cx| {this.background_clicks.reset();cx.stop_propagation();}),
                         )
                         .on_click(cx.listener(move |this, _, _, cx| {
+                            if !enabled { return; }
                             if matches!(stage, Stage::Failure | Stage::Partial) {
                                 this.copy(cx);
                             } else if this.downloads.is_some() {
@@ -1280,7 +1283,7 @@ fn main() {
         { eprintln!("Native acceptance requires an explicit debug fixture build"); std::process::exit(2); }
     }
     if args.iter().any(|argument| argument == "--download-test-bridge") {
-        eprintln!("--download-test-bridge 已退役；请使用 cargo run --example download_job -- --url <URL> --output <目录>");
+        eprintln!("--download-test-bridge 已退役；请使用 cargo run --locked --features dev-tools --bin ameow-cli -- dev run --root <新隔离目录> --url <URL>");
         std::process::exit(2);
     }
     if let Err(error) = ameow_next::control::launch_session(&args) {

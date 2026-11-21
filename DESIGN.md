@@ -66,6 +66,22 @@ spacing:
   xl: "24px"
   xxl: "32px"
 components:
+  page-video-toolbar:
+    height: "28px"
+    expandedWidth: "146px"
+    iconSize: "12px"
+    brandIconSize: "13px"
+    typography: "{typography.body}"
+    rounded: "{rounded.circle}"
+  page-video-controls:
+    layout: "video / full-width timeline / icon toolbar"
+    timelineHeight: "64px"
+    markerInteraction: "empty: add / marked: clear; direct edge drag"
+    markerShape: "single: full / range: inward in-out caps"
+    textSelection: "display: none / editable: native"
+    controlHeight: "32px"
+    desktopPadding: "8px 10px"
+    typography: "{typography.body}"
   button-standard:
     backgroundColor: "{colors.surface-light}"
     textColor: "{colors.primary-text-light}"

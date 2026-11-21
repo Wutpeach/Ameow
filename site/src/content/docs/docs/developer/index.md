@@ -47,7 +47,7 @@ Mac zsh/bash：
 ./target/debug/ameow-cli dev scenario --root evidence/dev-success --case success
 ~~~
 
-每次场景使用新根。`scenario` 使用固定离线 Adapter 与真实任务核心，不启动 GUI、不联网下载；`dev run` 则调用正式下载器，可能准备组件并联网，需要自己的真实媒体 URL。更多示例和参数见仓库 [CLI 开发指南](https://github.com/Wutpeach/Ameow/blob/2c916bc78a593cae3e5cc2f8961cb07374002def/docs/developer-cli.md)。
+每次场景使用新根。`scenario` 使用固定离线 Adapter 与真实任务核心，不启动 GUI、不联网下载；`dev run` 则调用正式下载器，可能准备组件并联网，需要自己的真实媒体 URL。更多示例和参数见仓库 [CLI 开发指南](https://github.com/Wutpeach/Ameow/blob/main/docs/developer-cli.md)。
 
 <span id="data"></span>
 

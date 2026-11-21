@@ -15,6 +15,11 @@ macOS 监督器 SHALL 消费 Adapter 构造的实际调用和 Runtime 已验证�
 - **WHEN** 用户选择的 yt-dlp 版本已经由既有 Runtime 流程验证并取得租约
 - **THEN** 推荐版与已选版本共用实际调用及结算入口；监督器不因内嵌旧版 hash 再次否认该身份。Adapter 保留受控同步组件的结算资格和有界记录检查，不能把这类资格当作下载能力判断；未知后代、取消、信号或观察丢失仍保留真实 owner、wait、管道、线程及租约守卫。
 
+#### Scenario: 受控 Transfer 在媒体下载前普通失败
+
+- **WHEN** 已绑定实际调用与受信租约的 yt-dlp Transfer 在 `before_dl` 记录前正常非零退出，例如提取时网络失败
+- **THEN** Adapter SHALL 仅在预建的选流及最终文件记录仍为普通空文件、工作区有界检查确认没有 `media.*` 输出时，认定媒体下载尚未开始；监督器仍须证明正常退出、未 reap 根进程时组内仅剩该根、实际 wait 状态一致、连续观察与全部 join，随后让队列报告真实失败并释放 owner/slot。零退出、记录缺失或损坏、已有媒体输出、信号终止及未知后代不得借此路径结算。
+
 ### Requirement: 创建时建立进程所有权
 
 监督器 SHALL 使用创建时 JOB_LIST、严格 HANDLE_LIST、挂起成员校验和隐藏执行；MUST NOT 使用先创建再分配 Job 的回退。owner 在操作异常和驱动线程 unwind 后仍保留必要所有权；输出排空不得依赖尽力投递的观察队列。
@@ -31,7 +36,21 @@ macOS 监督器 SHALL 消费 Adapter 构造的实际调用和 Runtime 已验证�
 #### Scenario: 控制或查询结果不确定
 
 - **WHEN** 控制失败、query 不确定或仍有被占用的 owned 文件
-- **THEN** 进入非终态 Held 并保留确切所有权；只有显式重试证明全部屏障完成才能释放。
+- **THEN** 进入非终态 Held 并保留确切所有权；只有显式重试或 Windows 首次取消触发的一次有界清理推进证明全部屏障完成才能释放。
+
+### Requirement: Windows Held 的一次取消推进
+
+Windows live owner 已处于 Held 时，首次取消 SHALL 启动一次有界、幂等的既有清理推进。控制失败或成员未知时 SHALL 保留真实 owner、slot 与 Held，并提供显式重试；重复取消 MUST NOT 形成无限自动重试或释放终态。推进继续遵守 root wait、Job-zero、reader、consumer、驱动及外层 owner join 屏障，不影响其他任务的 Job。
+
+#### Scenario: Held 写入器收到取消
+
+- **WHEN** 查询故障导致存活写入器进入 Held，随后故障解除且用户首次取消
+- **THEN** 取消启动真实终止与清理，结算后停止新增文件，仅发布一个真实终态并在所有 join 后释放 slot。
+
+#### Scenario: 取消推进仍然失败
+
+- **WHEN** 首次取消的清理推进仍遇到控制或查询故障
+- **THEN** 保留 Held 和所有权，重复取消不继续自动推进；显式重试可再次尝试并在实际完成后结算。
 
 ### Requirement: 区分 live Held 与 owner lost
 

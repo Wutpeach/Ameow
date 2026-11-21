@@ -47,7 +47,7 @@ Mac zsh/bash:
 ./target/debug/ameow-cli dev scenario --root evidence/dev-success --case success
 ~~~
 
-Use a fresh root for each scenario. `scenario` uses a fixed offline adapter with the real task core, without a GUI or network downloads. `dev run` uses production downloaders, may prepare components and access the network, and needs a real media URL you choose. See the repository [CLI developer guide](https://github.com/Wutpeach/Ameow/blob/2c916bc78a593cae3e5cc2f8961cb07374002def/docs/developer-cli.md) for examples and parameters.
+Use a fresh root for each scenario. `scenario` uses a fixed offline adapter with the real task core, without a GUI or network downloads. `dev run` uses production downloaders, may prepare components and access the network, and needs a real media URL you choose. See the repository [CLI developer guide](https://github.com/Wutpeach/Ameow/blob/main/docs/developer-cli.md) for examples and parameters.
 
 <span id="data"></span>
 

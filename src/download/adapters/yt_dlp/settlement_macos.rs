@@ -8,6 +8,7 @@ pub(crate) struct ManagedCompletion {
     phase: InvocationPhase,
     binding: Option<ProcessSpec>,
     _guards: Vec<File>,
+    safe_records: bool,
 }
 
 impl ManagedCompletion {
@@ -15,6 +16,8 @@ impl ManagedCompletion {
         spec: &ProcessSpec,
         lease: &RuntimeLease,
         phase: InvocationPhase,
+        resolution: Option<&serde_json::Value>,
+        safe_records: bool,
     ) -> Result<Option<Self>, String> {
         let guards = lease.execution_guards()?;
         for name in ["rtmpdump", "phantomjs"] {
@@ -23,13 +26,14 @@ impl ManagedCompletion {
                 _ => return Ok(None),
             }
         }
-        if phase == InvocationPhase::Transfer
-            && !transfer_record(&spec.cwd.join(RESOLVED_FILE), None)
-                .is_some_and(|value| transfer_media_value(&value))
-        {
-            return Ok(None);
+        if phase == InvocationPhase::Transfer {
+            let disk;
+            let value = if safe_records { resolution } else {
+                disk = transfer_record(&spec.cwd.join(RESOLVED_FILE), None); disk.as_ref()
+            };
+            if !value.is_some_and(transfer_media_value) { return Ok(None); }
         }
-        Ok(Some(Self { phase, binding: Some(spec.clone()), _guards: guards }))
+        Ok(Some(Self { phase, binding: Some(spec.clone()), _guards: guards, safe_records }))
     }
 
     pub(crate) fn matches_invocation(&self, spec: &ProcessSpec) -> bool {
@@ -40,10 +44,11 @@ impl ManagedCompletion {
         matches!(self.phase, InvocationPhase::Resolve | InvocationPhase::Transfer)
     }
 
-    pub(crate) fn complete(&self, workspace: &Path) -> bool {
+    pub(crate) fn complete(&self, workspace: &Path, exit_code: u32) -> bool {
         match self.phase {
             InvocationPhase::Resolve => true,
-            InvocationPhase::Transfer => transfer_media_completion(workspace),
+            InvocationPhase::Transfer => transfer_media_completion(workspace, self.safe_records)
+                || (exit_code != 0 && transfer_not_started(workspace)),
             #[cfg(test)]
             InvocationPhase::Fixture => true,
         }
@@ -51,7 +56,7 @@ impl ManagedCompletion {
 
     #[cfg(test)]
     pub(crate) fn fixture(phase: InvocationPhase) -> Self {
-        Self { phase, binding: None, _guards: Vec::new() }
+        Self { phase, binding: None, _guards: Vec::new(), safe_records: false }
     }
 }
 
@@ -105,10 +110,17 @@ fn transfer_media_value(value: &serde_json::Value) -> bool {
             None | Some(Value::Null) => {}
             Some(Value::Array(selected))
                 if !selected.is_empty()
-                    && selected.len() <= (if key == "requested_formats" { 2 } else { 1 })
-                    && selected.iter().all(transfer_media_value) =>
+                    && selected.len() <= (if key == "requested_formats" { 2 } else { 1 }) =>
             {
-                has_selection = true;
+                // yt-dlp removes unchanged parent fields from requested_downloads.
+                // A filename summary cannot establish the selected media on its own.
+                if selected.iter().all(transfer_media_value) {
+                    has_selection = true;
+                } else if key != "requested_downloads"
+                    || !selected.iter().all(transfer_filename_summary)
+                {
+                    return false;
+                }
             }
             _ => return false,
         }
@@ -125,6 +137,16 @@ fn transfer_media_value(value: &serde_json::Value) -> bool {
                     matches!(url.scheme(), "http" | "https") && url.host_str().is_some()
                 })
             })
+}
+
+fn transfer_filename_summary(value: &serde_json::Value) -> bool {
+    let Some(summary) = value.as_object() else { return false };
+    summary.keys().any(|key| matches!(key.as_str(), "filename" | "_filename"))
+        && summary.iter().all(|(key, field)| match key.as_str() {
+            "filename" | "_filename" => field.as_str().is_some_and(|name| !name.is_empty()),
+            "__write_download_archive" => field.is_boolean() || field.as_str() == Some("ignore"),
+            _ => false,
+        })
 }
 
 fn transfer_record(path: &Path, prefix: Option<&str>) -> Option<serde_json::Value> {
@@ -159,7 +181,7 @@ fn transfer_record(path: &Path, prefix: Option<&str>) -> Option<serde_json::Valu
     serde_json::from_slice(record).ok()
 }
 
-fn transfer_media_completion(workspace: &Path) -> bool {
+fn transfer_media_completion(workspace: &Path, safe_records: bool) -> bool {
     let Some(selection) =
         transfer_record(&workspace.join(SELECTION_FILE), Some(SELECTION_PREFIX))
     else {
@@ -168,9 +190,33 @@ fn transfer_media_completion(workspace: &Path) -> bool {
     let Some(summary) = transfer_record(&workspace.join(TRANSFER_INFO_FILE), None) else {
         return false;
     };
-    transfer_media_value(&selection)
+    // The original in-memory resolution already qualified the actual invocation. Safe
+    // native receipts retain protocol/kind without persisting URLs or request headers.
+    (if safe_records { transfer_media_kind(&selection) } else { transfer_media_value(&selection) })
         && transfer_media_kind(&summary)
         && summary["protocol"] == selection["protocol"]
+}
+
+fn transfer_not_started(workspace: &Path) -> bool {
+    // The controlled before_dl print appends and closes before any media downloader runs.
+    for name in [SELECTION_FILE, "final-object.txt"] {
+        let path = workspace.join(name);
+        if !fs::symlink_metadata(&path).is_ok_and(|m| m.is_file() && m.len() == 0)
+            || !runtime::open_identity_file(&path)
+                .and_then(|file| file.metadata())
+                .is_ok_and(|m| m.len() == 0)
+        {
+            return false;
+        }
+    }
+    let Ok(entries) = fs::read_dir(workspace) else { return false };
+    for (index, entry) in entries.enumerate() {
+        let Ok(entry) = entry else { return false };
+        if index >= 64 || entry.file_name().to_str().is_none_or(|name| name.starts_with("media.")) {
+            return false;
+        }
+    }
+    true
 }
 
 #[cfg(test)]
@@ -195,6 +241,7 @@ mod tests {
                 phase: InvocationPhase::Resolve,
                 binding: Some(spec.clone()),
                 _guards: Vec::new(),
+                safe_records: false,
             };
             assert!(completion.matches_invocation(&spec));
             let mut changed = spec.clone();
@@ -266,6 +313,7 @@ mod tests {
                     }
                 });
                 let context = ExecutionContext {
+                    authentication: None,
                     workspace: &workspace, lease: &lease, requirements: &requirements,
                     control: &control, observer, admission: Arc::new(|_| Ok(())), events: Arc::new(|_| {}),
                 };
@@ -274,7 +322,7 @@ mod tests {
                 } else {
                     "https://www.w3schools.com/html/mov_bbb.mp4"
                 };
-                let accepted = Accepted::new(DownloadIntent { url: url.into(), quality: Quality::Balanced, output_dir: root.join("output") }).unwrap();
+                let accepted = Accepted::new(DownloadIntent { clip: None, url: url.into(), quality: Quality::Balanced, output_dir: root.join("output") }).unwrap();
                 let adapter = super::super::YtDlpAdapter::new(requirements.clone());
                 let result = adapter.execute(&ExecutionRequest { accepted, resume: None }, &context);
                 let observations = observations.lock().unwrap();
@@ -297,6 +345,91 @@ mod tests {
         }
     }
     #[test]
+    fn preselection_failure_requires_empty_records_and_no_media_outputs() {
+        let workspace = tempfile::tempdir().unwrap();
+        let path = workspace.path();
+        let mut completion = ManagedCompletion::fixture(InvocationPhase::Transfer);
+        assert!(!completion.complete(path, 1));
+        for name in [SELECTION_FILE, "final-object.txt"] { fs::write(path.join(name), []).unwrap(); }
+        assert!(completion.complete(path, 1));
+        completion.safe_records = true;
+        assert!(completion.complete(path, 1));
+        assert!(!completion.complete(path, 0));
+        for (name, bytes) in [(SELECTION_FILE, b"partial".as_slice()), ("final-object.txt", b"final")] {
+            fs::write(path.join(name), bytes).unwrap();
+            assert!(!completion.complete(path, 1), "{name}");
+            fs::write(path.join(name), []).unwrap();
+        }
+        for name in [TRANSFER_INFO_FILE, "media.mp4.part", "media.mkv"] {
+            fs::write(path.join(name), []).unwrap();
+            assert!(!completion.complete(path, 1), "{name}");
+            fs::remove_file(path.join(name)).unwrap();
+        }
+        fs::remove_file(path.join(SELECTION_FILE)).unwrap();
+        std::os::unix::fs::symlink(path.join("final-object.txt"), path.join(SELECTION_FILE)).unwrap();
+        assert!(!completion.complete(path, 1));
+    }
+
+    #[test]
+    fn retained_filename_summary_uses_parent_media_and_completion_records() {
+        let resolved = include_bytes!("../../../../tests/fixtures/yt-dlp-macos/resolved.json");
+        assert!(transfer_media_metadata(resolved));
+        let workspace = tempfile::tempdir().unwrap();
+        fs::write(workspace.path().join(SELECTION_FILE),
+            include_bytes!("../../../../tests/fixtures/yt-dlp-macos/selection.txt")).unwrap();
+        fs::write(workspace.path().join(TRANSFER_INFO_FILE),
+            include_bytes!("../../../../tests/fixtures/yt-dlp-macos/media.info.json")).unwrap();
+        assert!(transfer_media_completion(workspace.path(), false));
+    }
+
+    #[test]
+    fn safe_completion_records_keep_transfer_and_early_failure_paths() {
+        let workspace = tempfile::tempdir().unwrap();
+        let record = r#"{"protocol":"https"}"#;
+        fs::write(workspace.path().join(SELECTION_FILE),
+            format!("{SELECTION_PREFIX}{record}\n")).unwrap();
+        fs::write(workspace.path().join(TRANSFER_INFO_FILE), record).unwrap();
+        let mut completion = ManagedCompletion::fixture(InvocationPhase::Transfer);
+        assert!(!completion.complete(workspace.path(), 0));
+        completion.safe_records = true;
+        assert!(completion.complete(workspace.path(), 0));
+        assert!(completion.complete(workspace.path(), 1));
+        fs::write(workspace.path().join(SELECTION_FILE), []).unwrap();
+        assert!(!completion.complete(workspace.path(), 1));
+    }
+
+    #[test]
+    fn filename_summary_cannot_hide_missing_media_or_unknown_download_structure() {
+        use serde_json::json;
+        let retained: serde_json::Value = serde_json::from_slice(
+            include_bytes!("../../../../tests/fixtures/yt-dlp-macos/resolved.json")
+        ).unwrap();
+        for summary in [
+            json!({}), json!("media.mp4"), json!(null),
+            json!({"filename":""}), json!({"filename":42}),
+            json!({"filename":"media.mp4","__write_download_archive":null}),
+            json!({"filename":"media.mp4","unknown":true}),
+            json!({"filename":"media.mp4","protocol":"rtmp"}),
+            json!({"filename":"media.mp4","requested_formats":[{}]}),
+        ] {
+            let mut metadata = retained.clone();
+            metadata["requested_downloads"] = json!([summary]);
+            assert!(!transfer_media_value(&metadata), "{metadata}");
+        }
+        for (key, invalid) in [
+            ("url", json!(null)), ("protocol", json!("https+https")),
+            ("requested_formats", json!([{}])),
+        ] {
+            let mut metadata = retained.clone();
+            metadata[key] = invalid;
+            assert!(!transfer_media_value(&metadata), "{key}");
+        }
+        let mut metadata = retained;
+        metadata["requested_formats"] = metadata["requested_downloads"].clone();
+        assert!(!transfer_media_value(&metadata));
+    }
+
+    #[test]
     fn transfer_media_accepts_combined_separate_and_nested_http_without_a_site_list() {
         use serde_json::json;
         let combined = json!({"id":"clip","extractor_key":"Generic","protocol":"https","url":"https://media.example/video.mp4"});
@@ -308,11 +441,18 @@ mod tests {
             ]
         });
         let nested = json!({"protocol":"https+https","requested_downloads":[separate.clone()]});
-        for metadata in [combined, separate, nested] {
+        let mut summarized_separate = separate.clone();
+        summarized_separate["requested_downloads"] = json!([{"filename":"media.mkv","__write_download_archive":false}]);
+        for metadata in [combined, separate, nested, summarized_separate] {
             assert!(transfer_media_metadata(
                 &serde_json::to_vec(&metadata).unwrap()
             ));
         }
+        let mut nested = json!({"protocol":"https","url":"https://media.example/video.mp4"});
+        for _ in 0..32 {
+            nested = json!({"protocol":"https","requested_downloads":[nested]});
+        }
+        assert!(transfer_media_value(&nested));
         for protocol in [
             "http",
             "https",
