@@ -7,13 +7,13 @@ import { PAGE_ORIGINS, pageHost } from '../src/page-core.mjs';
 const popup = (await readFile(new URL('../src/popup.mjs', import.meta.url), 'utf8')).replace(/^import[^\n]+\n/gm, '');
 async function openPopup(sessions) {
   const elements = new Map();
-  const document = { getElementById(id) {
-    if (!elements.has(id)) elements.set(id, {textContent:'',attrs:new Set(),addEventListener(){},toggleAttribute(key,on){ if(on)this.attrs.add(key);else this.attrs.delete(key); }});
+  const document = { documentElement:{}, getElementById(id) {
+    if (!elements.has(id)) elements.set(id, {textContent:'',attrs:new Set(),addEventListener(){},setAttribute(){},toggleAttribute(key,on){ if(on)this.attrs.add(key);else this.attrs.delete(key); }});
     return elements.get(id);
   }};
   const chrome = {tabs:{query:async()=>[{url:'https://www.example.com/fixture'}]},runtime:{sendMessage:async()=>({ok:true,value:await sessions.status('example.com')})}};
   await vm.runInNewContext('(async()=>{' + popup + '})()', {document,chrome,navigator:{userAgent:'Edg/156'},siteFromUrl,scope,SYNC_ERRORS,PAGE_ORIGINS,pageHost,Date});
-  return elements.get('status');
+  return { status:elements.get('status'), detail:elements.get('status-detail'), diagnostic:elements.get('diagnostic-report'), connection:elements.get('connection') };
 }
 for (const code of ['E_SESSION_STORAGE', 'E_BRIDGE', 'E_COOKIE_READ']) test(`failed ${code} survives popup reopen until a fresh sync succeeds`, async () => {
   const saved = {}; let fault; let rows = []; let cookieReads = 0; const messages = [];
@@ -32,13 +32,13 @@ for (const code of ['E_SESSION_STORAGE', 'E_BRIDGE', 'E_COOKIE_READ']) test(`fai
   assert.equal(saved.grants['example.com'].error,code); assert.equal(rows[0].synced_at,cached);
   fault=undefined; const reads=cookieReads;
   const reopened=await openPopup(sessions);
-  assert(reopened.attrs.has('data-error')); assert(reopened.textContent.includes(SYNC_ERRORS[code]));
+  assert(reopened.status.attrs.has('data-error')); assert(reopened.diagnostic.textContent.includes(SYNC_ERRORS[code]));
   assert.equal(cookieReads,reads,'opening status must not refresh cookies or claim a new sync');
   assert.equal(rows[0].last_result.error,code); assert.equal(rows[0].synced_at,cached);
   const recoveryStart=messages.length; await sessions.sync();
   const recovery=messages.slice(recoveryStart).map(m=>m.operation);
   assert(recovery.indexOf('report_failure')<recovery.indexOf('sync'));
   assert.equal(saved.grants['example.com'].error,null); assert.equal(rows[0].last_result.error,null);
-  const recovered=await openPopup(sessions); assert(!recovered.attrs.has('data-error'));
-  assert(recovered.textContent.includes('最近收到的同步结果：成功'));
+  const recovered=await openPopup(sessions); assert(!recovered.status.attrs.has('data-error'));
+  assert(recovered.status.textContent.includes('已同步'));
 });

@@ -29,6 +29,8 @@ use windows::Win32::{
         WindowsAndMessaging::*,
     },
 };
+#[path = "settings_browser_sessions.rs"]
+mod browser_sessions_ui;
 #[path = "settings_components.rs"]
 mod components;
 #[path = "settings_notices.rs"]
@@ -154,6 +156,8 @@ struct Projection {
     upstream_available: bool,
     engine_command_pending: bool,
     engine_notice: Option<bool>,
+    bridge_config_pending: bool,
+    bridge_config_result: Option<Result<(), String>>,
 }
 impl Projection {
     fn from_main(main: &Prototype) -> Self {
@@ -184,6 +188,8 @@ impl Projection {
             upstream_available: ui.is_some_and(|ui| ui.upstream_check_available()),
             engine_command_pending: ui.is_some_and(|ui| ui.engine_command_pending),
             engine_notice: ui.and_then(|ui| ui.engine_notice),
+            bridge_config_pending: ui.is_some_and(|ui| ui.bridge_config_pending),
+            bridge_config_result: ui.and_then(|ui| ui.bridge_config_result.clone()),
         }
     }
     fn upstream_snapshot(&self) -> ameow_next::download::upstream::UpstreamSnapshot {
@@ -237,6 +243,7 @@ pub struct SettingsWindow {
     main: WeakEntity<Prototype>,
     projection: Projection,
     _observer: Subscription,
+    _browser_visibility: Subscription,
     _component_menu_blur: Subscription,
     focus: FocusHandle,
     component_menu_focus: FocusHandle,
@@ -272,6 +279,7 @@ pub struct SettingsWindow {
     notices_scroll: ListState,
     notices_copied: Option<bool>,
     copy_feedback: HashMap<&'static str, std::time::Instant>,
+    browser_ui: browser_sessions_ui::BrowserUi,
 }
 impl SettingsWindow {
     #[cfg(any(test, all(feature = "app-update-fixture", debug_assertions)))]
@@ -315,6 +323,10 @@ impl SettingsWindow {
         }
         #[cfg(target_os = "windows")]
         crate::brand_icons::set_window(hwnd(window));
+        let browser_visibility = cx.observe_window_visibility(window, |this, visibility, _, cx| {
+            this.browser_demo_visibility(visibility.is_visible());
+            cx.notify();
+        });
         let observer = cx.observe(&main, |this, main, cx| {
             if this.projection.preview { return; }
             let next = Projection::from_main(main.read(cx));
@@ -325,6 +337,7 @@ impl SettingsWindow {
             }
             let shortcut_saved = !next.shortcut_pending && next.shortcut_error.is_none()
                 && (this.projection.shortcut_pending || (next.shortcut != this.projection.shortcut && matches!(next.status, SettingsStatus::Saved)));
+            this.browser_setup_observe(&next);
             this.projection = next;
             if shortcut_saved { this.reset_copy_feedback_later("shortcut", cx); }
             if update_scheduled { this.show_update_notice(cx); }
@@ -381,6 +394,7 @@ impl SettingsWindow {
             main: main.downgrade(),
             projection,
             _observer: observer,
+            _browser_visibility: browser_visibility,
             _component_menu_blur: component_menu_blur,
             focus,
             component_menu_focus,
@@ -413,6 +427,7 @@ impl SettingsWindow {
             notices_scroll: ListState::new(ameow_next::third_party_notices::TEXT.lines().count(), ListAlignment::Top, px(100.)),
             notices_copied: None,
             copy_feedback: HashMap::new(),
+            browser_ui: browser_sessions_ui::BrowserUi::default(),
         };
         this.refresh_health(true, cx);
         this.refresh_startup(None, cx);
@@ -1135,6 +1150,8 @@ impl SettingsWindow {
                 if event.keystroke.key == "enter" || event.keystroke.key == "space" {
                     for select in &mut this.selects { select.open = false; }
                     this.page = page;
+                    this.browser_ui.guide = 0;
+                    this.browser_ui.clear_menu();
                     this.finish_shortcut(cx);
                     this.notices_open = false;
                     this.component_menu_open = false;
@@ -1147,6 +1164,8 @@ impl SettingsWindow {
             .on_click(cx.listener(move |this, _, _, cx| {
                 for select in &mut this.selects { select.open = false; }
                 this.page = page;
+                this.browser_ui.guide = 0;
+                this.browser_ui.clear_menu();
                 this.finish_shortcut(cx);
                 this.notices_open = false;
                 this.component_menu_open = false;
@@ -1293,86 +1312,6 @@ impl SettingsWindow {
         }).unwrap_or(false);
         if !accepted { self.notice = Some((self.projection.language.text("操作未受理，请重试", "Request was not accepted. Try again.").into(), true)); }
         cx.notify();
-    }
-    fn browser_sessions_section(&self, cx: &mut Context<Self>) -> AnyElement {
-        let p = Palette::new(self.projection.night); let l = self.projection.language;
-        let status = self.projection.queue.as_ref().map(|q| q.browser_sessions.clone()).unwrap_or_default();
-        let enabled = !self.projection.preview && !self.passive.get();
-        let mut content = div().mt(px(24.)).border_t_1().border_color(p.border).pt(px(20.))
-            .child(div().flex().items_center().justify_between().gap(px(12.))
-                .child(div().text_size(px(15.)).font_weight(FontWeight::MEDIUM).child(l.text("浏览器会话", "Browser sessions")))
-                .child(div().flex().items_center().gap(px(4.))
-                    .child(self.icon_button("open-browser-extension", "icons/folder-open.svg", l.text("扩展文件", "Extension files"), enabled, cx, |this, _, cx| this.open_extension(cx)))
-                    .child(self.button("install-browser-bridge", l.text("安装浏览器连接", "Install browser connection"), enabled, ButtonStyle::Standard, cx,
-                        |this, _, cx| this.session_command(ameow_next::download::queue::QueueCommand::InstallBrowserBridge, cx)))))
-            .child(div().mt(px(8.)).text_size(px(12.)).line_height(px(18.)).text_color(p.neutral)
-                .child(l.text("从扩展主动授权站点，之后自动同步此浏览器已有会话。", "Authorize a site in the extension to keep its existing browser session in sync.")));
-        if let Some(error) = status.error.as_ref().or(status.notice.as_ref().filter(|n| n.as_str() != "installed")) {
-            let message = if error == "E_SESSION_HOST_MISSING" {
-                l.text("未找到浏览器连接组件，请使用完整 Ameow 产品包。", "Browser bridge is missing. Use the complete Ameow package.")
-            } else if error == "E_SESSION_HOST_PATH" {
-                l.text("浏览器无法使用此组件路径，请把完整产品包放到较短的普通目录。", "The browser cannot use this bridge path. Put the complete package in a shorter standard directory.")
-            } else if error == "E_SESSION_HOST_PROTOCOL" {
-                l.text("连接组件自检失败，请使用与当前应用配套的完整产品包。", "Bridge self-check failed. Use the complete package matching this application.")
-            } else if error == "E_SESSION_HOST_START" || error == "E_SESSION_HOST_TIMEOUT" {
-                l.text("连接组件未能正常启动或响应。", "The bridge could not start or respond.")
-            } else if error == "E_SESSION_REGISTRATION" {
-                l.text("组件自检通过，但浏览器注册未完成。", "Component self-check passed, but browser registration is incomplete.")
-            } else if status.error.is_some() {
-                l.text("会话缓存暂不可读，当前同步结果不可确认。", "Session cache is unreadable; current sync status cannot be confirmed.")
-            } else { l.text("浏览器连接操作未完成，请重试。", "The browser connection could not be updated. Try again.") };
-            content = content.child(div().mt(px(12.)).child(inline_notice(p, message, true)));
-        } else if status.notice.as_deref() == Some("installed") {
-            content = content.child(div().mt(px(12.)).child(inline_notice(p, l.text("注册已写入，组件自检通过。请从扩展检查浏览器连接。", "Registration saved and component self-check passed. Check the browser connection from the extension."), false)));
-        }
-        for session in status.sites {
-            let key = format!("remove-session:{}", session.site);
-            let (container, focus) = self.control_container(&key, enabled, cx);
-            let site = session.site.clone(); let grant_id = session.grant_id.clone();
-            let failed = session.last_result.as_ref().is_some_and(|r| r.error.is_some());
-            let detail = match &session.last_result {
-                None => l.text("最近同步结果未知", "Latest sync result unknown").to_owned(),
-                Some(result) => format!("{}{} · {}", l.text("最近收到：", "Last received: "), ameow_next::browser_sessions::utc_timestamp(result.at),
-                    if let Some(error) = result.error { match error {
-                        ameow_next::browser_sessions::SyncError::Storage => l.text("存储失败；保留旧缓存", "Storage failed; previous cache retained"),
-                        ameow_next::browser_sessions::SyncError::Bridge => l.text("连接失败；保留旧缓存", "Connection failed; previous cache retained"),
-                        ameow_next::browser_sessions::SyncError::CookieRead => l.text("读取失败；保留旧缓存", "Read failed; previous cache retained"),
-                        _ => l.text("同步失败；保留旧缓存", "Sync failed; previous cache retained"),
-                    } }
-                    else if session.skipped_partitioned > 0 { l.text("成功；分区 Cookie 已排除", "Success; partitioned cookies excluded") }
-                    else if session.cookie_count == 0 { l.text("成功；当前无会话 Cookie", "Success; no current session cookies") }
-                    else { l.text("成功", "Success") }),
-            };
-            content = content.child(div().mt(px(12.)).py(px(8.)).flex().items_center().gap(px(12.))
-                .child(div().flex_1().min_w(px(0.)).flex().flex_col().gap(px(4.))
-                    .child(div().text_size(px(13.)).child(session.site.clone()))
-                    .child(div().text_size(px(12.)).text_color(p.neutral).child(format!("{} · {}", session.source_name, &session.source_id[..6])))
-                    .child(div().text_size(px(12.)).text_color(p.neutral).child(format!("{}{}", l.text("上次成功缓存：", "Last successful cache: "), ameow_next::browser_sessions::utc_timestamp(session.synced_at))))
-                    .child(div().text_size(px(12.)).text_color(if failed { error_text(p) } else { p.neutral }).child(detail)))
-                .child(container.child(gpui_base::Button::new(SharedString::from(key)).track_focus(&focus).disabled(!enabled)
-                    .accessibility_label(format!("{} {}", l.text("移除", "Remove"), session.site))
-                    .h(px(tokens::CONTROL_HEIGHT)).px(px(12.)).rounded(px(tokens::CONTROL_RADIUS))
-                    .border_1().border_color(p.control_border()).text_size(px(tokens::CONTROL_FONT_SIZE)).text_color(p.primary_text())
-                    .child(l.text("移除", "Remove"))
-                    .when(enabled, |s| s.cursor_pointer().hover(move |s| s.bg(p.badge))
-                        .when(self.keyboard_focus, |s| s.focus(move |s| s.border_color(p.blue)))
-                        .on_click(cx.listener(move |this, _, _, cx| this.session_command(ameow_next::download::queue::QueueCommand::RemoveBrowserSession {site: site.clone(), grant_id: grant_id.clone()}, cx)))))));
-        }
-        content.into_any_element()
-    }
-    fn open_extension(&mut self, cx: &mut Context<Self>) {
-        if self.projection.preview { return; }
-        let task = cx.background_executor().spawn(async {
-            let path = ameow_next::browser_sessions::native::extension_directory()?;
-            ameow_next::file_manager::open_directory(&path).map_err(|e| e.to_string())
-        });
-        cx.spawn(async move |this, cx| {
-            let result = task.await;
-            let _ = this.update(cx, |this, cx| {
-                if result.is_err() { this.notice = Some((this.projection.language.text("未找到扩展文件，请使用完整 Ameow 产品包。", "Extension files are missing. Use the complete Ameow package.").into(), true)); }
-                cx.notify();
-            });
-        }).detach();
     }
     fn about_page(&self, cx: &mut Context<Self>) -> AnyElement {
 
@@ -1663,12 +1602,33 @@ impl Render for SettingsWindow {
         let arrival = self.motion.change("settings-page", format!("{}:{}", self.page as u8, self.notices_open));
         if arrival >= 0.999 { self.previous_page = None; }
         let build = |this: &Self, page: Page, notices: bool, cx: &mut Context<Self>| {
-            match page { Page::General => this.general_page(cx), Page::Download => this.download_page(cx),
+            match page { Page::General => this.general_page(cx), Page::Download if this.browser_ui.guide > 0 => this.browser_guide(cx), Page::Download => this.download_page(cx),
                 Page::Components => this.components_page(cx), Page::About if notices => this.notices_page(cx), Page::About => this.about_page(cx) }
         };
         let forward = self.previous_page.is_none_or(|(page, notices)| (self.page as u8, self.notices_open) >= (page as u8, notices));
         let direction = if forward { 1. } else { -1. };
         let current = build(self, self.page, self.notices_open, cx);
+        if self.browser_ui.menu_focus_pending {
+            self.browser_ui.menu_focus_pending = false;
+            if let Some(focus) = self.control_focus.borrow().get("browser-site-diagnostics").cloned() {
+                let owner = cx.entity().downgrade();
+                window.on_next_frame(move |window, cx| { let _ = owner.update(cx, |this, cx| {
+                    if this.page == Page::Download && this.browser_ui.guide == 0 && this.browser_ui.has_selected() { window.focus(&focus, cx); }
+                }); });
+            }
+        }
+        if self.page == Page::Download && self.browser_ui.guide > 0 && self.browser_ui.guide_focus_pending {
+            self.browser_ui.guide_focus_pending = false;
+            let guide = self.browser_ui.guide;
+            if let Some(focus) = self.control_focus.borrow().get("browser-guide-back").cloned() {
+                let owner = cx.entity().downgrade();
+                window.on_next_frame(move |window, cx| {
+                    let _ = owner.update(cx, |this, cx| {
+                        if this.page == Page::Download && this.browser_ui.guide == guide { window.focus(&focus, cx); }
+                    });
+                });
+            }
+        }
         let mut content = div().relative().w_full().when(self.notices_open, |s| s.h_full());
         if let Some((old_page, notices)) = self.previous_page {
             self.passive.set(true);
@@ -1716,6 +1676,7 @@ impl Render for SettingsWindow {
                     cx.stop_propagation();
                     return;
                 }
+                if event.keystroke.key == "escape" && this.close_browser_site_menu(window, cx) { cx.stop_propagation(); return; }
                 if event.keystroke.key == "escape" && this.help_open.take().is_some() {
                     cx.notify(); cx.stop_propagation(); return;
                 }
@@ -1752,7 +1713,10 @@ impl Render for SettingsWindow {
                         _ => {}
                     }
                 }
-                if event.keystroke.key == "escape" {
+                if event.keystroke.key == "escape" && this.browser_ui.guide > 0 {
+                    this.close_browser_guide(window, cx);
+                    cx.stop_propagation();
+                } else if event.keystroke.key == "escape" {
                     window.remove_window();
                     cx.stop_propagation();
                 } else if event.keystroke.key == "tab" {
@@ -1833,6 +1797,7 @@ impl Render for SettingsWindow {
                             .when(self.notices_open, |s| s.overflow_hidden())
                             .track_scroll(&self.scroll)
                             .on_scroll(cx.listener(|this, _, _, cx| {
+                                if this.browser_ui.guide == 2 { cx.notify(); }
                                 if this.component_menu_open || this.help_open.is_some() {
                                     this.component_menu_open = false;
                                     this.help_open = None;
@@ -1852,6 +1817,7 @@ impl Render for SettingsWindow {
                     let origin = bounds.origin + point(px(0.), (bounds.size.height - thumb) * progress);
                     window.paint_quad(fill(Bounds::new(origin, size(bounds.size.width, thumb)), p.neutral.opacity(0.4)));
                 }).size_full()));
+        self.browser_demo_tick(window);
         self.motion.finish(window);
         root.tooltip_root(&self.tooltips)
     }
@@ -2195,8 +2161,34 @@ impl Prototype {
         if let Some(snapshot) = projection.queue.as_mut() {
             use ameow_next::download::{preparation::PreparationPhase, runtime_update::RuntimeUpdatePhase};
             let snapshot = std::sync::Arc::make_mut(snapshot);
-            if scene.state == "browser-sessions" {
-                snapshot.browser_sessions.sites = vec![ameow_next::browser_sessions::SiteView {site:"bilibili.com".into(),source_id:"a".repeat(32),source_name:"Microsoft Edge".into(),grant_id:"b".repeat(32),synced_at:ameow_next::browser_sessions::now(),cookie_count:3,skipped_partitioned:0,last_result:None}];
+            if matches!(scene.state.as_str(), "browser-sessions" | "browser-session-failed" | "browser-session-partitioned" | "browser-session-long") {
+                use ameow_next::browser_sessions::{SiteView, SyncResult, SyncError};
+                let at = ameow_next::browser_sessions::now();
+                snapshot.browser_sessions.sites = [
+                    ("bilibili.com", 3, 0, Some(SyncResult { at, error: None })),
+                    ("youtube.com", 0, 2, Some(SyncResult { at, error: None })),
+                    ("bsky.app", 2, 0, Some(SyncResult { at, error: Some(SyncError::Bridge) })),
+                    ("imgur.com", 0, 0, Some(SyncResult { at, error: None })),
+                    ("x.com", 2, 0, None),
+                    ("vimeo.com", 4, 0, Some(SyncResult { at, error: None })),
+                ].into_iter().enumerate().map(|(index, (site, cookie_count, skipped_partitioned, last_result))| SiteView {
+                    site: site.into(), source_id: "a".repeat(32), source_name: "Microsoft Edge".into(),
+                    grant_id: format!("{index:032}"), synced_at: at, cookie_count, skipped_partitioned, last_result,
+                }).collect();
+                match scene.state.as_str() {
+                    "browser-session-failed" => { snapshot.browser_sessions.sites = vec![snapshot.browser_sessions.sites[2].clone()]; },
+                    "browser-session-partitioned" => { snapshot.browser_sessions.sites = vec![snapshot.browser_sessions.sites[1].clone()]; },
+                    "browser-session-long" => {
+                        let site = &mut snapshot.browser_sessions.sites[0];
+                        site.site = "very-long-unknown-example-site-name-that-must-wrap.example".into();
+                        site.source_name = "Unknown source with a long browser profile name 示例浏览器配置".into();
+                        site.source_id = "long-source-identifier-".repeat(5);
+                        snapshot.browser_sessions.sites.truncate(1);
+                    },
+                    _ => {},
+                }
+            } else if scene.state == "browser-session-empty" {
+                snapshot.browser_sessions = Default::default();
             } else if scene.state == "browser-session-error" {
                 snapshot.browser_sessions.error = Some("E_SESSION_STORAGE".into());
             }
@@ -2241,6 +2233,11 @@ impl Prototype {
                 };
                 view.health = Some(Ok(()));
                 view.notice = None;
+                view.browser_ui = browser_sessions_ui::BrowserUi::default();
+                view.browser_ui.guide = match scene.state.as_str() { "browser-connect" | "browser-connect-demo" => 1, _ => 0 };
+                view.browser_ui.guide_focus_pending = view.browser_ui.guide > 0;
+                view.browser_ui.details = scene.state == "browser-session-long";
+                if view.browser_ui.guide > 0 { view.browser_ui.preview_path(); }
                 view.open_pending = scene.state == "folder-opening";
                 view.help_open = match scene.state.as_str() {
                     "app-help" => Some("update-auto-check-help"),

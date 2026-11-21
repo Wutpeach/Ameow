@@ -6,6 +6,7 @@ const out = new URL('./dist/', import.meta.url);
 await mkdir(out, { recursive: true });
 await build({ entryPoints: ['src/background.mjs', 'src/popup.mjs'], outdir: fileURLToPath(out), bundle: true, format: 'esm', target: 'chrome120', minify: false });
 await build({ entryPoints: ['src/page.mjs'], outdir: fileURLToPath(out), bundle: true, format: 'iife', target: 'chrome120', loader: { ".svg": "text", ".css": "text" } });
+await copyFile(new URL('../assets/brand/tray/macos/ameow-menu-bar-white.svg', import.meta.url), new URL('ameow-cat.svg', out));
 await copyFile(new URL('src/page.css', import.meta.url), new URL('page.css', out));
 for (const file of ['manifest.json', 'popup.html', 'popup.css']) await copyFile(new URL(file, import.meta.url), new URL(file, out));
 const manifest = JSON.parse(await readFile(new URL('manifest.json', out)));
