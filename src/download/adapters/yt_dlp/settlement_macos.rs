@@ -40,10 +40,11 @@ impl ManagedCompletion {
         matches!(self.phase, InvocationPhase::Resolve | InvocationPhase::Transfer)
     }
 
-    pub(crate) fn complete(&self, workspace: &Path) -> bool {
+    pub(crate) fn complete(&self, workspace: &Path, exit_code: u32) -> bool {
         match self.phase {
             InvocationPhase::Resolve => true,
-            InvocationPhase::Transfer => transfer_media_completion(workspace),
+            InvocationPhase::Transfer => transfer_media_completion(workspace)
+                || (exit_code != 0 && transfer_not_started(workspace)),
             #[cfg(test)]
             InvocationPhase::Fixture => true,
         }
@@ -190,6 +191,28 @@ fn transfer_media_completion(workspace: &Path) -> bool {
         && summary["protocol"] == selection["protocol"]
 }
 
+fn transfer_not_started(workspace: &Path) -> bool {
+    // The controlled before_dl print appends and closes before any media downloader runs.
+    for name in [SELECTION_FILE, "final-object.txt"] {
+        let path = workspace.join(name);
+        if !fs::symlink_metadata(&path).is_ok_and(|m| m.is_file() && m.len() == 0)
+            || !runtime::open_identity_file(&path)
+                .and_then(|file| file.metadata())
+                .is_ok_and(|m| m.len() == 0)
+        {
+            return false;
+        }
+    }
+    let Ok(entries) = fs::read_dir(workspace) else { return false };
+    for (index, entry) in entries.enumerate() {
+        let Ok(entry) = entry else { return false };
+        if index >= 64 || entry.file_name().to_str().is_none_or(|name| name.starts_with("media.")) {
+            return false;
+        }
+    }
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -313,6 +336,30 @@ mod tests {
             }
         }
     }
+    #[test]
+    fn preselection_failure_requires_empty_records_and_no_media_outputs() {
+        let workspace = tempfile::tempdir().unwrap();
+        let path = workspace.path();
+        let completion = ManagedCompletion::fixture(InvocationPhase::Transfer);
+        assert!(!completion.complete(path, 1));
+        for name in [SELECTION_FILE, "final-object.txt"] { fs::write(path.join(name), []).unwrap(); }
+        assert!(completion.complete(path, 1));
+        assert!(!completion.complete(path, 0));
+        for (name, bytes) in [(SELECTION_FILE, b"partial".as_slice()), ("final-object.txt", b"final")] {
+            fs::write(path.join(name), bytes).unwrap();
+            assert!(!completion.complete(path, 1), "{name}");
+            fs::write(path.join(name), []).unwrap();
+        }
+        for name in [TRANSFER_INFO_FILE, "media.mp4.part", "media.mkv"] {
+            fs::write(path.join(name), []).unwrap();
+            assert!(!completion.complete(path, 1), "{name}");
+            fs::remove_file(path.join(name)).unwrap();
+        }
+        fs::remove_file(path.join(SELECTION_FILE)).unwrap();
+        std::os::unix::fs::symlink(path.join("final-object.txt"), path.join(SELECTION_FILE)).unwrap();
+        assert!(!completion.complete(path, 1));
+    }
+
     #[test]
     fn retained_filename_summary_uses_parent_media_and_completion_records() {
         let resolved = include_bytes!("../../../../tests/fixtures/yt-dlp-macos/resolved.json");
