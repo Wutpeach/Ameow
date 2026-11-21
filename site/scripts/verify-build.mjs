@@ -111,4 +111,10 @@ const zh = [...pages.keys()].filter((name) => name.startsWith('docs/'));
 const en = [...pages.keys()].filter((name) => name.startsWith('en/docs/')).map((name) => name.slice(3));
 assert.deepEqual(zh.sort(), en.sort(), 'Chinese and English route coverage differs');
 const contentPairs = zh.filter(name => pages.get(name).includes('data-pagefind-body')).length;
+// Layer precedence is fixed by first appearance, including declarations in earlier project CSS.
+const styleLinks = [...pages.get('docs/index.html').matchAll(/<link\b[^>]*href="([^"]+[.]css)"[^>]*>/g)];
+const styles = (await Promise.all(styleLinks.map(([, href]) => readFile(path.join(dist, targetFor(new URL(href, origin))), 'utf8')))).join('\n');
+const firstLayer = (css) => css.match(/@layer\s+([\w.-]+)/)?.[1].split('.')[0];
+assert.equal(firstLayer('@layer black { } @layer starlight, black;'), 'black', 'Detect the previous reversed cascade');
+assert.equal(firstLayer(styles), 'starlight', 'Black theme layers must be declared before project/component CSS can reverse them');
 console.log('Verified ' + pages.size + ' HTML pages, ' + contentPairs + ' bilingual content pairs, ' + (zh.length - contentPairs) + ' bilingual redirect pairs and ' + checked + ' local links/assets/fragments.');

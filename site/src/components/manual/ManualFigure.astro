@@ -41,6 +41,8 @@ const descriptions = {
   :global(:root[data-theme='light']) .manual-figure { --fig-surface: #fff; --fig-text: #27282b; --fig-muted: #62656b; --fig-badge: #f2f2f3; --fig-border: #dedee1; --fig-blue: #0285ff; --fig-green: #199a4d; --fig-red: #e3474c; }
   .figure-content { padding: 28px 20px; border: 1px solid var(--sl-color-hairline); border-radius: 12px; background: var(--sl-color-bg-sidebar); color: var(--fig-text); }
   .manual-figure :global(*) { box-sizing: border-box; margin-block: 0; }
+  /* Keep the theme's prose sizing outside the product redraw; local type rules still win. */
+  :global(:where(.manual-figure *)) { font-size: inherit; }
   .mac-example { width: 260px; max-width: 100%; margin-inline: auto; }
   .menu-bar { height: 30px; display: flex; align-items: center; justify-content: space-between; padding-inline: 12px; background: var(--fig-badge); border-radius: 5px; font-size: 12px; }
   .menu-trigger { display: grid; place-items: center; height: 30px; padding-inline: 8px; background: var(--fig-border); }

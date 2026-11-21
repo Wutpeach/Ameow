@@ -20,6 +20,7 @@ Keep the complete application directory. Ameow does not register a global comman
 
 <Tabs syncKey="cli-platform">
 <TabItem label="Windows">
+<div>
 
 `ameow-cli.exe` sits beside `AmeowLauncher.exe`. Install or extract the entire package, and keep its directory structure intact.
 
@@ -32,8 +33,10 @@ $Cli = 'D:\Apps\Ameow\ameow-cli.exe'
 
 You can optionally add that directory to your user `PATH`, then use `ameow-cli --help`. Use `./ameow-cli.exe` when running from its current directory; `&` above is PowerShell's syntax for invoking a quoted path.
 
+</div>
 </TabItem>
 <TabItem label="Mac">
+<div>
 
 In a complete `Ameow.app`, the entry is `Contents/MacOS/ameow-cli`. For an app in `/Applications`, run this in zsh or bash:
 
@@ -51,6 +54,7 @@ ameow-cli --help
 
 To keep it, add the alias to your shell configuration yourself. Invoke the CLI from its original app bundle, preserving bundle members and signatures.
 
+</div>
 </TabItem>
 </Tabs>
 
@@ -60,6 +64,7 @@ Have a public media URL ready and set the CLI path as above. After submission su
 
 <Tabs syncKey="cli-platform">
 <TabItem label="Windows">
+<div>
 
 This PowerShell example asks for the link:
 
@@ -77,8 +82,10 @@ $Task = $Receipt.result.task_id
 & $Cli --json wait $Task --timeout 300
 ~~~
 
+</div>
 </TabItem>
 <TabItem label="Mac">
+<div>
 
 Submit from zsh/bash:
 
@@ -96,6 +103,7 @@ task='INSTANCE:JOB'
 "$cli" --json wait "$task" --timeout 300
 ~~~
 
+</div>
 </TabItem>
 </Tabs>
 

@@ -25,7 +25,9 @@ export default defineConfig({
 	integrations: [
 		starlight({
 			plugins: [starlightThemeBlack({ sidebar: { useDropdowns: true } })],
-			customCss: ['./src/styles/pagination.css', './src/styles/manual.css'],
+			// Declare theme precedence before any project or component layer can be emitted.
+			customCss: ['starlight-theme-black/styles/layers', './src/styles/pagination.css', './src/styles/manual.css'],
+			components: { SiteTitle: './src/components/ManualSiteTitle.astro' },
 			title: 'Ameow',
 			description: 'Ameow · Windows and macOS floating downloads · 安装与使用指南。',
 			favicon: '/ameow.ico',

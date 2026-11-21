@@ -20,6 +20,7 @@ import CliPlatformAnchors from '../../../components/manual/CliPlatformAnchors.as
 
 <Tabs syncKey="cli-platform">
 <TabItem label="Windows">
+<div>
 
 `ameow-cli.exe` 与 `AmeowLauncher.exe` 位于同一目录。安装或完整解压后即可调用，保留应用目录结构。
 
@@ -32,8 +33,10 @@ $Cli = 'D:\Apps\Ameow\ameow-cli.exe'
 
 也可自行把该目录加入用户 `PATH`，再使用 `ameow-cli --help`。从当前目录运行时使用 `./ameow-cli.exe`；上面的 `&` 是 PowerShell 调用带引号路径的语法。
 
+</div>
 </TabItem>
 <TabItem label="Mac">
+<div>
 
 在完整 `Ameow.app` 中，入口是 `Contents/MacOS/ameow-cli`。例如应用放在 `/Applications` 时，在 zsh 或 bash 中运行：
 
@@ -51,6 +54,7 @@ ameow-cli --help
 
 需要长期保留时，自行将别名加入所用 shell 的配置。请从原应用包调用，保留包内成员和签名。
 
+</div>
 </TabItem>
 </Tabs>
 
@@ -60,6 +64,7 @@ ameow-cli --help
 
 <Tabs syncKey="cli-platform">
 <TabItem label="Windows">
+<div>
 
 PowerShell 会询问链接：
 
@@ -77,8 +82,10 @@ $Task = $Receipt.result.task_id
 & $Cli --json wait $Task --timeout 300
 ~~~
 
+</div>
 </TabItem>
 <TabItem label="Mac">
+<div>
 
 在 zsh/bash 中提交：
 
@@ -96,6 +103,7 @@ task='INSTANCE:JOB'
 "$cli" --json wait "$task" --timeout 300
 ~~~
 
+</div>
 </TabItem>
 </Tabs>
 
