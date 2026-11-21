@@ -35,7 +35,7 @@ impl DownloadUi {
                         }
                         let diagnostic = match &command { QueueCommand::CopyDiagnostic(job) => Some(*job), _ => None };
                         // Keep every network/runtime action outside this test host's command set.
-                        let reply = if saving || matches!(&command, QueueCommand::Stop | QueueCommand::CopyDiagnostic(_)) {
+                        let reply = if saving || matches!(&command, QueueCommand::Stop | QueueCommand::CopyDiagnostic(_) | QueueCommand::RemoveBrowserSession { .. }) {
                             backend.apply(command)
                         } else { CommandReply::Error("原生验收仅允许设置、诊断与退出".into()) };
                         writeln!(log, "{}", reply_summary(&reply)).unwrap();

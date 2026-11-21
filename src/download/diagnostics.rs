@@ -59,11 +59,16 @@ impl Failure {
         if error.starts_with("E_MEDIA_UNVERIFIED:") { known("E_MEDIA_UNVERIFIED", "verify") }
         else if error.starts_with("E_MEDIA_INVALID:") { known("E_MEDIA", "verify") }
         else if error.starts_with("E_OBJECT_UNSUPPORTED:") { known("E_OBJECT_UNSUPPORTED", "verify") }
+        else if error.starts_with("E_CLIP_UNSUPPORTED:") { known("E_CLIP_UNSUPPORTED", "verify") }
         else { Self::local(phase) }
     }
 }
 pub(crate) fn known(code: &str, stage: &str) -> Failure {
     let (reason, suggestion) = match code {
+        "E_CLIP_UNSUPPORTED" => (
+            "The source could not deliver a bounded fast clip",
+            "Check the selected range and source format; no whole-video fallback was performed",
+        ),
         "E_OBJECT_UNSUPPORTED" => (
             "This link did not resolve to one verifiable media object",
             "Use a public single-work link; collections are not supported here yet",
@@ -156,6 +161,7 @@ pub(crate) fn known(code: &str, stage: &str) -> Failure {
     let code = if matches!(
         code,
         "E_MEDIA"
+            | "E_CLIP_UNSUPPORTED"
             | "E_MEDIA_UNVERIFIED"
             | "E_OBJECT_UNSUPPORTED"
             | "E_URL_UNSAFE"

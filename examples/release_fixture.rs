@@ -33,6 +33,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     fs::write(input.join("Ameow.exe"), &app)?;
     fs::write(input.join("AmeowLauncher.exe"), &launcher)?;
     fs::write(input.join("ameow-cli.exe"), &cli)?;
+    let product = PathBuf::from(&args[1]);
+    let product = product.parent().ok_or("fixture app directory")?;
+    let mut browser = Vec::new();
+    for name in ["ameow-browser-host.exe", "browser-extension/manifest.json", "browser-extension/background.js", "browser-extension/popup.js", "browser-extension/popup.html", "browser-extension/popup.css", "browser-extension/build.json", "browser-extension/LICENSES.txt"] {
+        let bytes = fs::read(product.join(name))?;
+        let path = input.join(name);
+        fs::create_dir_all(path.parent().ok_or("browser asset directory")?)?;
+        fs::write(path, &bytes)?;
+        browser.push(FileRecord::of(name, &bytes));
+    }
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let requirements: serde_json::Value = serde_json::from_slice(&fs::read(
         repository.join("distribution/license-inputs.json"),
@@ -57,7 +67,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     // All-zero source identity deliberately identifies a synthetic layout fixture, not a release build.
     let build = Build {
-        schema: 2,
+        schema: 3,
         version: args[3].clone(),
         target: TARGET.into(),
         commit: "0".repeat(40),
@@ -71,6 +81,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         app: FileRecord::of("Ameow.exe", &app),
         launcher: FileRecord::of("AmeowLauncher.exe", &launcher),
         cli: Some(FileRecord::of("ameow-cli.exe", &cli)),
+        browser,
         notices,
     };
     fs::write(

@@ -5,6 +5,11 @@ pub mod output;
 mod output_names;
 pub mod contract;
 pub mod adapter;
+pub mod inspection;
+#[cfg(all(test, feature = "dev-tools", windows))]
+mod inspection_lifecycle_tests;
+#[cfg(all(test, windows))]
+mod session_tests;
 pub mod adapters;
 pub mod composition;
 #[cfg(all(windows, debug_assertions, feature = "cancel-fixture"))]
@@ -78,6 +83,7 @@ pub enum Phase {
     Validating,
     Publishing,
     Held,
+    Inspected,
     Success,
     Partial,
     Failure,
@@ -85,11 +91,13 @@ pub enum Phase {
 }
 impl Phase {
     pub fn terminal(&self) -> bool {
-        matches!(self, Self::Success | Self::Partial | Self::Failure | Self::Cancelled)
+        matches!(self, Self::Inspected | Self::Success | Self::Partial | Self::Failure | Self::Cancelled)
     }
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Snapshot {
+    #[serde(default)]
+    pub inspection: Option<inspection::Inspection>,
     pub job_id: u64,
     pub attempt: u64,
     pub revision: u64,
@@ -119,6 +127,7 @@ pub struct Snapshot {
 impl Default for Snapshot {
     fn default() -> Self {
         Self {
+            inspection: None,
             job_id: 0,
             attempt: 0,
             revision: 0,
@@ -275,6 +284,7 @@ impl Coordinator {
     }
 }
 struct PreparedAttempt {
+    inspect_only: bool,
     lease: Arc<RuntimeLease>,
     admit: IdentityAdmission,
     resume: Option<contract::CollectionState>,
@@ -351,6 +361,8 @@ fn execute(
     let mut workspace = None;
     let mut lease = None;
     let mut destination_stage = None;
+    let mut authentication = None;
+    let mut authorization_watch = None;
     let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         runtime::check_data_location(&manager.root)?;
         runtime::check_data_location(&accepted.intent.output_dir)?;
@@ -528,7 +540,10 @@ fn execute(
                 }
             }
         });
+        authentication = crate::browser_sessions::Store::new(&manager.root).snapshot(&accepted.intent.url, working)?;
+        if let Some(auth) = &authentication { authorization_watch = Some(auth.watch(control.clone())?); }
         let context = ExecutionContext {
+            authentication: authentication.as_ref(),
             workspace: working,
             lease: runtime,
             requirements: services.adapter.requirements(),
@@ -537,6 +552,19 @@ fn execute(
             admission: admit,
             events,
         };
+        if prepared.inspect_only {
+            let result = services.adapter.inspect(&ExecutionRequest { accepted: accepted.clone(), resume: None }, &context)
+                .map_err(|failure| {
+                    let message = format!("{}: {}", failure.code, failure.reason);
+                    adapter_failure = Some(failure);
+                    message
+                })?;
+            if context.cancelled() { return Err("Cancelled after settled inspection".into()); }
+            let mut state = lock(&state);
+            state.snapshot.inspection = Some(result);
+            state.publish();
+            return Ok(());
+        }
         let mut resume = prepared.resume.clone();
         if let Some(saved) = &mut resume {
             saved.files.retain(|entry| {
@@ -549,7 +577,7 @@ fn execute(
             state.snapshot.collection = resume.clone();
             state.publish();
         }
-        let batch = services
+        let mut batch = services
             .adapter
             .execute_batch(
                 &ExecutionRequest {
@@ -563,6 +591,7 @@ fn execute(
                 adapter_failure = Some(failure);
                 message
             })?;
+        for artifact in &mut batch.artifacts { artifact.identity = context.public_identity(&artifact.identity)?; }
         if batch.collection {
             let failure = batch.failure.clone();
             adapter_failure = failure.clone();
@@ -633,7 +662,8 @@ fn execute(
         Ok::<(), String>(())
     }));
     let error_phase = lock(&state).snapshot.phase.clone();
-    let (phase, mut message) = match outcome {
+    let (mut phase, mut message) = match outcome {
+        Ok(Ok(())) if prepared.inspect_only => (Phase::Inspected, "Metadata inspected; no media downloaded".into()),
         Ok(Ok(())) => (Phase::Success, "Verified media safely delivered".into()),
         Ok(Err(error)) => (
             if control.is_cancelled() {
@@ -665,13 +695,16 @@ fn execute(
             )
         }
     };
-    let failure = if matches!(phase, Phase::Failure | Phase::Partial) {
+    let mut failure = if matches!(phase, Phase::Failure | Phase::Partial) {
         Some(adapter_failure.unwrap_or_else(|| diagnostics::Failure::from_error(&error_phase, &message)))
     } else if phase == Phase::Cancelled {
         Some(diagnostics::cancelled())
     } else {
         None
     };
+    if (authentication.is_some() || prepared.inspect_only) && let Some(failure) = &failure {
+        message = format!("{}: {}", failure.code, failure.reason);
+    }
     if let Some(working) = workspace.as_ref() {
         let _ = fs::write(working.path().join("attempt-error.log"), &message);
     }
@@ -688,13 +721,16 @@ fn execute(
     // this owner's exact workspace. A failed cleanup remains Held with its runtime lease retained.
     if let Some(owned) = workspace {
         let path = owned.keep();
-        let evidence: Vec<_> = services
+        let mut evidence: Vec<_> = services
             .adapter
             .evidence_files()
             .iter()
             .chain(services.verifiers.evidence_files().iter())
             .copied()
             .collect();
+        if authentication.is_some() || prepared.inspect_only {
+            evidence.retain(|(name, _)| name.contains("settlement") || name.ends_with("-media.json"));
+        }
         match preserve_diagnostics(&manager.root, &path, job, &evidence) {
             Ok(diagnostics) => {
                 let mut state = lock(&state);
@@ -724,6 +760,14 @@ fn execute(
             }
         }
     }
+    drop(authorization_watch);
+    if prepared.inspect_only && authentication.as_ref().is_some_and(|auth| !auth.valid()) { control.cancel(); }
+    if phase == Phase::Inspected && control.is_cancelled() {
+        phase = Phase::Cancelled;
+        failure = Some(diagnostics::cancelled());
+        lock(&state).snapshot.inspection = None;
+    }
+    drop(authentication);
     drop(lease);
     drop(prepared); // shared attempt lease is released before this runner publishes resources_released.
     {
@@ -733,13 +777,14 @@ fn execute(
         state.snapshot.revision += 1;
         state.publish();
     }
+    let inspected = phase == Phase::Inspected;
     terminal(
         &state,
         job,
         attempt,
         phase,
         failure.map_or_else(
-            || "Verified media safely delivered".into(),
+            || if inspected { "Metadata inspected; no media downloaded".into() } else { "Verified media safely delivered".into() },
             |failure| format!("{}: {}", failure.code, failure.reason),
         ),
     );

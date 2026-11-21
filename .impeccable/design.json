@@ -333,6 +333,12 @@
   },
   "components": [
     {
+      "name": "页面视频胶囊与 Peek",
+      "kind": "toolbar",
+      "refersTo": "page-video-toolbar / page-video-controls",
+      "description": "28px高剪刀/猫图文胶囊，展开146px且内容固定布局。Peek为预览→64px全宽轨道→32px图标栏，8px 10px边距，系统UI字。单Marker空时添加/有标记时清空，左右边缘直接拉入/出端，不设独立清理按钮；时间按需编辑。单点完整Marker、有效双端相向端帽；Peek展示禁选而编辑保持原生。现值见browser-extension/src/page-ui.css，正式行为见page-video-tools。"
+    },
+    {
       "name": "标准操作",
       "kind": "button",
       "refersTo": "button-standard",

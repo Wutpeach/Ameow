@@ -2,9 +2,9 @@
   "schema": 1,
   "scope": "owner-only private flow validation; public distribution blocked",
   "graphMethod": "cargo tree --locked --offline --target x86_64-pc-windows-msvc --edges normal,build --prefix none --format {p}|{l}",
-  "packageCount": 450,
-  "textBodyCount": 317,
-  "cargoLockSha256": "77baeb94d6f75a89b88400ffa45c33bff5efef66a343e3fd86990eed02c1b065",
+  "packageCount": 452,
+  "textBodyCount": 319,
+  "cargoLockSha256": "75371fa7176a93ad010edb63eba560a01c4c052bbd836b10e2da64faeda8d2e6",
   "packageTextGaps": [
     "accesskit@0.24.1",
     "accesskit_consumer@0.38.0",
@@ -7390,6 +7390,50 @@
             "commit": "8271551172eb6fa4cba47369aedd93790c623df9",
             "repository": "https://github.com/aclysma/profiling",
             "path": "LICENSE-APACHE"
+          }
+        }
+      ]
+    },
+    {
+      "name": "psl",
+      "version": "2.1.258",
+      "licenseExpression": "MIT OR Apache-2.0",
+      "registrySource": "registry+https://github.com/rust-lang/crates.io-index",
+      "cargoLockChecksum": "3dd856c90936a531c75647b54c4222b4745ceedf60d0a0f14853bb9458d69af9",
+      "texts": [
+        {
+          "name": "LICENSE",
+          "sha256": "f09adf500d35265ee63ef552f8e61487e09ee549da66eaf0ec7924e3ad7cf14b",
+          "bytes": 1074,
+          "bodyAnchor": "SHA256 f09adf500d35265ee63ef552f8e61487e09ee549da66eaf0ec7924e3ad7cf14b",
+          "source": {
+            "kind": "locked-crate",
+            "archive": "psl-2.1.258.crate",
+            "archiveSha256": "3dd856c90936a531c75647b54c4222b4745ceedf60d0a0f14853bb9458d69af9",
+            "member": "psl-2.1.258/LICENSE",
+            "cargoLockChecksum": "3dd856c90936a531c75647b54c4222b4745ceedf60d0a0f14853bb9458d69af9"
+          }
+        }
+      ]
+    },
+    {
+      "name": "psl-types",
+      "version": "2.0.11",
+      "licenseExpression": "MIT OR Apache-2.0",
+      "registrySource": "registry+https://github.com/rust-lang/crates.io-index",
+      "cargoLockChecksum": "33cb294fe86a74cbcf50d4445b37da762029549ebeea341421c7c70370f86cac",
+      "texts": [
+        {
+          "name": "LICENSE",
+          "sha256": "7b25e06666d3797292dbb4b1c3f5ba509ebe02fce102e1dca7ca81dd3cbfbeb7",
+          "bytes": 1074,
+          "bodyAnchor": "SHA256 7b25e06666d3797292dbb4b1c3f5ba509ebe02fce102e1dca7ca81dd3cbfbeb7",
+          "source": {
+            "kind": "locked-crate",
+            "archive": "psl-types-2.0.11.crate",
+            "archiveSha256": "33cb294fe86a74cbcf50d4445b37da762029549ebeea341421c7c70370f86cac",
+            "member": "psl-types-2.0.11/LICENSE",
+            "cargoLockChecksum": "33cb294fe86a74cbcf50d4445b37da762029549ebeea341421c7c70370f86cac"
           }
         }
       ]

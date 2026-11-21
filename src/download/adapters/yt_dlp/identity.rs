@@ -7,7 +7,7 @@ pub fn attest(accepted: &Accepted, metadata: &Value) -> Result<Identity, String>
             { return Err("Metadata is a playlist/multiple/indirect object".into()); }
             let frozen = format!("{:x}", Sha256::digest(url.as_bytes()));
             let id = metadata["id"].as_str().filter(|s| !s.trim().is_empty()).unwrap_or(&frozen);
-            let title = crate::download::diagnostics::safe_title(metadata["title"].as_str().filter(|s| !s.trim().is_empty()).unwrap_or(id));
+            let title = metadata["title"].as_str().filter(|s| !s.trim().is_empty()).unwrap_or(id).to_owned();
             return Ok(Identity {
                 id: frozen,
                 title,
@@ -78,9 +78,7 @@ pub fn attest(accepted: &Accepted, metadata: &Value) -> Result<Identity, String>
                 id
             }.into(),
             part: if extractor == "BiliBili" { Some(id.rsplit_once("_p").and_then(|(_, p)| p.parse().ok()).unwrap_or(1)) } else { None },
-            title: crate::download::diagnostics::safe_title(
-                metadata["title"].as_str().filter(|s| !s.trim().is_empty()).unwrap_or(id),
-            ),
+            title: metadata["title"].as_str().filter(|s| !s.trim().is_empty()).unwrap_or(id).to_owned(),
             site: if extractor == "Youtube" { Site::Youtube } else { Site::Bilibili },
         })
     }
@@ -146,7 +144,7 @@ mod tests {
     use serde_json::json;
 
     fn generic(url: &str) -> Accepted {
-        Accepted::new(DownloadIntent { url: url.into(), quality: Quality::Balanced, output_dir: std::env::temp_dir() }).unwrap()
+        Accepted::new(DownloadIntent { clip: None, url: url.into(), quality: Quality::Balanced, output_dir: std::env::temp_dir() }).unwrap()
     }
     #[test]
     fn generic_identity_allows_native_normalization_and_optional_labels() {
@@ -169,7 +167,7 @@ mod tests {
     #[test]
     fn youtube_id_containing_part_like_text_is_preserved_through_canonical_transfer() {
         let output = tempfile::tempdir().unwrap();
-        let accepted = Accepted::new(DownloadIntent {
+        let accepted = Accepted::new(DownloadIntent { clip: None,
             url: "https://www.youtube.com/watch?v=abc_p123456".into(),
             quality: Quality::Balanced,
             output_dir: output.path().into(),

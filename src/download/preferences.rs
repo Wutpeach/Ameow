@@ -125,7 +125,7 @@ mod tests {
     use std::os::windows::fs::OpenOptionsExt;
 
     fn accepted(url: &str) -> Accepted {
-        Accepted::new(DownloadIntent { url: url.into(), quality: Quality::Balanced, output_dir: std::env::temp_dir() }).unwrap()
+        Accepted::new(DownloadIntent { clip: None, url: url.into(), quality: Quality::Balanced, output_dir: std::env::temp_dir() }).unwrap()
     }
 
     #[test]

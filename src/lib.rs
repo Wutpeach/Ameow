@@ -1,6 +1,9 @@
 //! Native download backend. One logical queue owns Jobs; presentation reads immutable snapshots.
+#[cfg(all(feature = "dev-tools", not(debug_assertions)))]
+compile_error!("dev-tools must never be used in a release build");
 pub mod download;
 pub mod shortcut;
+pub mod browser_sessions;
 #[cfg(any(target_os = "windows", target_os = "macos"))]
 pub mod control;
 pub mod app_update;

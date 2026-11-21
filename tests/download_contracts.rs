@@ -17,7 +17,7 @@ use std::{
 };
 
 fn accepted(url: &str, root: &std::path::Path) -> Result<Accepted, String> {
-    Accepted::new(DownloadIntent {
+    Accepted::new(DownloadIntent { clip: None,
         url: url.into(),
         quality: Quality::Balanced,
         output_dir: root.into(),
