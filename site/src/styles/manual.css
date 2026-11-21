@@ -1,0 +1,61 @@
+/* Cancel the theme's blanket desktop font size; prose and embedded UI own their roles. */
+@layer black {
+  [data-has-sidebar] .sl-markdown-content * { font-size: revert-layer; }
+}
+
+[data-has-sidebar] .sl-markdown-content {
+  font-size: 1rem;
+  line-height: 1.75;
+}
+[data-has-sidebar] .sl-markdown-content :where(p, li, blockquote, table) {
+  text-wrap: pretty;
+}
+[data-has-sidebar] .sl-markdown-content > :where(p, ul, ol, details, .starlight-aside) {
+  margin-block-start: 1.25rem;
+}
+[data-has-sidebar] .sl-markdown-content :where(h1, h2, h3, h4) {
+  padding-top: 0;
+  font-weight: 600;
+  text-wrap: balance;
+  letter-spacing: -.015em;
+}
+[data-has-sidebar] .sl-markdown-content h2 { font-size: 1.375rem; line-height: 1.4; }
+[data-has-sidebar] .sl-markdown-content h3 { font-size: 1.125rem; line-height: 1.5; }
+[data-has-sidebar] .sl-markdown-content h4 { font-size: 1rem; line-height: 1.5; }
+[data-has-sidebar] .sl-markdown-content > .sl-heading-wrapper:not(:first-child) { margin-block-start: 2.5rem; }
+[data-has-sidebar] .sl-markdown-content :where(strong, b) { font-weight: 600; }
+[data-has-sidebar] .sl-markdown-content .sl-link-card { margin: 0; }
+[data-has-sidebar] .sl-markdown-content .sl-link-card .title { font-size: 1rem; font-weight: 600; }
+[data-has-sidebar] .sl-markdown-content .sl-link-card .description { font-size: .875rem; line-height: 1.6; }
+[data-has-sidebar] .sl-markdown-content .release-meta { font-size: .875rem; color: var(--sl-color-gray-2); }
+[data-has-sidebar] .expressive-code { font-size: .875rem; }
+[data-has-sidebar] .sl-markdown-content .expressive-code :where(pre, code) { font-size: inherit; }
+[data-has-sidebar] .sl-markdown-content .expressive-code button { font-size: .875rem; }
+[data-has-sidebar] .sl-markdown-content > details { padding-block: .5rem; }
+[data-has-sidebar] .sl-markdown-content > details > summary { font-weight: 600; cursor: pointer; }
+[data-has-sidebar] .sl-markdown-content > details > :not(summary) { margin-block-start: .75rem; }
+
+@media (max-width: 63.99rem) {
+  [data-has-sidebar] header.header { padding-inline: 16px; }
+  [data-has-sidebar] header.header > .header { padding-inline: 0; gap: 12px; }
+  [data-has-sidebar] .title-wrapper > div { gap: 12px; }
+  [data-has-sidebar] .title-wrapper .site-title { display: inline-flex; flex: none; gap: 8px; font-size: 1rem; }
+  [data-has-sidebar] .site-title > span { flex: none; overflow: visible; white-space: nowrap; }
+  [data-has-sidebar] black-menu-button { flex: none; }
+  [data-has-sidebar] black-menu-button button { margin-inline: 0; padding-inline: 6px; gap: 6px; white-space: nowrap; }
+  [data-has-sidebar] black-menu-button .label { flex: none; white-space: nowrap; }
+  /* Use the same native collapsible sidebar in the phone menu. */
+  [data-has-sidebar] .mobile-nav { display: none; }
+  [data-has-sidebar] body[data-mobile-menu-expanded] nav.sidebar { display: block; }
+  [data-has-sidebar] body[data-mobile-menu-expanded] .sidebar-pane {
+    inset: var(--sl-nav-height) 0 0;
+    width: 100%; height: auto; visibility: visible;
+    padding: 12px 16px 24px;
+    background: var(--sl-color-bg-sidebar); overflow-y: auto;
+  }
+  [data-has-sidebar] body[data-mobile-menu-expanded] .sidebar-pane::after { display: none; }
+  [data-has-sidebar] body[data-mobile-menu-expanded] .sidebar-content {
+    width: 100%; height: auto; min-height: 0; padding: 0; overflow: visible;
+  }
+  [data-has-sidebar] body[data-mobile-menu-expanded] .sidebar-content .entry-link { width: 100%; min-height: 36px; }
+}

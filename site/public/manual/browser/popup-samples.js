@@ -160,9 +160,37 @@ globalThis.ameowPopupSamples = {
     "pages_status": {
       "ok": true,
       "value": {
-        "enabled": false
+        "enabled": true
       }
     }
   },
-  "limits": "Synthetic view data only; no cookies, account or real permission. Status is ok + value.sites with no value.error to express current connection. Old snapshot remains independent."
+  "limits": "Synthetic view data only; no cookies, account or real permission. Status is ok + value.sites with no value.error to express current connection. Old snapshot remains independent.",
+  "page_tools": {
+    "supported_origins": [
+      "https://www.youtube.com/*",
+      "https://www.bilibili.com/*"
+    ],
+    "default_preference": true,
+    "examples": [
+      {
+        "label": "default",
+        "stored_choice": null,
+        "permission": true,
+        "enabled": true
+      },
+      {
+        "label": "user_off",
+        "stored_choice": false,
+        "permission": true,
+        "enabled": false
+      },
+      {
+        "label": "permission_unavailable",
+        "stored_choice": null,
+        "permission": false,
+        "enabled": false
+      }
+    ],
+    "note": "Synthetic extension-only responses. User choice and actual browser permission are independent. No cookies, account, Native registration or download. This does not verify installation permission UI."
+  }
 };

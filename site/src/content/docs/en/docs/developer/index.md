@@ -17,7 +17,7 @@ Run `./target/debug/ameow.exe` on Windows or `./target/debug/ameow` on Mac. Find
 
 ## CLI
 
-For package installation and commands, see [Command line and agents](../cli/). The following commands require source that includes the CLI.
+For package installation and commands, see [Command line and agents](../cli/).
 
 Build ordinary control with its adjacent application, using one fixed target:
 
@@ -27,7 +27,7 @@ cargo build --locked --bin ameow --bin ameow-cli --target-dir target
 
 Run `./target/debug/ameow-cli.exe --help` in Windows PowerShell, or `./target/debug/ameow-cli --help` in Mac zsh/bash. Help does not start the app. See the repository [CLI reference](https://github.com/Wutpeach/Ameow/blob/main/docs/cli.md) for an isolated desktop instance from a source build.
 
-For developer scenarios only, build a debug CLI with `dev-tools`. There is no setting to enable it, and release builds explicitly reject this feature. Build once in a source checkout containing that entry:
+For developer scenarios only, build a debug CLI with `dev-tools`. There is no setting to enable it, and release builds explicitly reject this feature:
 
 ~~~sh
 cargo build --locked --features dev-tools --bin ameow-cli --target-dir target

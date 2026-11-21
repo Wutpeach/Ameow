@@ -3,14 +3,20 @@ title: Quick start
 description: Start Ameow, paste a link, and complete your first download.
 ---
 
-import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+import { CardGrid, LinkCard, Steps } from '@astrojs/starlight/components';
 import ManualFigure from '../../../../components/manual/ManualFigure.astro';
 
 Ameow is a floating download app for Windows and Apple Silicon Macs. [Download and install](./downloads/), then launch from the Start menu or `AmeowLauncher.exe` on Windows, or open `Ameow.app` from Finder on Mac.
 
 <ManualFigure kind="start" lang="en" />
 
-Choose a destination in settings. Copy a public media link, move near the cat to expand Full, then paste. Versions with summon-shortcut support also offer `Ctrl+Shift+F` to open Full at the pointer. First use may need network access to prepare components. Once downloading and post-processing finish, double-click Full's empty background to open the destination.
+<Steps>
+1. Choose a destination in settings and copy a public media link.
+2. Move near the cat to expand Full, then press `Ctrl+V` or `⌘V` to paste. You can also press `Ctrl+Shift+F` to summon Full at the pointer.
+3. Wait for the download and post-processing to finish, then double-click Full's empty background to open the destination.
+</Steps>
+
+On first use, Ameow may need network access to prepare download components.
 
 <CardGrid>
 <LinkCard title="Downloads and queue" href="./desktop/links-and-queue/" description="Follow progress, cancel, or retry." />
@@ -19,6 +25,6 @@ Choose a destination in settings. Copy a public media link, move near the cat to
 <LinkCard title="Settings and updates" href="./desktop/settings/" description="Appearance, components, and app updates." />
 </CardGrid>
 
-Versions with extension support can [select a clip or authorize a site's session](./extension/). For terminal use, see the [command-line guide](./cli/). Version 0.5.0 does not include the summon shortcut, extension, or CLI.
+In your browser, [select a clip or authorize a site's session](./extension/). For terminal use, see the [command-line guide](./cli/).
 
 Need help? See [Troubleshooting](./troubleshooting/). To contribute code, start with [For developers](./developer/).

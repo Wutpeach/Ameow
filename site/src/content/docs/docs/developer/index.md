@@ -17,7 +17,7 @@ Windows 运行 `./target/debug/ameow.exe`，Mac 运行 `./target/debug/ameow`。
 
 ## CLI
 
-完整包安装与命令见[命令行与 Agent](../cli/)。以下命令需要包含 CLI 的源码。
+完整包安装与命令见[命令行与 Agent](../cli/)。
 
 普通控制 CLI 与相邻应用一起构建，使用固定 target：
 
@@ -27,7 +27,7 @@ cargo build --locked --bin ameow --bin ameow-cli --target-dir target
 
 Windows PowerShell 运行 `./target/debug/ameow-cli.exe --help`；Mac zsh/bash 运行 `./target/debug/ameow-cli --help`。运行 help 不会启动应用。源码开发中的独立桌面实例用法见仓库 [CLI 参考](https://github.com/Wutpeach/Ameow/blob/main/docs/cli.md)。
 
-仅开发场景才构建带 `dev-tools` 的 debug CLI。它没有设置开关，release 构建明确拒绝此特性。在包含该入口的源码目录构建一次：
+仅开发场景才构建带 `dev-tools` 的 debug CLI。它没有设置开关，release 构建明确拒绝此特性：
 
 ~~~sh
 cargo build --locked --features dev-tools --bin ameow-cli --target-dir target

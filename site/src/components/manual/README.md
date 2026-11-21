@@ -1,35 +1,31 @@
 # Manual interface figures
 
-Keep these components scoped to the manual. Desktop redraws preserve the current
-Rust layout, palette, fonts, control sizes and motion rules; read the owners named
-in DESIGN.md before changing them. Static crops use accurate alternative text,
-and interactive surfaces use named groups with keyboard access. Do not add a
-repetitive visible illustration caption.
+Keep these components scoped to the manual. Desktop redraws preserve actual Rust
+layout, palette, fonts, control sizes and motion. Read the owners in DESIGN.md
+before changing them. Do not add repetitive illustration captions. Prose styles
+must not override component typography; narrow native layouts may pan locally.
 
-The browser examples use the bundled extension frontend in public/manual/browser.
-Keep vendor files unchanged and retain LICENSES.txt. Fixture adapters operate only
-on in-page example state: no credentials, Native connection or download submission.
-Theme selection follows Starlight. At narrow widths preserve control sizes; give
-readers a visible hint and keyboard access when a native layout needs local panning.
+The clip uses the original Peek bundle and sample media. The outer controller runs
+one 12-second teaching loop only while visible. Steps and trusted iframe input
+pause it; five seconds after the last interaction it resumes. Held input prevents
+resuming, offscreen/hidden documents pause, and reduced motion shows a stable range
+with usable steps. Disconnect clears animation, idle timers and listeners. The
+adapter never submits a download or fabricates an accepted task.
 
-The product code head is d5298347 / PR76; the capture and popup build head remains
-01c2fad5. The product author confirms the later focus-lifecycle repair and OpenSpec
-archive do not change popup, brands, Peek, visible layouts or animation drawing.
-session-assets.json records both identities, original hashes and capture scope.
-NativeSessionFigure displays
-unmodified Gallery screenshots and the uninterrupted 10-second native MP4. Its
-viewing controls only play media; pictured product controls do not execute actions.
-The English installation still uses the original English poster; playing the
-shared native recording shows the Chinese product UI. Reduced motion keeps the
-poster, and playback pauses offscreen or while the document is hidden.
+The folder example uses the existing folder SVG as a pointer-following translucent
+blurred ghost. Pointer capture handles mouse/touch drop and cancellation; clicking
+or keyboard selection remains an equivalent action. It changes example state only.
+The Compact/Full motion owner in surface-motion.js is retained.
 
-sources/popup.html and vendor/popup.css and popup.js retain the original product bytes.
-popup.html adds CSP, the synthetic sample-contract responses and local resource
-paths; popup-fixture.js replaces only Chrome APIs and binds the parent theme using
-the original stylesheet palette. Never connect these examples to Native, accounts
-or a real permission request. The Peek bundle and its existing media are unchanged.
+The active popup is pinned to product 94183d09. session-assets.json records exact
+HTML/CSS/compiled JS/license/build identities. sources/popup.html keeps the original
+HTML; the served wrapper adds only CSP, local paths and safe sample responses.
+The API boundary is page-local: no accounts, Native registration, real permission
+request or system clipboard. Diagnostic copying writes preview memory. Page tools
+default on; a deliberate off choice is remembered per example site independently
+of session authorization. Theme binding reads the original stylesheet palette.
 
-The product asset erratum excludes true-entry Esc/Tab conclusions from the original
-captures. No keyboard-enter-reopens.png is referenced here, and no captured frame
-is claimed as proof of the later focus repair. The separate close → entry → Enter
-image pair remains valid within the product author's evidence scope.
+The former 01c2fad5 native screenshots and video remain historical assets, pinned
+to frozen candidate c617b99b in previousCandidate. Current pages do not embed the
+superseded two-step setup or shared-details views. New native session illustrations
+remain pending; never relabel old captures with a newer code head.

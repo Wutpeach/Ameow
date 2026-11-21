@@ -4,7 +4,6 @@ description: 调整外观，更新 Ameow 或管理下载组件。
 ---
 
 import ManualFigure from '../../../../components/manual/ManualFigure.astro';
-import NativeSessionFigure from '../../../../components/manual/NativeSessionFigure.astro';
 
 从 Full 右键菜单、Windows 托盘或 Mac 菜单栏打开设置。关闭设置窗口不会退出应用。
 
@@ -14,7 +13,7 @@ import NativeSessionFigure from '../../../../components/manual/NativeSessionFigu
 
 ## 呼出快捷键
 
-此快捷键需要支持它的版本，0.5.0 不提供。在常规页录入「呼出／隐藏 Ameow」，默认为 `Ctrl+Shift+F`。
+在常规页录入「呼出／隐藏 Ameow」，默认为 `Ctrl+Shift+F`。
 
 <ManualFigure kind="shortcut" />
 
@@ -31,11 +30,10 @@ import NativeSessionFigure from '../../../../components/manual/NativeSessionFigu
 
 ## 浏览器会话
 
-在下载页选择「连接浏览器」，按[安装与连接](../../extension/#connection)配置本机连接并加载配套扩展，然后在浏览器中授权目标站点。
+在下载页选择「配置扩展」，复制显示的扩展路径，按[安装与连接](../../extension/#connection)在浏览器加载扩展。
 
-已授权站点以站点徽章列出。点选一个，在下方查看来源和最近同步结果，或移除 Ameow 保存的会话。同步使用浏览器中已有的登录态，详见[登录态同步](../../extension/#sessions)。
+已授权站点以徽章和站名显示，悬停或用键盘聚焦查看状态。需要排查同步问题时，展开诊断并复制报告。授权与移除操作见[登录态同步](../../extension/#sessions)。
 
-<NativeSessionFigure scene="sessions" />
 
 ## 更新应用
 

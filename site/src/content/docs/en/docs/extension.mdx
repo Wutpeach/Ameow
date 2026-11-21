@@ -3,29 +3,30 @@ title: Browser extension and clips
 description: Use page tools, authorize a site's browser session, and select one clip in Peek.
 ---
 
+import { Steps } from '@astrojs/starlight/components';
 import ClipDemo from '../../../../components/manual/ClipDemo.astro';
 import ExtensionDemo from '../../../../components/manual/ExtensionDemo.astro';
-import NativeSessionFigure from '../../../../components/manual/NativeSessionFigure.astro';
 
-Download a whole video or select a clip on supported pages, and optionally authorize an existing site session. Browser extension support requires 0.5.1 or later. Use the extension and desktop app from the same version.
+Download a whole video or select a clip on supported pages, and optionally authorize an existing site session.
 
 <span id="connection"></span>
 
 ## Install and connect
 
-1. In the desktop app, open Settings → Download → Browser sessions, choose Connect browser, then Set up this computer and Copy path.
+<Steps>
+1. In the desktop app, open Settings → Download → Browser sessions and choose Set up extension. When setup finishes, copy the displayed extension path.
 2. In the Edge or Chrome browser you want to use, open extension management, enable Developer mode, choose Load unpacked, paste the path, and select that folder.
-3. Open the Ameow extension on an ordinary page and check the connection status. Follow the next section to enable page tools or authorize the current site.
+3. Open the Ameow extension on a regular website to enable page tools or authorize the current site.
+</Steps>
 
-After setting up this computer, load the extension in that same browser. Complete packages include the matching extension; source builds place it in <code>browser-extension/dist</code>. Chromium browsers are supported; Firefox is not yet available.
+The demo on the setup page shows how to load it. Use the extension supplied with your desktop app version.
 
-<NativeSessionFigure scene="connect" lang="en" />
 
 <span id="permissions"></span>
 
 ## Page tools and site authorization
 
-Enable **page tools** and allow page access to show the toolbar in the player. To sync a session, separately choose Authorize & sync, check the site and subdomain scope, and confirm the browser permission. Unauthorized sites continue with anonymous attempts.
+**Page tools** are on by default. Allow page access to show download and clip actions in the player. You can turn them off in the extension; your choice is remembered per site. Session sync needs separate authorization for the current site, so check the scope shown by the extension before confirming.
 
 <ExtensionDemo lang="en" />
 
@@ -33,14 +34,16 @@ Enable **page tools** and allow page access to show the toolbar in the player. T
 
 ## Sync an existing browser session
 
-Authorize the site in a browser where you are already signed in. The extension syncs the existing session; it does not sign in for you. It continues updating after session changes, browser startup, or reconnection. The downloader and site determine downloadability and visible formats.
+Authorize the site in a browser where you are already signed in to keep the session in sync. Ameow does not sign in for you. The site and downloader determine available content and quality.
 
-In Settings → Download → Browser sessions, select a site badge to check its browser source and latest sync result. The extension shows only the current page's site. To replace the source, choose Use this browser (改用此浏览器) in the browser you want to use. Remove deletes Ameow's saved session for that site without signing you out.
+Authorized sites appear as badges and names in the desktop app. Hover or focus a site to see its status. The extension shows only the current page's site; to switch browser sources, follow its prompts in the browser you want to use.
+
+To remove authorization, open the extension on that site and choose Remove. This deletes Ameow's saved session without signing you out of the website.
 
 <details>
-<summary>Cache and sync results</summary>
+<summary>Troubleshoot a sync problem</summary>
 
-The latest sync result and last successful cache time appear separately. An older cache may remain after a failed sync; finding no cookies does not confirm that you are signed in. The actual result determines whether the site still accepts the session and which quality levels it offers.
+First check that you are still signed in to the site in the source browser. To report a problem, expand diagnostics and copy the diagnostic report.
 
 </details>
 
@@ -48,7 +51,7 @@ The latest sync result and last successful cache time appear separately. An olde
 
 ## Download a whole video from the page
 
-On a single on-demand Bilibili or YouTube video, enable page tools and hover over the Ameow icon at the top-right of the player. Choose Download (下载) or Clip (切片). Page tools do not automatically authorize a session; return to the specific video page if the target cannot be matched.
+On a single on-demand Bilibili or YouTube video, hover over the Ameow icon at the top-right of the player. Choose Download or Clip. If the icon is missing, check page tools and page access in the extension.
 
 <span id="clips"></span>
 

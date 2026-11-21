@@ -13,7 +13,7 @@ description: 支持的视频、图片和图集入口，以及下载质量的选�
 | Bluesky | 单帖中的图片。 |
 | 其他公开 HTTP(S) 链接 | 可尝试；下载器须能确认单视频或单图并交付结果，不保证任意网页可下载。 |
 
-YouTube 和 Bilibili 的播放列表或系列参数会被拒绝，请复制具体视频地址。未授权时匿名尝试；匹配版本可[主动授权站点会话](../extension/)，0.5.0 不含此功能。登录、会员、地区及站点变化可能影响下载，见[下载失败](../troubleshooting/#downloads)。
+YouTube 和 Bilibili 的播放列表或系列参数会被拒绝，请复制具体视频地址。未授权时匿名尝试；也可[主动授权站点会话](../extension/)。登录、会员、地区及站点变化可能影响下载，见[下载失败](../troubleshooting/#downloads)。
 
 <span id="quality"></span>
 

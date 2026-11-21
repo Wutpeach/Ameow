@@ -3,29 +3,30 @@ title: 浏览器扩展与切片
 description: 使用页面工具、主动授权站点登录态，以及在 Peek 中选择一个片段。
 ---
 
+import { Steps } from '@astrojs/starlight/components';
 import ClipDemo from '../../../components/manual/ClipDemo.astro';
 import ExtensionDemo from '../../../components/manual/ExtensionDemo.astro';
-import NativeSessionFigure from '../../../components/manual/NativeSessionFigure.astro';
 
-在支持的视频页面下载整段或选择片段，也可主动授权同步已有的站点登录态。浏览器扩展需要 0.5.1 或更新版本；请使用同一版本的扩展与桌面端。
+在支持的视频页面下载整段或选择片段，也可主动授权同步已有的站点登录态。
 
 <span id="connection"></span>
 
 ## 安装与连接
 
-1. 在桌面端「设置 → 下载 → 浏览器会话」选择「连接浏览器」，点击「配置本机连接」，然后「复制路径」。
+<Steps>
+1. 在桌面端「设置 → 下载 → 浏览器会话」选择「配置扩展」，完成后复制显示的扩展路径。
 2. 在要使用的 Edge 或 Chrome 中打开扩展管理页，开启开发者模式，选择「加载解压缩的扩展」，粘贴路径并选择该文件夹。
-3. 在普通网页打开 Ameow 扩展，查看连接状态；按下节说明启用页面工具或授权当前站点。
+3. 在普通网站打开 Ameow 扩展，按需启用页面工具或授权当前站点。
+</Steps>
 
-配置本机连接后，还需在同一浏览器加载扩展。完整包携带配套扩展；源码构建目录为 <code>browser-extension/dist</code>。目前支持 Chromium 浏览器，Firefox 尚未接入。
+配置页的演示可帮助你完成加载；请使用当前桌面版本配套的扩展。
 
-<NativeSessionFigure scene="connect" />
 
 <span id="permissions"></span>
 
 ## 页面工具与站点授权
 
-启用**页面工具**并允许网页访问，才能在播放器显示工具条。若要同步登录态，另在扩展中选择「授权并同步」，核对站点及子域范围并确认浏览器权限。未授权站点仍以匿名方式尝试。
+**页面工具**默认开启；允许网页访问后，播放器显示下载与切片入口。你可以在扩展中关闭它，选择会按站点记住。登录态同步需另行授权当前站点，并确认扩展显示的站点范围。
 
 <ExtensionDemo />
 
@@ -33,14 +34,16 @@ import NativeSessionFigure from '../../../components/manual/NativeSessionFigure.
 
 ## 同步已有登录态
 
-在已登录目标站点的浏览器中授权，扩展会同步已有会话；它不会替你登录。会话变化、浏览器启动或重新连接后会继续更新。可下载性和可见格式仍由下载器及站点决定。
+在已登录目标站点的浏览器中授权，之后自动同步；Ameow 不会替你登录。网站与下载器决定可下载内容和画质。
 
-在「设置 → 下载 → 浏览器会话」点选站点徽章，查看浏览器来源和最近同步结果。扩展只显示当前网页的站点；要替换来源，在目标浏览器中选择「改用此浏览器」。移除会删除 Ameow 保存的该站点会话，不会退出网站。
+桌面端以徽章和站名显示已授权站点，悬停或用键盘聚焦站点查看状态。扩展只显示当前网页的站点；需要更换浏览器来源时，在目标浏览器的扩展中按提示操作。
+
+移除授权时，在该站点打开扩展并选择移除。它只删除 Ameow 保存的会话，不会退出网站。
 
 <details>
-<summary>缓存与同步结果</summary>
+<summary>需要排查同步问题时</summary>
 
-同步结果与上次成功缓存时间分别显示。最近同步失败时，旧缓存可能仍在；没有读到 Cookie 时，也不能据此认定已经登录。网站是否仍接受会话、提供哪些画质，以实际结果为准。
+先在来源浏览器确认本站仍已登录。需要反馈问题时，展开诊断并复制诊断报告。
 
 </details>
 
@@ -48,7 +51,7 @@ import NativeSessionFigure from '../../../components/manual/NativeSessionFigure.
 
 ## 在页面下载整段视频
 
-在 Bilibili 或 YouTube 的单个点播页面启用页面工具，将鼠标移到播放器右上角的 Ameow 图标，选择「下载」或「切片」。页面工具不自动授权登录态；目标无法准确对应时，请返回具体视频页面。
+在 Bilibili 或 YouTube 的单个点播页面，将鼠标移到播放器右上角的 Ameow 图标，选择「下载」或「切片」。若没有看到图标，请在扩展中检查页面工具和网页访问权限。
 
 <span id="clips"></span>
 

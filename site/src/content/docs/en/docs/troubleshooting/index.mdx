@@ -3,6 +3,7 @@ title: Troubleshooting
 description: Find help for failed downloads, missing files, or Mac startup problems.
 ---
 
+import { Aside, Steps } from '@astrojs/starlight/components';
 import ManualFigure from '../../../../../components/manual/ManualFigure.astro';
 
 <span id="downloads"></span>
@@ -25,9 +26,11 @@ Retry a failed or partial task when offered; its original quality and folder are
 
 ## Missing files
 
+<Steps>
 1. Confirm the queue shows completion; wait until post-processing finishes.
 2. Open the [destination folder](../desktop/output-folder/). If you changed it after submitting, check the task's original location; retries also retain it.
 3. For a failed task, resolve permissions or space problems and submit again. The app's data directory is not a fallback download location.
+</Steps>
 
 <span id="editor-audio"></span>
 
@@ -50,7 +53,7 @@ If the floating window is missing, choose Open from the menu bar or return to a 
 
 Compact follows ordinary Spaces but does not cover another app's fullscreen Space. This behavior does not apply to Full or settings.
 
-If pasting into Full does nothing on macOS 0.5.0, check the app version. The fix is included in newer source; the original 0.5.0 package has not changed. In a version containing the fix, use `Command+V` in Full; its right-click menu has no Paste item. If it still fails, report the version, entry point, and steps.
+Press `Command+V` in Full to paste; its right-click menu has no Paste item. If nothing happens, include the app version, entry point, and steps in your report.
 
 If macOS blocks launch, check the [installed version and source](../downloads/) and keep the complete system message for a report. Follow system prompts for login-startup or update authorization; see [Settings and updates](../desktop/settings/).
 
@@ -58,4 +61,8 @@ If macOS blocks launch, check the [installed version and source](../downloads/) 
 
 ## Report a problem
 
-Copy diagnostics from a failed task or Components. Include system/app versions, time, and reproducible steps in [GitHub Issues](https://github.com/Wutpeach/Ameow/issues). Review before sending and hide personal paths, private links, and login details. Do not clear app data for routine troubleshooting.
+Copy diagnostics from a failed task or Components. Include system/app versions, time, and reproducible steps in [GitHub Issues](https://github.com/Wutpeach/Ameow/issues).
+
+<Aside title="Before sending">
+Review diagnostics and hide personal paths, private links, and login details. Routine troubleshooting does not require clearing app data.
+</Aside>

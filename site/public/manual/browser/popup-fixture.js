@@ -3,15 +3,20 @@ const samples = globalThis.ameowPopupSamples;
 const params = new URLSearchParams(location.search);
 Object.defineProperty(navigator, 'language', {value: params.get('lang') === 'en' ? 'en' : 'zh-CN'});
 Object.defineProperty(navigator, 'userAgent', {value: navigator.userAgent + ' Edg/130.0.0.0'});
+Object.defineProperty(navigator, 'clipboard', {value: {writeText: async text => { globalThis.manualCopiedDiagnostic = text; }}});
 let state = params.get('sample') || 'not_authorized';
 if (!Object.hasOwn(samples.status_response, state)) state = 'not_authorized';
-let enabled = false;
+const preferenceKey = 'manual-page-tools-' + samples.site;
+const stored = sessionStorage.getItem(preferenceKey);
+let enabled = stored === null ? samples.other_messages.pages_status.value.enabled : stored === 'on';
+const permission = params.get('tools') !== 'permission_unavailable';
+if (!permission) enabled = false;
 globalThis.chrome = {
   tabs: {query: async () => [structuredClone(samples.tab)]},
-  permissions: {request: async () => true},
+  permissions: {request: async () => permission},
   runtime: {sendMessage: async message => {
     if (message.action === 'pages-status') return {ok:true,value:{enabled}};
-    if (message.action === 'pages-set') { enabled = message.enabled; return {ok:true,value:{enabled}}; }
+    if (message.action === 'pages-set') { enabled = message.enabled; sessionStorage.setItem(preferenceKey,enabled ? 'on' : 'off'); return {ok:true,value:{enabled}}; }
     if (message.action === 'status') return structuredClone(samples.status_response[state]);
     if (message.action === 'authorize' || message.action === 'sync') {
       state = 'saved'; return {ok:true,value:{[samples.site]:'synced'}};

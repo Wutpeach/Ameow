@@ -13,7 +13,7 @@ description: Supported video, image, and gallery entries, and download quality c
 | Bluesky | Images in a single post. |
 | Other public HTTP(S) links | Can be attempted. The downloader must identify and deliver a single video or image; arbitrary web pages are not guaranteed. |
 
-YouTube and Bilibili playlist or series parameters are rejected; copy the specific video address. Unauthorized sites use anonymous attempts. Matching versions can [authorize a site's session](../extension/); 0.5.0 does not include session sync. Login, membership, region, and site changes can affect downloads; see [download problems](../troubleshooting/#downloads).
+YouTube and Bilibili playlist or series parameters are rejected; copy the specific video address. Unauthorized sites use anonymous attempts; you can also [authorize a site's session](../extension/). Login, membership, region, and site changes can affect downloads; see [download problems](../troubleshooting/#downloads).
 
 <span id="quality"></span>
 

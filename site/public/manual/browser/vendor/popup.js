@@ -899,21 +899,30 @@ var site;
 var current;
 var sourceId;
 var lastGrant;
+var lastError;
+var connectionState = "unknown";
 var host;
 var tabId;
 var toolsEnabled = false;
+var copiedTimer;
 var sourceName = navigator.userAgent.includes("Edg/") ? "Microsoft Edge" : "Chrome / Chromium";
 var errorEn = { E_COOKIE_READ: "Could not read browser cookies", E_BRIDGE: "Browser connection failed", E_SESSION_STORAGE: "Session storage failed", E_SESSION_LIMIT: "Session exceeds the sync limit", E_SESSION_INVALID: "Session data was not accepted", E_SESSION_PROTOCOL: "Browser bridge is incompatible", E_SESSION_STALE: "Sync message expired", E_PERMISSION: "Site permission was removed", E_SESSION_REVOKED: "Site authorization was removed", E_SESSION_SOURCE_CHANGED: "Site source changed", E_BRIDGE_NOT_REGISTERED: "Browser bridge registration was not found", E_BRIDGE_FORBIDDEN: "Browser denied the connection", E_BRIDGE_START: "Browser bridge could not start", E_BRIDGE_EXIT: "Browser bridge exited", E_BRIDGE_IO: "Browser connection failed" };
-var errorText = (code) => (english ? errorEn : SYNC_ERRORS)[code] || t("\u540C\u6B65\u7ED3\u679C\u4E0D\u53EF\u7528", "Sync result unavailable");
-var date = (value) => value ? new Date(value).toLocaleString(english ? "en" : "zh-CN") : t("\u672A\u77E5", "Unknown");
+var errorText = (code) => {
+  const messages = english ? errorEn : SYNC_ERRORS;
+  return typeof code === "string" && Object.hasOwn(messages, code) ? messages[code] : t("\u539F\u56E0\u672A\u77E5", "Reason unknown");
+};
+var date = (value) => Number.isFinite(value) && value > 0 && value < 864e13 ? new Date(value).toLocaleString(english ? "en" : "zh-CN") : t("\u672A\u77E5", "Unknown");
+var safeId = (value) => typeof value === "string" && /^[a-zA-Z0-9_-]{1,80}$/.test(value) ? value : t("\u672A\u77E5", "Unknown");
+var safeSource = (value) => ["Microsoft Edge", "Chrome / Chromium"].includes(value) ? value : t("\u672A\u77E5\u6765\u6E90", "Unknown source");
 function connection(kind) {
-  $("connection").textContent = kind === "ready" ? t("\u8FDE\u63A5\u53EF\u7528", "Connection ready") : kind === "unavailable" ? t("\u8FDE\u63A5\u4E0D\u53EF\u7528", "Unavailable") : t("\u8FDE\u63A5\u5F85\u786E\u8BA4", "Connection unknown");
+  connectionState = kind;
+  $("connection").textContent = kind === "ready" ? t("\u8FDE\u63A5\u53EF\u7528", "Connected") : kind === "unavailable" ? t("\u8FDE\u63A5\u4E0D\u53EF\u7528", "Unavailable") : t("\u8FDE\u63A5\u5F85\u786E\u8BA4", "Connection unknown");
   $("connection").toggleAttribute("data-ready", kind === "ready");
   $("connection").toggleAttribute("data-error", kind === "unavailable");
 }
-function status(title, detail = "", error = false) {
-  $("notice").hidden = !title;
-  $("status").textContent = title;
+function status(text, detail = "", error = false) {
+  $("notice").hidden = !text;
+  $("status").textContent = text;
   $("status-detail").textContent = detail;
   $("status").toggleAttribute("data-error", error);
   $("notice").toggleAttribute("data-error", error);
@@ -928,54 +937,87 @@ async function send(action, extra = {}) {
   if (!response?.ok) throw Error(response?.error || "E_BRIDGE");
   return response.value;
 }
-function renderDetails(row, grant) {
+function updateDiagnostic() {
   const unknown = t("\u672A\u77E5", "Unknown");
-  $("details").hidden = !row && !grant;
-  $("browser-value").textContent = row?.source_name || grant?.source_name || unknown;
-  $("installation-value").textContent = row?.source_id || sourceId || unknown;
-  $("snapshot-value").textContent = date(row?.synced_at ? row.synced_at * 1e3 : grant?.last_sync);
+  const row = current, grant = lastGrant;
+  const source = safeSource(row?.source_name || grant?.source_name);
+  const snapshot = date(row?.synced_at ? row.synced_at * 1e3 : grant?.last_sync);
   const result = row?.last_result;
-  $("result-value").textContent = result ? `${date(result.at * 1e3)} \xB7 ${result.error ? errorText(result.error) : t("\u540C\u6B65\u6210\u529F", "Sync succeeded")}` : unknown;
-  $("cookie-value").textContent = Number.isInteger(row?.cookie_count) ? String(row.cookie_count) : unknown;
-  $("excluded-label").hidden = $("excluded-value").hidden = !(row?.skipped_partitioned > 0);
-  $("excluded-value").textContent = t(`${row?.skipped_partitioned} \u6761\u5206\u533A Cookie`, `${row?.skipped_partitioned} partitioned cookies`);
+  const latest = result ? `${date(result.at * 1e3)} \xB7 ${result.error ? errorText(result.error) : t("\u540C\u6B65\u6210\u529F", "Sync succeeded")}` : unknown;
+  const count = Number.isSafeInteger(row?.cookie_count) && row.cookie_count >= 0 ? row.cookie_count : unknown;
+  const excluded = Number.isSafeInteger(row?.skipped_partitioned) && row.skipped_partitioned >= 0 ? row.skipped_partitioned : unknown;
+  const domain = typeof site === "string" && site.length <= 253 && /^[a-z0-9.-]+$/i.test(site) ? site : unknown;
+  $("diagnostic-report").textContent = [
+    `${t("\u7AD9\u70B9", "Site")}: ${domain}`,
+    `${t("\u8FDE\u63A5", "Connection")}: ${connectionState === "ready" ? t("\u53EF\u7528", "Available") : connectionState === "unavailable" ? t("\u4E0D\u53EF\u7528", "Unavailable") : unknown}`,
+    `${t("\u6D4F\u89C8\u5668", "Browser")}: ${source}`,
+    `${t("\u5B89\u88C5\u6765\u6E90", "Installation")}: ${safeId(row?.source_id || sourceId)}`,
+    `${t("\u4FDD\u7559\u7684\u5FEB\u7167", "Retained snapshot")}: ${snapshot}`,
+    `${t("\u6700\u8FD1\u7ED3\u679C", "Latest result")}: ${latest}`,
+    ...lastError ? [`${t("\u5F53\u524D\u9519\u8BEF", "Current error")}: ${errorText(lastError)}`] : [],
+    `Cookie: ${count}`,
+    `${t("\u5206\u533A Cookie \u5DF2\u6392\u9664", "Partitioned cookies excluded")}: ${excluded}`
+  ].join("\n");
 }
 function render(state) {
+  state = state && typeof state === "object" ? state : {};
   const valid = !state.error && Array.isArray(state.sites);
   const unavailable = /^E_BRIDGE(?:_|$)|^E_SESSION_PROTOCOL$/.test(state.error || "");
   connection(valid ? "ready" : unavailable ? "unavailable" : "unknown");
   sourceId = state.source_id;
-  if (valid) current = state.sites.find((row) => row.site === site);
+  if (valid) current = state.sites.find((row) => row?.site === site);
   const grant = state.grant, own = current ? current.source_id === sourceId : Boolean(grant);
   lastGrant = grant;
-  const known = valid || Boolean(current || grant);
   $("unauthorized").hidden = !valid || Boolean(current || grant);
   $("scope").hidden = !valid || own;
-  $("source-line").hidden = !current;
-  $("source").textContent = current?.source_name || t("\u672A\u77E5\u6765\u6E90", "Unknown source");
-  $("source").title = current?.source_name || "";
   $("authorize").hidden = !valid || own;
   $("sync").hidden = !own;
   $("revoke").hidden = !own;
+  $("retry-status").hidden = valid || own;
   $("authorize").textContent = current ? t("\u6539\u7528\u6B64\u6D4F\u89C8\u5668", "Use this browser") : t("\u6388\u6743\u5E76\u540C\u6B65", "Authorize & sync");
   $("authorize").disabled = false;
   $("replace-copy").hidden = !valid || !current || own;
-  const last = current?.synced_at ? current.synced_at * 1e3 : grant?.last_sync;
-  const cached = last ? t(`\u4FDD\u7559\u7684\u5FEB\u7167\uFF1A${date(last)}\u3002`, `Retained snapshot: ${date(last)}.`) : "";
-  const error = state.error || own && grant?.error || current?.last_result?.error;
-  if (error) status(t("\u6700\u8FD1\u540C\u6B65\u672A\u5B8C\u6210", "Latest sync did not complete"), `${errorText(error)}\u3002${cached}`, true);
-  else if (grant?.pending) status(t("\u6B63\u5728\u540C\u6B65", "Syncing"), cached);
-  else if (current?.cookie_count === 0) status(t("\u6CA1\u6709\u53EF\u7528 Cookie", "No available cookies"), t("\u5728\u6765\u6E90\u6D4F\u89C8\u5668\u786E\u8BA4\u672C\u7AD9\u4F1A\u8BDD\u540E\uFF0C\u91CD\u65B0\u540C\u6B65\u3002", "Check the site in the source browser, then sync again."));
-  else if (current && !current.last_result) status(t("\u6700\u8FD1\u540C\u6B65\u7ED3\u679C\u672A\u77E5", "Latest sync result unknown"), cached);
-  else if (current) status(t("\u5FEB\u7167\u5DF2\u66F4\u65B0", "Snapshot updated"), cached);
-  else status(known && !valid ? t("\u4F1A\u8BDD\u72B6\u6001\u6682\u4E0D\u53EF\u786E\u8BA4", "Session status unavailable") : "", "");
-  $("sync").textContent = error ? t("\u91CD\u8BD5\u540C\u6B65", "Retry sync") : t("\u7ACB\u5373\u540C\u6B65", "Sync now");
-  $("partitioned").hidden = !(current?.skipped_partitioned > 0);
-  renderDetails(current, grant);
+  lastError = state.error || own && grant?.error || current?.last_result?.error;
+  if (lastError) status(t("\u540C\u6B65\u672A\u5B8C\u6210", "Sync did not complete"), t("\u8BF7\u91CD\u8BD5\u540C\u6B65\u3002", "Try syncing again."), true);
+  else if (grant?.pending) status(t("\u6B63\u5728\u540C\u6B65", "Syncing"));
+  else if (current?.cookie_count === 0) status(t("\u6CA1\u6709\u53EF\u7528\u4F1A\u8BDD", "No available session"), t("\u8BF7\u5728\u6D4F\u89C8\u5668\u786E\u8BA4\u672C\u7AD9\u5DF2\u767B\u5F55\uFF0C\u7136\u540E\u91CD\u65B0\u540C\u6B65\u3002", "Check that you are signed in, then sync again."));
+  else if (current && !current.last_result) status(t("\u540C\u6B65\u7ED3\u679C\u672A\u77E5", "Sync status unknown"));
+  else if (current) status(t("\u5DF2\u540C\u6B65", "Synced"));
+  else status(valid ? "" : t("\u4F1A\u8BDD\u72B6\u6001\u6682\u4E0D\u53EF\u786E\u8BA4", "Session status unavailable"));
+  $("sync").textContent = lastError ? t("\u91CD\u8BD5\u540C\u6B65", "Retry sync") : t("\u7ACB\u5373\u540C\u6B65", "Sync now");
+  updateDiagnostic();
 }
 async function refresh() {
   render(await send("status"));
 }
+$("retry-status").addEventListener("click", async () => {
+  $("retry-status").disabled = true;
+  try {
+    await refresh();
+  } catch (error) {
+    connection("unavailable");
+    lastError = error.message;
+    updateDiagnostic();
+    status(t("\u6D4F\u89C8\u5668\u8FDE\u63A5\u72B6\u6001\u4E0D\u53EF\u7528", "Browser connection unavailable"), t("\u8BF7\u91CD\u8BD5\u3002", "Try again."), true);
+  } finally {
+    $("retry-status").disabled = false;
+  }
+});
+$("copy-diagnostic").addEventListener("click", async () => {
+  clearTimeout(copiedTimer);
+  try {
+    await navigator.clipboard.writeText($("diagnostic-report").textContent);
+    $("copy-error").hidden = true;
+    $("copy-diagnostic").textContent = t("\u5DF2\u590D\u5236", "Copied");
+    copiedTimer = setTimeout(() => {
+      $("copy-diagnostic").textContent = t("\u590D\u5236\u8BCA\u65AD\u62A5\u544A", "Copy diagnostic report");
+    }, 2e3);
+  } catch {
+    $("copy-diagnostic").textContent = t("\u590D\u5236\u8BCA\u65AD\u62A5\u544A", "Copy diagnostic report");
+    $("copy-error").textContent = t("\u65E0\u6CD5\u590D\u5236\uFF0C\u8BF7\u91CD\u8BD5\u3002", "Could not copy. Try again.");
+    $("copy-error").hidden = false;
+  }
+});
 $("toggle-tools").addEventListener("click", async () => {
   $("toggle-tools").disabled = true;
   try {
@@ -1000,7 +1042,7 @@ for (const action of ["authorize", "sync", "revoke"]) $(action).addEventListener
   try {
     if (action === "authorize") {
       if (!await chrome.permissions.request({ origins: scope(site) })) {
-        status(t("\u672A\u6388\u6743", "Not authorized"), t("\u4E0B\u8F7D\u7EE7\u7EED\u4F7F\u7528\u533F\u540D\u4F1A\u8BDD\u3002", "Downloads continue without a session."));
+        status(t("\u672A\u6388\u6743", "Not authorized"));
         return;
       }
       const result = await send("authorize", { replaces: current?.grant_id || null, source_name: sourceName });
@@ -1012,30 +1054,25 @@ for (const action of ["authorize", "sync", "revoke"]) $(action).addEventListener
     await refresh();
   } catch (error) {
     if (/^E_BRIDGE(?:_|$)|^E_SESSION_PROTOCOL$/.test(error.message)) connection("unavailable");
-    const snapshot = current?.synced_at ? current.synced_at * 1e3 : lastGrant?.last_sync;
-    const retained = snapshot ? t("\u4FDD\u7559\u7684\u5FEB\u7167\uFF1A", "Retained snapshot: ") + date(snapshot) : "";
-    status(t("\u540C\u6B65\u672A\u5B8C\u6210", "Sync did not complete"), [errorText(error.message), retained].filter(Boolean).join(" \xB7 "), true);
+    lastError = error.message;
+    $("sync").textContent = t("\u91CD\u8BD5\u540C\u6B65", "Retry sync");
+    updateDiagnostic();
+    status(t("\u540C\u6B65\u672A\u5B8C\u6210", "Sync did not complete"), t("\u8BF7\u91CD\u8BD5\u540C\u6B65\u3002", "Try syncing again."), true);
   } finally {
     for (const id of ["authorize", "sync", "revoke"]) $(id).disabled = false;
   }
 });
 for (const [id, zh, en] of [
   ["unauthorized", "\u672A\u6388\u6743", "Not authorized"],
-  ["auto-sync", "\u81EA\u52A8\u540C\u6B65", "Auto sync"],
   ["revoke", "\u79FB\u9664", "Remove"],
   ["replace-copy", "\u6539\u7528\u6B64\u6D4F\u89C8\u5668\u4F1A\u66FF\u6362\u5F53\u524D\u6765\u6E90\u3002", "Using this browser replaces the current source."],
-  ["partitioned", "\u5206\u533A Cookie \u672A\u540C\u6B65", "Partitioned cookies were excluded"],
-  ["details-title", "\u6765\u6E90\u4E0E\u5FEB\u7167", "Source and snapshot"],
-  ["browser-label", "\u6D4F\u89C8\u5668", "Browser"],
-  ["installation-label", "\u5B89\u88C5\u6765\u6E90", "Installation"],
-  ["snapshot-label", "\u4FDD\u7559\u7684\u5FEB\u7167", "Retained snapshot"],
-  ["result-label", "\u6700\u8FD1\u7ED3\u679C", "Latest result"],
-  ["excluded-label", "\u672A\u540C\u6B65", "Excluded"],
-  ["details-copy", "\u4EC5\u590D\u7528\u6388\u6743\u8303\u56F4\u5185\u7684\u5DF2\u6709 Cookie\u3002\u540C\u6B65\u4E0D\u9A8C\u8BC1\u7F51\u7AD9\u767B\u5F55\u6709\u6548\u6027\uFF1B\u4E0B\u8F7D\u5185\u5BB9\u4E0E\u753B\u8D28\u7531\u7F51\u7AD9\u548C\u4E0B\u8F7D\u5668\u51B3\u5B9A\u3002", "Only cookies within the authorized scope are reused. Sync does not verify sign-in validity. The site and downloader determine content and quality."],
-  ["tools-title", "\u9875\u9762\u5DE5\u5177", "Page tools"],
-  ["tools-copy", "\u4E0D\u5305\u542B\u7AD9\u70B9\u4F1A\u8BDD\u6388\u6743", "Separate from session permission"]
+  ["diagnostics-title", "\u8BCA\u65AD", "Diagnostics"],
+  ["copy-diagnostic", "\u590D\u5236\u8BCA\u65AD\u62A5\u544A", "Copy diagnostic report"],
+  ["retry-status", "\u91CD\u8BD5", "Retry"],
+  ["tools-title", "\u9875\u9762\u5DE5\u5177", "Page tools"]
 ]) $(id).textContent = t(zh, en);
 connection("unknown");
+updateDiagnostic();
 try {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   host = pageHost(tab.url);
@@ -1050,9 +1087,13 @@ try {
   }
   site = siteFromUrl(tab.url);
   $("site").textContent = site;
+  $("site").title = site;
   $("scope").textContent = t("\u5141\u8BB8\u81EA\u52A8\u540C\u6B65 " + site + " \u53CA\u5176\u5B50\u57DF\u7684 Cookie\uFF0C\u4EC5\u7528\u4E8E Ameow \u4E0B\u8F7D\u3002", "Allow automatic cookie sync for " + site + " and its subdomains, for Ameow downloads only.");
   await refresh();
 } catch (error) {
   connection(site && /^E_BRIDGE|^E_SESSION_PROTOCOL/.test(error.message) ? "unavailable" : "unknown");
+  lastError = error.message;
+  updateDiagnostic();
+  $("retry-status").hidden = !site;
   status(site ? t("\u6D4F\u89C8\u5668\u8FDE\u63A5\u72B6\u6001\u4E0D\u53EF\u7528", "Browser connection unavailable") : t("\u8BF7\u5728\u666E\u901A\u7F51\u7AD9\u9875\u9762\u6253\u5F00\u6269\u5C55", "Open the extension on a regular website"), "", true);
 }

@@ -35,6 +35,7 @@ const t = (zh: string, english: string) => en ? english : zh;
     <p class="hint">{t('把文件夹拖到 Full，或点选后再点 Full', 'Drag the folder onto Full, or select it and then select Full')}</p>
     <div class="folder-example">
       <button class="folder-source" data-folder-source type="button" aria-pressed="false"><AppIcon name="folder" size={28} /><span>Downloads</span></button>
+      <span class="folder-drag-ghost" data-folder-ghost hidden aria-hidden="true"><AppIcon name="folder" size={28} /><span>Downloads</span></span>
       <button class="folder-target" data-folder-target type="button" aria-label={t('松开以更改示例保存位置', 'Drop to change the example destination')}>
         <span data-folder-state="idle"><FullSurface en={en} /></span>
         <span data-folder-state="hover" hidden><FullSurface state="hover" en={en} /></span>
@@ -87,6 +88,8 @@ const t = (zh: string, english: string) => en ? english : zh;
   .folder-example { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 24px 40px; padding-block: 28px; }
   .folder-source { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--fig-muted); touch-action: none; user-select: none; }
   .folder-source[aria-pressed='true'] { border-color: var(--fig-blue); color: var(--fig-blue); }
+  .folder-source.is-dragging { opacity: .45; }
+  .folder-drag-ghost { position: fixed; top: 0; left: 0; z-index: 1000; display: flex; flex-direction: column; align-items: center; gap: 6px; color: var(--fig-muted); opacity: .68; filter: blur(.4px); pointer-events: none; user-select: none; }
   .folder-target { padding: 0; border: 0; border-radius: 20px; background: transparent; }
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   @media(hover:none) { .mouse-hint { display: none; } .touch-hint { display: inline; } }

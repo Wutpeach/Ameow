@@ -23,6 +23,7 @@ assert.match(home, /id="top"/, 'Homepage must retain the brand target');
 assert.match(home, /id="get"/, 'Homepage must retain the platform download section');
 assert.equal([...home.matchAll(/href="#get"/g)].length, 1, 'Homepage must have one acquisition CTA');
 const required = ['docs', 'en/docs', 'docs/developer', 'en/docs/developer', 'docs/downloads', 'en/docs/downloads', 'docs/extension', 'en/docs/extension', 'docs/cli', 'en/docs/cli'];
+for (const locale of ['docs', 'en/docs']) required.push(locale + '/changelog/0-5-0', locale + '/changelog/0-5-1');
 for (const route of required) assert(pages.has(route + '/index.html'), 'Missing required route: ' + route);
 for (const route of ['docs', 'en/docs']) {
   const html = pages.get(route + '/index.html');
@@ -54,10 +55,15 @@ for (const locale of ['docs', 'en/docs']) {
   const extension = pages.get(locale + '/extension/index.html');
   assert.match(extension, /<ameow-clip-demo\b/, locale + ' must include the interactive clip illustration');
   assert.doesNotMatch(extension.slice(extension.indexOf('<ameow-clip-demo'), extension.indexOf('</ameow-clip-demo>')), /<details|<summary/, locale + ' clip steps must be always visible');
+  const clip = extension.slice(extension.indexOf('<ameow-clip-demo'), extension.indexOf('</ameow-clip-demo>'));
+  assert.doesNotMatch(clip, /data-play|data-replay/, locale + ' must use automatic clip playback with step controls');
+  assert.equal([...clip.matchAll(/data-step=/g)].length, 4, locale + ' must expose four clip steps');
   assert.match(extension, /manual\/browser\/popup[.]html/, locale + ' must embed the real extension popup');
   assert.match(extension, /manual\/browser\/clip[.]html/, locale + ' must embed the real clip frontend');
 
   assert.doesNotMatch(extension, /review-banner|review-notes/, locale + ' must not expose internal review records');
+  assert.match(pages.get(locale + '/desktop/output-folder/index.html'), /data-folder-ghost[^>]*aria-hidden="true"/, locale + ' must retain the visible drag object');
+  assert.match(pages.get(locale + '/changelog/0-5-1/index.html'), /未发布|Unreleased/, locale + ' must label the unreleased version');
 }
 for (const locale of ['docs', 'en/docs']) for (const route of [
   'review-notes', 'browser-extension', 'extension/install', 'extension/connection', 'extension/cookies-and-login',

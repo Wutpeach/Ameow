@@ -3,19 +3,25 @@ title: 命令行与 Agent
 description: 获取 Ameow CLI，从终端提交任务并读取同一桌面队列的结果。
 ---
 
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import CliPlatformAnchors from '../../../components/manual/CliPlatformAnchors.astro';
+
+<CliPlatformAnchors />
+
 `ameow-cli` 让脚本和 Agent 操作本机当前用户的 Ameow 队列，与桌面端共用任务、组件和下载结果。无需另装扩展，也没有需要开启的 GUI 设置。
-
-## 先确认版本
-
-使用 CLI 需要包含它的完整包，或从包含该能力的源码构建。v0.5.0 不包含 CLI。
 
 普通 CLI 控制桌面应用持有的队列；`dev` 入口仅供启用 `dev-tools` 的 debug 源码构建。
 
 ## 安装与调用
 
-### Windows
+保留完整应用目录。Ameow 不会自动注册全局命令或修改 `PATH`；如需全局调用，可自行设置。
 
-在**包含 CLI 的完整安装包或便携包**中，`ameow-cli.exe` 与 `AmeowLauncher.exe` 位于同一目录。安装或完整解压后即可调用，保留应用目录结构。
+<span id="windows"></span><span id="mac"></span>
+
+<Tabs syncKey="cli-platform">
+<TabItem label="Windows">
+
+`ameow-cli.exe` 与 `AmeowLauncher.exe` 位于同一目录。安装或完整解压后即可调用，保留应用目录结构。
 
 在 PowerShell 中，将下列路径改成自己的实际安装或解压位置：
 
@@ -24,11 +30,12 @@ $Cli = 'D:\Apps\Ameow\ameow-cli.exe'
 & $Cli --help
 ~~~
 
-也可自行把该目录加入用户 `PATH`，再使用 `ameow-cli --help`。安装不会自动注册全局命令或修改用户 `PATH`。从当前目录运行时使用 `./ameow-cli.exe`；上面的 `&` 是 PowerShell 调用带引号路径的语法。
+也可自行把该目录加入用户 `PATH`，再使用 `ameow-cli --help`。从当前目录运行时使用 `./ameow-cli.exe`；上面的 `&` 是 PowerShell 调用带引号路径的语法。
 
-### Mac
+</TabItem>
+<TabItem label="Mac">
 
-在包含 CLI 的完整 `Ameow.app` 中，入口是 `Contents/MacOS/ameow-cli`。例如应用放在 `/Applications` 时，在 zsh 或 bash 中运行：
+在完整 `Ameow.app` 中，入口是 `Contents/MacOS/ameow-cli`。例如应用放在 `/Applications` 时，在 zsh 或 bash 中运行：
 
 ~~~sh
 cli='/Applications/Ameow.app/Contents/MacOS/ameow-cli'
@@ -42,11 +49,19 @@ alias ameow-cli='/Applications/Ameow.app/Contents/MacOS/ameow-cli'
 ameow-cli --help
 ~~~
 
-需要长期保留时，自行将别名加入所用 shell 的配置。Ameow 不自动安装全局命令或修改 `PATH`；请从原应用包调用，保留包内成员和签名。
+需要长期保留时，自行将别名加入所用 shell 的配置。请从原应用包调用，保留包内成员和签名。
+
+</TabItem>
+</Tabs>
 
 ## 提交并查看结果
 
-准备一个自己要下载的公开媒体 URL。以下 PowerShell 示例会询问链接；先按上一节设置 `$Cli`：
+准备一个公开媒体 URL，按上一节设置 CLI 路径。提交成功后，使用回执中的完整 `task_id` 查询或等待；`INSTANCE:JOB` 是完整 ID 的占位符。
+
+<Tabs syncKey="cli-platform">
+<TabItem label="Windows">
+
+PowerShell 会询问链接：
 
 ~~~powershell
 $Url = Read-Host '公开媒体 URL'
@@ -62,7 +77,10 @@ $Task = $Receipt.result.task_id
 & $Cli --json wait $Task --timeout 300
 ~~~
 
-在 Mac 的 zsh/bash 中，先按上一节设置 `cli`，再提交：
+</TabItem>
+<TabItem label="Mac">
+
+在 zsh/bash 中提交：
 
 ~~~sh
 printf 'Public media URL: '
@@ -70,13 +88,16 @@ IFS= read -r url
 "$cli" --json submit "$url"
 ~~~
 
-从成功回执复制完整 `task_id`，替换下面的 `INSTANCE:JOB`；它是占位符，不能只保留数字：
+从成功回执复制完整 `task_id`，替换下面的 `INSTANCE:JOB`，保留实例部分和任务编号：
 
 ~~~sh
 task='INSTANCE:JOB'
 "$cli" --json show "$task"
 "$cli" --json wait "$task" --timeout 300
 ~~~
+
+</TabItem>
+</Tabs>
 
 `submit` 在没有可连接实例时会启动相邻的普通应用，Windows 经过 Launcher；仍是桌面实例持有任务。其他任务和状态命令不启动应用。`--no-start` 可禁止提交时自动启动。
 
