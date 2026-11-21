@@ -39,12 +39,12 @@ Mark a section on the video page and send it to the cat. Fast cuts may start or 
 
 ## Browser session sync
 
-Configure the browser connection in Ameow and copy the extension folder path. On the extensions page in the same Chrome or Edge browser, enable developer mode, load the unpacked extension, paste the path and select the folder.
+In Ameow's browser session settings, choose Set up extension and copy the extension folder path shown on the page. On the extensions page in the same Chrome or Edge browser, enable developer mode, load the unpacked extension, paste the path and select the folder.
 
-Then open the extension on a webpage, confirm the site scope and authorize it to sync the existing session for downloads. Sync does not sign you in or guarantee that the site still accepts the session.
+Then open the extension on a webpage, confirm the site scope and authorize it to sync the existing browser session for downloads. Sync does not sign you in or guarantee that the site still accepts the session.
 
 <p align="center">
-  <img src="docs/images/readme/session-sync.gif" alt="Click Sync now for an already-authorized bilibili.com example; the popup shows only the current webpage's site as its result changes from unknown to Snapshot updated, with Microsoft Edge as the source." width="560">
+  <img src="docs/images/readme/session-sync.gif" alt="The popup shows the current bilibili.com page with Page tools on. Click Sync now in Session sync to change Sync status unknown to Synced; Diagnostics stays collapsed." width="560">
 </p>
 
 ## Development and building
