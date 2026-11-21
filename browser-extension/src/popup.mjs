@@ -14,7 +14,7 @@ const safeId = value => typeof value === 'string' && /^[a-zA-Z0-9_-]{1,80}$/.tes
 const safeSource = value => ['Microsoft Edge', 'Chrome / Chromium'].includes(value) ? value : t('未知来源', 'Unknown source');
 function connection(kind) {
   connectionState = kind;
-  $('connection').textContent = kind === 'ready' ? t('桌面已连接','Desktop connected') : kind === 'unavailable' ? t('桌面连接不可用','Desktop unavailable') : t('桌面连接未知','Desktop connection unknown');
+  $('connection').textContent = kind === 'ready' ? t('扩展连接就绪','Extension connection ready') : kind === 'unavailable' ? t('扩展连接不可用','Extension connection unavailable') : t('扩展连接未知','Extension connection unknown');
   $('connection').toggleAttribute('data-ready', kind === 'ready'); $('connection').toggleAttribute('data-error', kind === 'unavailable');
 }
 function status(text, detail = '', error = false) {
@@ -25,8 +25,8 @@ function status(text, detail = '', error = false) {
 function recovery(code) {
   if (code === 'E_PERMISSION') return t('站点权限已移除，请重新授权后同步。','Site permission was removed. Allow access and sync again.');
   if (code === 'E_COOKIE_READ') return t('无法读取浏览器会话，请检查浏览器后重试。','Could not read the browser session. Check your browser and retry.');
-  if (/^E_BRIDGE(?:_|$)/.test(code || '')) return t('无法连接桌面端，请检查扩展配置与 Ameow 后重试。','Could not connect to the desktop app. Check extension setup and Ameow, then retry.');
-  if (code === 'E_SESSION_PROTOCOL') return t('桌面端连接不兼容，请更新 Ameow 后重试。','Desktop connection is incompatible. Update Ameow and retry.');
+  if (/^E_BRIDGE(?:_|$)/.test(code || '')) return t('扩展连接不可用，请检查扩展配置与 Ameow 后重试。','Extension connection unavailable. Check extension setup and Ameow, then retry.');
+  if (code === 'E_SESSION_PROTOCOL') return t('扩展连接组件不兼容，请更新 Ameow 后重试。','Extension connection is incompatible. Update Ameow and retry.');
   if (code === 'E_SESSION_STORAGE') return t('无法保存会话，请检查存储空间后重试。','Could not save the session. Check storage and retry.');
   if (code === 'E_SESSION_REVOKED' || code === 'E_SESSION_SOURCE_CHANGED') return t('授权已变更，请重新授权。','Access changed. Authorize again.');
   return t('同步遇到问题，请检查连接后重试。','Sync encountered a problem. Check the connection and retry.');
@@ -51,7 +51,7 @@ function updateDiagnostic() {
   const domain = typeof site === 'string' && site.length <= 253 && /^[a-z0-9.-]+$/i.test(site) ? site : unknown;
   $('diagnostic-report').textContent = [
     `${t('站点','Site')}: ${domain}`,
-    `${t('连接','Connection')}: ${connectionState === 'ready' ? t('可用','Available') : connectionState === 'unavailable' ? t('不可用','Unavailable') : unknown}`,
+    `${t('扩展连接','Extension connection')}: ${connectionState === 'ready' ? t('就绪','Ready') : connectionState === 'unavailable' ? t('不可用','Unavailable') : unknown}`,
     `${t('浏览器','Browser')}: ${source}`,
     `${t('安装来源','Installation')}: ${safeId(row?.source_id || sourceId)}`,
     `${t('保留的快照','Retained snapshot')}: ${snapshot}`,
@@ -93,7 +93,7 @@ $('retry-status').addEventListener('click', async () => {
   try { await refresh(); }
   catch (error) {
     connection('unavailable'); lastError = error.message; updateDiagnostic();
-    status(t('浏览器连接状态不可用','Browser connection unavailable'), t('请重试。','Try again.'), true);
+    status(t('扩展连接不可用','Extension connection unavailable'), t('请重试。','Try again.'), true);
   }
   finally { $('retry-status').disabled = false; }
 });
@@ -167,5 +167,5 @@ try {
   connection(site && /^E_BRIDGE|^E_SESSION_PROTOCOL/.test(error.message) ? 'unavailable' : 'unknown');
   lastError = error.message; updateDiagnostic();
   $('retry-status').hidden = !site;
-  status(site ? t('浏览器连接状态不可用','Browser connection unavailable') : t('请在普通网站页面打开扩展','Open the extension on a regular website'), '', true);
+  status(site ? t('扩展连接不可用','Extension connection unavailable') : t('请在普通网站页面打开扩展','Open the extension on a regular website'), '', true);
 }
