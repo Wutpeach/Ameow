@@ -1,12 +1,7 @@
 name: Rust Windows
 
 on:
-  push:
-    branches: [main]
-    tags: ['v*']
-    paths: ['.gitattributes', 'rust-toolchain.toml', 'Cargo.toml', 'Cargo.lock', 'build.rs', 'build_support/**', 'vendor/accesskit_windows/**', 'src/**', 'tests/**', 'examples/**', 'assets/**', 'browser-extension/**', 'distribution/**', 'scripts/package_portable.ps1', 'scripts/test_release_preparation.ps1', 'scripts/package_windows.ps1', 'scripts/test_windows_delivery.ps1', '.github/workflows/rust.yml']
-  pull_request:
-    paths: ['.gitattributes', 'rust-toolchain.toml', 'Cargo.toml', 'Cargo.lock', 'build.rs', 'build_support/**', 'vendor/accesskit_windows/**', 'src/**', 'tests/**', 'examples/**', 'assets/**', 'browser-extension/**', 'distribution/**', 'scripts/package_portable.ps1', 'scripts/test_release_preparation.ps1', 'scripts/package_windows.ps1', 'scripts/test_windows_delivery.ps1', '.github/workflows/rust.yml']
+  # Run on the final main SHA before creating a tag, once the user is ready to tag.
   workflow_dispatch:
 
 permissions:

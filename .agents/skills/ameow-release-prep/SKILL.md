@@ -7,6 +7,12 @@ description: Ameow 发布前主线功能验收、版本与文档同步、发行�
 
 发布前本人功能验收默认在已同步远端的根 main，复用共享 target。先准备好源码、版本、中英文档、配套 host/dist，再给启动入口：Windows 使用 cargo run；Mac 按系统原生机制需要复用固定 main 开发 App。无需为此额外制作 ZIP、专用验收包或专用入口。先读项目 AGENTS、CONTRIBUTING、distribution/packaging.md 与 OpenSpec 的 release-integrity；按改动再读相关能力。沿用现有 GitHub 任务和 Cindy 会话。
 
+## 验证节奏
+
+日常按风险只做必要局部检查，需要实际运行时才增量 build；功能/性能修复保留少量能证明正确与收益的定向检查。围绕稳定功能块集中验证，不随每次修改全量编译、跑整套测试或 CI。本人继续在根 main、共享 target 验收，不为验收造专用包。
+
+只有用户明确说准备发 Tag 后，才把耗时完整验证集中到实际打 Tag 之前：稳定并同步最终 main，记录完整候选 SHA，手动执行 `gh workflow run rust.yml --ref main`，核同仓库 main、准确 head_sha、workflow_dispatch、completed/success 与 run URL。现有完整 job 和断言全部保留，日常 push/PR 及 Tag 不再自动触发 Rust 全套；Deploy Docs 保持原来的站点自动部署。修复期间按影响补验，候选稳定后再集中必要的完整复跑；打 Tag 前完整 CI 回执必须对应最终候选 SHA。未跑、失败或旧 commit 成功不能记作当前 PASS；Windows CI 不替代 Mac、原生或本人验收，完整验证通过也不自动授权发行。
+
 ## 准备与交付
 
 1. 核对实际版本：Cargo 包与锁文件、扩展 manifest/package/lock、生成的 Windows 版本资源/安装器及 Mac plist。更新受影响的中英 README、手册、演示与未发布 Changelog。历史记录保留原版本；真实资源发布前，公开下载链接继续指向现有资源。

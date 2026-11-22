@@ -126,6 +126,7 @@ class ReleaseReadinessTests(unittest.TestCase):
     def start_mock(self):
         self.ci_status = 'success'
         self.ci_head = self.head
+        self.ci_overrides = {}
         self.mock = patch.object(checker, 'run', side_effect=self.run_command)
         self.mock.start()
         self.addCleanup(self.mock.stop)
@@ -157,9 +158,12 @@ class ReleaseReadinessTests(unittest.TestCase):
             return self.git('rev-parse', 'HEAD') + '\trefs/heads/main'
         if args[:2] == ['gh', 'api']:
             workflow = 'rust.yml' if args[-1].endswith('/1') else 'deploy-docs.yml'
-            return json.dumps(dict(head_sha=self.ci_head, head_branch='main', event='push',
-                                   path=f'.github/workflows/{workflow}', status='completed',
-                                   conclusion=self.ci_status, run_attempt=1))
+            receipt = dict(head_sha=self.ci_head, head_branch='main',
+                           event='workflow_dispatch' if workflow == 'rust.yml' else 'push',
+                           repository=dict(full_name='example/Ameow'), head_repository=dict(full_name='example/Ameow'),
+                           path=f'.github/workflows/{workflow}', status='completed',
+                           conclusion=self.ci_status, run_attempt=1)
+            return json.dumps(dict(receipt, **self.ci_overrides))
         return self.real_run(args, cwd)
 
     def test_complete_and_pending_are_distinct(self):
@@ -202,6 +206,35 @@ class ReleaseReadinessTests(unittest.TestCase):
             return self.run_command(args, cwd)
         with patch.object(checker, 'run', side_effect=unavailable):
             with self.assertRaises(checker.Pending): check.ci('rust')
+
+    def test_exact_main_manual_and_historical_push_ci(self):
+        check = checker.Check(self.args)
+        for event in ('workflow_dispatch', 'push'):
+            with self.subTest(event=event):
+                self.ci_overrides = dict(event=event)
+                self.assertEqual(check.ci('rust')['head'], self.head)
+        self.assertEqual(check.ci('docs')['conclusion'], 'success')
+
+    def test_manual_ci_rejects_wrong_identity_event_and_incomplete_results(self):
+        check = checker.Check(self.args)
+        for change in (dict(head_sha='0'*40), dict(head_branch='topic'),
+                       dict(repository=dict(full_name='other/Ameow')),
+                       dict(head_repository=dict(full_name='fork/Ameow')),
+                       dict(event='pull_request'), dict(event='workflow_run'),
+                       dict(path='.github/workflows/deploy-docs.yml'),
+                       dict(conclusion='failure'), dict(conclusion='cancelled'), dict(conclusion='skipped')):
+            with self.subTest(change=change):
+                self.ci_overrides = change
+                with self.assertRaises(ValueError): check.ci('rust')
+        for status in ('queued', 'in_progress'):
+            with self.subTest(status=status):
+                self.ci_overrides = dict(status=status, conclusion=None)
+                with self.assertRaises(checker.Pending): check.ci('rust')
+        self.ci_overrides = dict(event='workflow_dispatch')
+        with self.assertRaises(ValueError): check.ci('docs')
+        self.ci_overrides = {}
+        check.assets['ci']['rust'] = 'https://github.com/other/Ameow/actions/runs/1'
+        with self.assertRaises(ValueError): check.ci('rust')
 
     def test_docs_tools_can_follow_product_but_inputs_cannot(self):
         self.write(self.repo/'scripts/check_release_readiness.py', b'# tool\n')

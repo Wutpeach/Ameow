@@ -12,6 +12,20 @@ Use the repository root for Rust work. `rust-toolchain.toml` pins Rust 1.98.1. W
 - [Engineering guides](docs/README.md): preview tools and platform packaging.
 - [Development CLI](docs/developer-cli.md): isolated finite runs, offline scenarios, evidence and tool replacements.
 
+## Daily checks and validation before a tag
+
+During daily development, choose checks by the change's risk and affected behavior. Use focused static checks or tests where they answer a concrete question; build incrementally only when execution is needed. For functionality or performance fixes, retain a small number of targeted checks that demonstrate correctness and the claimed improvement. Group checks around a stable change instead of running a full build, test suite or CI after every edit. User acceptance stays on the root `main` checkout and shared `target`; prepare a dedicated package only for an actual installation or release need.
+
+Once the user says they are ready to create a tag, stabilize and push the intended changes to `main`, record its full SHA, then manually run **Rust Windows** (`.github/workflows/rust.yml`) on `main` once before creating the tag:
+
+```sh
+gh workflow run rust.yml --ref main
+```
+
+Record the resulting run URL and verify that it belongs to this repository, uses `workflow_dispatch` on `main`, has the exact candidate `head_sha`, and finishes with `completed` / `success`. This workflow retains the complete Windows Rust, extension, unsigned release-input and controlled delivery checks. Pushes, pull requests and tag creation do not trigger it. Run the other applicable release checks at this preparation point too; the Windows workflow does not establish Mac or native/user acceptance. Publication still requires explicit authorization.
+
+If a check requires a fix, rerun affected checks during the repair and consolidate any full rerun after the candidate is stable. Before tagging, the complete CI receipt must match the final candidate SHA. Keep every result tied to its actual source and scope: an unrun check or an older commit's success is not PASS for the new commit. **Deploy Docs** keeps its existing automatic site build/deployment triggers.
+
 ## Local builds on a daily-use computer
 
 Keep everyday applications responsive. For agent/task-initiated builds, checks, tests and packaging, run one heavy operation at a time per machine, use four Cargo jobs and lower only the build process priority. Coordinate with other tasks before starting; wait for an existing build to finish. These local commands do not change CI settings.
@@ -31,9 +45,7 @@ On Windows, use an independent PowerShell process that sets its own priority bef
 powershell -NoProfile -Command '
     $ErrorActionPreference = [System.Management.Automation.ActionPreference]::Stop
     [Diagnostics.Process]::GetCurrentProcess().PriorityClass = [Diagnostics.ProcessPriorityClass]::BelowNormal
-    cargo check --locked --all-targets --jobs 4
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    cargo test --locked --jobs 4
+    cargo check --locked --bin ameow --jobs 4
     exit $LASTEXITCODE
 '
 ```
@@ -54,8 +66,7 @@ if ($LASTEXITCODE -ne 0) { throw "Build failed" }
 On Mac, use `nice` for each build operation, then launch the application from the normal parent shell after a successful build:
 
 ```sh
-nice -n 10 cargo check --locked --all-targets --jobs 4 &&
-nice -n 10 cargo test --locked --jobs 4
+nice -n 10 cargo check --locked --bin ameow --jobs 4
 
 nice -n 10 cargo build --locked --bin ameow --jobs 4 &&
 ./target/debug/ameow
@@ -81,7 +92,7 @@ powershell -NoProfile -Command '
 '
 ```
 
-Use separate build and output paths outside the source checkout when preparing release inputs; ordinary local builds reuse the existing target. Full packaging and signing steps are in [distribution/packaging.md](distribution/packaging.md) and [Windows delivery](distribution/windows-delivery.md). Mac packaging uses `nice -n 10 ./scripts/package_macos.sh <executable> <new-app-path>` on an Apple Silicon Mac, after building its inputs as above. Verify each release candidate's identity and affected workflows. CI checks Windows Rust and builds Pages; it does not publish application releases.
+Use separate build and output paths outside the source checkout when preparing release inputs; ordinary local builds reuse the existing target. Full packaging and signing steps are in [distribution/packaging.md](distribution/packaging.md) and [Windows delivery](distribution/windows-delivery.md). Mac packaging uses `nice -n 10 ./scripts/package_macos.sh <executable> <new-app-path>` on an Apple Silicon Mac, after building its inputs as above. Verify each release candidate's identity and affected workflows. Windows Rust CI runs manually before tagging; Pages builds/deploys automatically as described above. Neither publishes application releases.
 
 Keep application build identity separate from later documentation-only commits. After publication is authorized, publish the approved application tag/release and its matching assets before merging download-link changes; a site change on `main` deploys Pages. A draft pull request builds the site without deploying it. Check public asset availability after release; proposed URLs and successful builds do not establish availability.
 

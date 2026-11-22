@@ -230,8 +230,11 @@ class Check:
             raise Pending(f'Cannot query exact {role} CI: {error}') from error
         docs = next((r for r in self.evidence.get('records', []) if r['id'] == 'docs'), {})
         expected_head = docs.get('commit', self.args.commit) if role == 'docs' else self.args.commit
+        events = ('push', 'workflow_dispatch') if role == 'rust' else ('push',)
+        require(receipt['repository']['full_name'] == repository
+                and receipt['head_repository']['full_name'] == repository, 'CI belongs to a different repository')
         require(receipt['head_sha'] == expected_head and receipt['head_branch'] == 'main'
-                and receipt['event'] == 'push', f'{role} CI belongs to a different source/event')
+                and receipt['event'] in events, f'{role} CI belongs to a different source/event')
         workflow = 'rust.yml' if role == 'rust' else 'deploy-docs.yml'
         require(receipt['path'] == f'.github/workflows/{workflow}', f'Wrong {role} workflow')
         if receipt['status'] != 'completed':
