@@ -3,6 +3,7 @@ pub mod diagnostics;
 pub mod identity;
 pub mod progress;
 pub mod selection;
+mod bounded_http;
 #[cfg(target_os = "macos")]
 pub(crate) mod settlement_macos;
 
@@ -140,6 +141,7 @@ impl DownloaderAdapter for YtDlpAdapter {
             }
             let mut args = engine_args(context, &route, accepted.intent.quality)?;
             generic_args(&mut args, accepted, false);
+            let _bounded_http_source = bounded_http::prepare(&mut args, working, accepted.intent.clip, &metadata)?;
             if let Some(range) = accepted.intent.clip {
                 // Precision is opt-in; the ordinary section path keeps native stream copy.
                 args.extend(["--download-sections".into(), range.section(), "--downloader-args".into(), "ffmpeg_i:-seekable 1 -xerror".into(),
