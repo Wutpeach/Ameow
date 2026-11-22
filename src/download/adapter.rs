@@ -38,6 +38,7 @@ pub struct ManagedCommand {
     pub timeout: Option<Duration>,
 }
 pub struct ExecutionContext<'a> {
+    pub(crate) media_observations: &'a super::media_observation::Observations,
     pub(crate) authentication: Option<&'a crate::browser_sessions::Attempt>,
     pub(crate) workspace: &'a Path,
     pub(crate) lease: &'a RuntimeLease,

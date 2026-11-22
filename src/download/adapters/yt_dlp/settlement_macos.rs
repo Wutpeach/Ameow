@@ -313,6 +313,7 @@ mod tests {
                     }
                 });
                 let context = ExecutionContext {
+                                media_observations: &Default::default(),
                     authentication: None,
                     workspace: &workspace, lease: &lease, requirements: &requirements,
                     control: &control, observer, admission: Arc::new(|_| Ok(())), events: Arc::new(|_| {}),

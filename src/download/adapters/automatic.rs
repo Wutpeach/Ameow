@@ -48,6 +48,7 @@ fn generic_batch(
     let observed = settled.clone();
     let observer = context.observer.clone();
     let first = ExecutionContext {
+        media_observations: context.media_observations,
         authentication: context.authentication,
         workspace: &directory, lease: context.lease, requirements: context.requirements, control: context.control,
         admission: Arc::new(move |proof| {
@@ -67,7 +68,7 @@ fn generic_batch(
     };
     context.emit(AdapterEvent::Engine(preferred));
     let result = primary.execute_batch(request, &first);
-    preserve_primary(&directory, context.workspace(), primary.evidence_files())
+    preserve_primary(&directory, context.workspace(), primary.evidence_files(), context.media_observations)
         .map_err(|_| Failure::new(FailureCode::Storage, "resolve"))?;
     match result {
         Ok(mut batch) => {
@@ -86,8 +87,12 @@ fn generic_batch(
         Err(failure) => Err(failure),
     }
 }
-fn preserve_primary(source: &Path, target: &Path, files: &[(&str, u64)]) -> Result<(), String> {
+pub(crate) fn preserve_primary(source: &Path, target: &Path, files: &[(&str, u64)], observations: &crate::download::media_observation::Observations) -> Result<(), String> {
     for &(name, limit) in files {
+        if crate::download::media_observation::optional(name) {
+            observations.preserve(source, target, name, &format!("primary-{name}"), limit);
+            continue;
+        }
         if Path::new(name).components().count() != 1 { return Err("Invalid primary evidence name".into()); }
         let path = source.join(name);
         let metadata = match fs::symlink_metadata(&path) {
@@ -240,7 +245,7 @@ mod tests {
         let captured = events.clone();
         let event_control = control.clone();
         let admission: IdentityAdmission = Arc::new(move |_| if refuse_admission { Err("E_DUPLICATE: fixture".into()) } else { Ok(()) });
-        let context = ExecutionContext { authentication: None, workspace: &work, lease: &lease, requirements: &requirements, control: &control, observer: Arc::new(|_| {}), admission, events: Arc::new(move |event| { if cancel_on_fallback && matches!(event, AdapterEvent::Fallback) { event_control.cancel(); } captured.lock().unwrap().push(format!("{event:?}")); }) };
+        let context = ExecutionContext { media_observations: &Default::default(), authentication: None, workspace: &work, lease: &lease, requirements: &requirements, control: &control, observer: Arc::new(|_| {}), admission, events: Arc::new(move |event| { if cancel_on_fallback && matches!(event, AdapterEvent::Fallback) { event_control.cancel(); } captured.lock().unwrap().push(format!("{event:?}")); }) };
         let request = ExecutionRequest { accepted: Accepted::new(DownloadIntent { clip: None, url: "https://example.com/work".into(), quality: Quality::Saver, output_dir: root.path().into() }).unwrap(), resume: None };
         let primary = Fixture::new(first); let secondary = Fixture::new(second);
         let result = generic_batch(&request, &context, &primary, &secondary, preferred);

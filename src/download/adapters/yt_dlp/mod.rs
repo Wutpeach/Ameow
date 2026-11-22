@@ -109,7 +109,7 @@ impl DownloaderAdapter for YtDlpAdapter {
             resolve_args(&mut args, accepted);
             let bytes = invoke(context, args, None, &mut engine_observation, InvocationPhase::Resolve, #[cfg(target_os = "macos")] None)?;
             let metadata = parse_metadata(&bytes)?;
-            media_observation(context, "resolve-media.json", &metadata)?;
+            media_observation(context, "resolve-media.json", &metadata);
             check_generic_object(accepted, &metadata)?;
             if let Some(range) = accepted.intent.clip { check_clip_source(&metadata, range)?; }
             let proof =
@@ -230,7 +230,7 @@ impl DownloaderAdapter for YtDlpAdapter {
             let actual = read_metadata_file(&working.join(TRANSFER_INFO_FILE)).map_err(|error| {
                 if error.starts_with("E_METADATA_") { error } else { format!("E_MEDIA_UNVERIFIED: native metadata unavailable: {error}") }
             })?;
-            media_observation(context, "transfer-media.json", &actual)?;
+            media_observation(context, "transfer-media.json", &actual);
             check_generic_object(accepted, &actual)?;
             let actual_proof =
                 identity::proof(accepted, &actual).map_err(|e| format!("E_IDENTITY: {e}"))?;
@@ -366,7 +366,7 @@ fn check_clip_record(value: &Value, range: crate::download::request::ClipRange) 
     }
     Ok(())
 }
-fn media_observation(context: &ExecutionContext<'_>, name: &str, metadata: &Value) -> Result<(), String> {
+fn media_observation(context: &ExecutionContext<'_>, name: &'static str, metadata: &Value) {
     // Only typed media measurements are durable for authenticated attempts. No wire
     // URLs, headers, titles, format tokens or free-form extractor strings are copied.
     let measurement = |value: &Value| {
@@ -381,7 +381,8 @@ fn media_observation(context: &ExecutionContext<'_>, name: &str, metadata: &Valu
     };
     let formats: Vec<_> = metadata["formats"].as_array().into_iter().flatten().take(128).map(&measurement).collect();
     let selected: Vec<_> = selection::chosen(metadata).into_iter().map(measurement).collect();
-    fs::write(context.workspace().join(name), serde_json::to_vec_pretty(&serde_json::json!({"formats":formats,"selected":selected})).map_err(|e|e.to_string())?).map_err(|e|e.to_string())
+    context.media_observations.save(context.workspace(), name,
+        serde_json::to_vec_pretty(&serde_json::json!({"formats":formats,"selected":selected})).ok());
 }
 fn transfer_expectation(actual: &Value, before: Option<&Value>, quality: crate::download::request::Quality) -> Result<VideoExpectation, String> {
     let mut video = selection::expectation(actual, quality);
@@ -718,7 +719,7 @@ use crate::download::{request::{self, Accepted, DownloadIntent}};
             Some(1080)
         );
         fs::write(working.join("resolve-stdout.log"), &bytes).map_err(|e| e.to_string())?;
-        let archived = crate::download::preserve_diagnostics(root.path(), &working, 1, EVIDENCE)?;
+        let archived = crate::download::preserve_diagnostics(root.path(), &working, 1, EVIDENCE, &Default::default())?;
         assert_eq!(
             fs::read(archived.join("resolve-stdout.log")).map_err(|e| e.to_string())?,
             bytes
@@ -728,7 +729,7 @@ use crate::download::{request::{self, Accepted, DownloadIntent}};
         assert!(failure.starts_with("E_METADATA_TOO_LARGE:"));
         fs::write(working.join("resolve-stdout.log"), overflow).map_err(|e| e.to_string())?;
         fs::write(working.join("attempt-error.log"), &failure).map_err(|e| e.to_string())?;
-        let archived = crate::download::preserve_diagnostics(root.path(), &working, 2, EVIDENCE)?;
+        let archived = crate::download::preserve_diagnostics(root.path(), &working, 2, EVIDENCE, &Default::default())?;
         assert!(archived.join("resolve-stdout.log.omitted.txt").is_file());
         assert_eq!(
             fs::read_to_string(archived.join("attempt-error.log")).map_err(|e| e.to_string())?,

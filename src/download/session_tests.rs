@@ -58,6 +58,7 @@ fn both_native_adapters_share_the_frozen_jar_and_keep_anonymous_arguments() -> R
         &[],
     );
     let context = ExecutionContext {
+        media_observations: &Default::default(),
         authentication: Some(&auth),
         workspace: work.path(),
         lease: &lease,

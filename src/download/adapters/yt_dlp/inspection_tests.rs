@@ -155,6 +155,7 @@ fn supervised_inspection_runs_only_resolve_and_retains_no_raw_output() -> Result
     let admitted = Arc::new(Mutex::new(Vec::new()));
     let captured = admitted.clone();
     let context = ExecutionContext {
+        media_observations: &Default::default(),
         authentication: None,
         workspace: work.path(),
         lease: &lease,
@@ -272,6 +273,7 @@ fn authenticated_identity_and_recipe_do_not_expose_cookie_values() -> Result<(),
     let admitted = Arc::new(Mutex::new(Vec::new()));
     let captured = admitted.clone();
     let context = ExecutionContext {
+        media_observations: &Default::default(),
         authentication: Some(&auth),
         workspace: work.path(),
         lease: &lease,

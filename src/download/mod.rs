@@ -6,6 +6,7 @@ mod output_names;
 pub mod contract;
 pub mod adapter;
 pub mod inspection;
+mod media_observation;
 #[cfg(all(test, feature = "dev-tools", windows))]
 mod inspection_lifecycle_tests;
 #[cfg(all(test, windows))]
@@ -363,6 +364,7 @@ fn execute(
     let mut destination_stage = None;
     let mut authentication = None;
     let mut authorization_watch = None;
+    let media_observations = media_observation::Observations::default();
     let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         runtime::check_data_location(&manager.root)?;
         runtime::check_data_location(&accepted.intent.output_dir)?;
@@ -543,6 +545,7 @@ fn execute(
         authentication = crate::browser_sessions::Store::new(&manager.root).snapshot(&accepted.intent.url, working)?;
         if let Some(auth) = &authentication { authorization_watch = Some(auth.watch(control.clone())?); }
         let context = ExecutionContext {
+            media_observations: &media_observations,
             authentication: authentication.as_ref(),
             workspace: working,
             lease: runtime,
@@ -736,7 +739,7 @@ fn execute(
         if authentication.is_some() || prepared.inspect_only {
             evidence.retain(|(name, _)| name.contains("settlement") || name.ends_with("-media.json"));
         }
-        match preserve_diagnostics(&manager.root, &path, job, &evidence) {
+        match preserve_diagnostics(&manager.root, &path, job, &evidence, &media_observations) {
             Ok(diagnostics) => {
                 let mut state = lock(&state);
                 state.snapshot.diagnostics = Some(diagnostics);
@@ -937,6 +940,7 @@ fn preserve_diagnostics(
     working: &std::path::Path,
     job: u64,
     files: &[(&str, u64)],
+    observations: &media_observation::Observations,
 ) -> Result<PathBuf, String> {
     fs::create_dir_all(root.join("diagnostics")).map_err(|e| e.to_string())?;
     let dir = tempfile::Builder::new()
@@ -949,6 +953,10 @@ fn preserve_diagnostics(
         ("attempt-error.log", 8 * 1024 * 1024),
     ];
     for &(name, limit) in files.iter().chain(common.iter()) {
+        if media_observation::optional(name) {
+            archived_bytes += observations.preserve(working, dir.path(), name, name, limit.min(64 * 1024 * 1024 - archived_bytes));
+            continue;
+        }
         if PathBuf::from(name).components().count() != 1
             || !PathBuf::from(name)
                 .components()
@@ -973,6 +981,7 @@ fn preserve_diagnostics(
             Err(error) => return Err(error.to_string()),
         }
     }
+    observations.append_summary(dir.path(), 64 * 1024 * 1024 - archived_bytes);
     Ok(dir.keep())
 }
 #[cfg(test)]
