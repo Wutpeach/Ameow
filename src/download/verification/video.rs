@@ -47,8 +47,7 @@ pub fn verify_clip(
     Ok(media)
 }
 fn validate_clip_duration(duration: f64, range: crate::download::request::ClipRange, source_duration: Option<f64>, precise_tolerance: Option<f64>) -> Result<(), String> {
-    // Fast stream copy may include a preceding GOP. Bound the supported slack;
-    // never turn a short selection into a whole-source success.
+    // Fast copy keeps a 10s preroll budget plus 0.5s for packet/mux rounding, independent of source length.
     let requested = range.duration_seconds();
     if range.precise {
         let tolerance = precise_tolerance.ok_or("E_MEDIA_UNVERIFIED: precise clip timing unavailable")?;
@@ -57,7 +56,7 @@ fn validate_clip_duration(duration: f64, range: crate::download::request::ClipRa
             else { Err("E_MEDIA_INVALID: precise clip differs from the selected duration".into()) };
     }
     if !duration.is_finite()
-        || duration < (requested - 0.25).max(0.001) || duration > requested + 10.
+        || duration < (requested - 0.25).max(0.001) || duration > requested + 10.5
         || source_duration.is_some_and(|source| requested < source - 1. && duration >= source - 0.25) {
         return Err("E_CLIP_UNSUPPORTED: fast cut is outside the bounded keyframe interval".into());
     }
@@ -69,8 +68,8 @@ mod clip_tests {
     #[test]
     fn fast_clip_allows_gop_slack_but_rejects_whole_or_truncated_output() {
         let range = crate::download::request::ClipRange { start_ms: 301250, end_ms: 309750, precise: false };
-        for duration in [8.5, 9.75, 12.] { assert!(validate_clip_duration(duration, range, Some(600.), None).is_ok()); }
-        for duration in [0., 3., 19., 600., f64::NAN] { assert!(validate_clip_duration(duration, range, Some(600.), None).is_err()); }
+        for duration in [8.5, 9.75, 12., 19.] { assert!(validate_clip_duration(duration, range, Some(600.), None).is_ok()); }
+        for duration in [0., 3., 19.5, 600., f64::NAN] { assert!(validate_clip_duration(duration, range, Some(600.), None).is_err()); }
         assert!(validate_clip_duration(600., range, None, None).is_err());
         let short = crate::download::request::ClipRange { start_ms: 1250, end_ms: 4750, precise: false };
         assert!(validate_clip_duration(8., short, Some(8.), None).is_err());
@@ -78,7 +77,31 @@ mod clip_tests {
         for duration in [3.48, 3.5, 3.56] { assert!(validate_clip_duration(duration, precise, Some(8.), Some(0.09)).is_ok()); }
         for duration in [3., 3.75, 8., f64::NAN] { assert!(validate_clip_duration(duration, precise, Some(8.), Some(0.09)).is_err()); }
     }
+    #[test]
+    fn fast_clip_accepts_observed_preroll_muxing_without_scaling_to_source_length() {
+        // Recorded native copy outputs: identical packets and complete decode, across request configurations.
+        for (requested_ms, observed) in [(3000, 13.019), (125000, 135.059)] {
+            let range = crate::download::request::ClipRange { start_ms: 30000, end_ms: 30000 + requested_ms, precise: false };
+            for source in [None, Some(213.), Some(36000.)] {
+                assert!(validate_clip_duration(observed, range, source, None).is_ok(), "{requested_ms}ms -> {observed}s, source {source:?}");
+                for invalid in [requested_ms as f64 / 1000. - 0.3, requested_ms as f64 / 1000. + 10.6] {
+                    assert!(validate_clip_duration(invalid, range, source, None).is_err());
+                }
+            }
+            assert!(validate_clip_duration(observed, crate::download::request::ClipRange { precise: true, ..range }, Some(213.), Some(0.09)).is_err());
+        }
+    }
+    #[test]
+    fn precise_clip_keeps_frame_plus_fifty_ms_boundary() {
+        let range = crate::download::request::ClipRange { start_ms: 30000, end_ms: 33000, precise: true };
+        for duration in [2.911, 3.089] { assert!(validate_clip_duration(duration, range, Some(600.), Some(1. / 25. + 0.05)).is_ok()); }
+        for duration in [2.909, 3.091, 13.019] { assert!(validate_clip_duration(duration, range, Some(600.), Some(1. / 25. + 0.05)).is_err()); }
+        assert!(validate_clip_duration(3., range, Some(600.), None).is_err());
+    }
 }
+#[cfg(all(test, windows))]
+#[path = "video_clip_tests.rs"]
+mod native_clip_tests;
 pub(super) fn verify_media(
     path: &Path,
     workspace: &Path,
