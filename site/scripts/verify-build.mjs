@@ -63,7 +63,9 @@ for (const locale of ['docs', 'en/docs']) {
 
   assert.doesNotMatch(extension, /review-banner|review-notes/, locale + ' must not expose internal review records');
   assert.match(pages.get(locale + '/desktop/output-folder/index.html'), /data-folder-ghost[^>]*aria-hidden="true"/, locale + ' must retain the visible drag object');
-  assert.match(pages.get(locale + '/changelog/0-5-1/index.html'), /未发布|Unreleased/, locale + ' must label the unreleased version');
+  const release = pages.get(locale + '/changelog/0-5-1/index.html');
+  assert.match(release, /2026-11-22/, locale + ' must show the publication date');
+  assert(release.includes('https://github.com/Wutpeach/Ameow/releases/tag/v0.5.1'), locale + ' must link to the published release');
 }
 for (const locale of ['docs', 'en/docs']) for (const route of [
   'review-notes', 'browser-extension', 'extension/install', 'extension/connection', 'extension/cookies-and-login',
