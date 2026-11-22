@@ -890,7 +890,30 @@ function siteFromUrl(value) {
 }
 var scope = (site2) => [`https://*.${site2}/*`, `http://*.${site2}/*`];
 
+// ../assets/copy.svg
+var copy_default = '<!-- Lucide copy, rendered at 10px with a 1.2px stroke. ISC license. -->\r\n<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="white" stroke-width="1.92" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="8" height="8" rx="1.333"/><path d="M3.333 10H2.667A1.333 1.333 0 0 1 1.333 8.667v-6A1.333 1.333 0 0 1 2.667 1.333h6A1.333 1.333 0 0 1 10 2.667v.666"/></svg>\r\n';
+
+// ../assets/check.svg
+var check_default = '<!-- Lucide check, copy feedback rendered at 10px with a 1.2px stroke. ISC license. -->\r\n<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="white" stroke-width="1.92" stroke-linecap="round" stroke-linejoin="round"><path d="m13.333 4-7.333 7.333-3.333-3.333"/></svg>\r\n';
+
+// ../assets/rotate-ccw.svg
+var rotate_ccw_default = `<!-- Lucide rotate-ccw; ISC. Stroke matches Ameow's existing 16px icons. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5"/>
+</svg>
+`;
+
+// ../assets/circle-alert.svg
+var circle_alert_default = '<!-- Lucide 0.468.0 circle-alert; ISC. Stroke adapted to 1.2px at 16px. -->\r\n<svg\r\n  xmlns="http://www.w3.org/2000/svg"\r\n  width="24"\r\n  height="24"\r\n  viewBox="0 0 24 24"\r\n  fill="none"\r\n  stroke="white"\r\n  stroke-width="1.8"\r\n  stroke-linecap="round"\r\n  stroke-linejoin="round"\r\n>\r\n  <circle cx="12" cy="12" r="10" />\r\n  <line x1="12" x2="12" y1="8" y2="12" />\r\n  <line x1="12" x2="12.01" y1="16" y2="16" />\r\n</svg>\r\n';
+
+// ../assets/info.svg
+var info_default = '<!-- Lucide 0.468.0 info; ISC. Stroke adapted to 1.2px at 16px. -->\r\n<svg\r\n  xmlns="http://www.w3.org/2000/svg"\r\n  width="24"\r\n  height="24"\r\n  viewBox="0 0 24 24"\r\n  fill="none"\r\n  stroke="white"\r\n  stroke-width="1.8"\r\n  stroke-linecap="round"\r\n  stroke-linejoin="round"\r\n>\r\n  <circle cx="12" cy="12" r="10" />\r\n  <path d="M12 16v-4" />\r\n  <path d="M12 8h.01" />\r\n</svg>\r\n';
+
+// ../assets/chevron-down.svg
+var chevron_down_default = '<!-- Lucide 0.468.0 chevron-down; ISC. Stroke adapted to 1.2px at 16px. -->\r\n<svg\r\n  xmlns="http://www.w3.org/2000/svg"\r\n  width="24"\r\n  height="24"\r\n  viewBox="0 0 24 24"\r\n  fill="none"\r\n  stroke="white"\r\n  stroke-width="1.8"\r\n  stroke-linecap="round"\r\n  stroke-linejoin="round"\r\n>\r\n  <path d="m6 9 6 6 6-6" />\r\n</svg>\r\n';
+
 // src/popup.mjs
+var icons = { copy: copy_default, check: check_default, refresh: rotate_ccw_default, alert: circle_alert_default, info: info_default, chevron: chevron_down_default };
 var $ = (id) => document.getElementById(id);
 var english = (navigator.language || "").toLowerCase().startsWith("en");
 var t = (zh, en) => english ? en : zh;
@@ -905,6 +928,13 @@ var host;
 var tabId;
 var toolsEnabled = false;
 var copiedTimer;
+var feedbackTimer;
+var diagnosticReport = "";
+var authorized = false;
+var pending = false;
+var busy = "";
+var syncedFeedback = false;
+var stateKnown = false;
 var sourceName = navigator.userAgent.includes("Edg/") ? "Microsoft Edge" : "Chrome / Chromium";
 var errorEn = { E_COOKIE_READ: "Could not read browser cookies", E_BRIDGE: "Browser connection failed", E_SESSION_STORAGE: "Session storage failed", E_SESSION_LIMIT: "Session exceeds the sync limit", E_SESSION_INVALID: "Session data was not accepted", E_SESSION_PROTOCOL: "Browser bridge is incompatible", E_SESSION_STALE: "Sync message expired", E_PERMISSION: "Site permission was removed", E_SESSION_REVOKED: "Site authorization was removed", E_SESSION_SOURCE_CHANGED: "Site source changed", E_BRIDGE_NOT_REGISTERED: "Browser bridge registration was not found", E_BRIDGE_FORBIDDEN: "Browser denied the connection", E_BRIDGE_START: "Browser bridge could not start", E_BRIDGE_EXIT: "Browser bridge exited", E_BRIDGE_IO: "Browser connection failed" };
 var errorText = (code) => {
@@ -916,23 +946,76 @@ var safeId = (value) => typeof value === "string" && /^[a-zA-Z0-9_-]{1,80}$/.tes
 var safeSource = (value) => ["Microsoft Edge", "Chrome / Chromium"].includes(value) ? value : t("\u672A\u77E5\u6765\u6E90", "Unknown source");
 function connection(kind) {
   connectionState = kind;
-  $("connection").textContent = kind === "ready" ? t("\u684C\u9762\u5DF2\u8FDE\u63A5", "Desktop connected") : kind === "unavailable" ? t("\u684C\u9762\u8FDE\u63A5\u4E0D\u53EF\u7528", "Desktop unavailable") : t("\u684C\u9762\u8FDE\u63A5\u672A\u77E5", "Desktop connection unknown");
+  const full = kind === "ready" ? t("\u6269\u5C55\u8FDE\u63A5\u5C31\u7EEA", "Extension connection ready") : kind === "unavailable" ? t("\u6269\u5C55\u8FDE\u63A5\u4E0D\u53EF\u7528", "Extension connection unavailable") : t("\u6269\u5C55\u8FDE\u63A5\u672A\u77E5", "Extension connection unknown");
+  $("connection").textContent = kind === "ready" ? t("\u5C31\u7EEA", "Ready") : kind === "unavailable" ? t("\u672A\u8FDE\u63A5", "Disconnected") : t("\u672A\u77E5", "Unknown");
+  $("connection").setAttribute("aria-label", full);
+  $("connection-title").textContent = full;
+  $("connection-detail").textContent = kind === "ready" ? t("\u53EF\u540C\u6B65\u672C\u7AD9\u767B\u5F55\u6001\u3002", "Site session sync is available.") : t("\u8BF7\u68C0\u67E5\u6269\u5C55\u914D\u7F6E\u540E\u91CD\u8BD5\u3002", "Check extension setup and retry.");
   $("connection").toggleAttribute("data-ready", kind === "ready");
   $("connection").toggleAttribute("data-error", kind === "unavailable");
 }
 function status(text, detail = "", error = false) {
-  $("notice").hidden = !text;
+  $("notice").hidden = !text || connectionState === "unavailable";
   $("status").textContent = text;
   $("status-detail").textContent = detail;
-  $("status").toggleAttribute("data-error", error);
+  $("notice").setAttribute("aria-label", text + t("\uFF0C\u67E5\u770B\u63D0\u793A", "; view details"));
+  $("notice").title = text;
   $("notice").toggleAttribute("data-error", error);
-  $("notice").toggleAttribute("data-success", false);
+  $("notice").replaceChildren(makeIcon(error ? "alert" : "info"));
+  if (connectionState === "unavailable" && detail) $("connection-detail").textContent = detail;
+  if (!text && $("session-help").matches(":popover-open")) $("session-help").hidePopover();
+  if (text) $("announcement").textContent = text;
+}
+function makeIcon(name, hover = false) {
+  const mark = document.createElement("span");
+  mark.className = "icon icon-" + name;
+  mark.setAttribute("aria-hidden", "true");
+  mark.innerHTML = icons[name] + (hover ? icons.refresh : "");
+  if (hover) mark.lastElementChild.classList.add("icon-alt");
+  return mark;
+}
+function paintButton(button, text, icon, hover) {
+  const children = [];
+  if (icon) children.push(makeIcon(icon, Boolean(hover)));
+  const label = document.createElement("span");
+  label.className = "action-label";
+  const normal = document.createElement("span");
+  normal.className = "label-default";
+  normal.textContent = text;
+  label.append(normal);
+  if (hover) {
+    const alternate = document.createElement("span");
+    alternate.className = "label-hover";
+    alternate.textContent = hover;
+    alternate.setAttribute("aria-hidden", "true");
+    label.append(alternate);
+  }
+  if (text) children.push(label);
+  button.replaceChildren(...children);
+}
+function controls() {
+  const working = Boolean(busy) || pending;
+  $("authorize").disabled = working || !stateKnown;
+  $("sync").disabled = working || !stateKnown;
+  $("revoke").disabled = working;
+  $("revoke").textContent = busy === "revoke" ? t("\u79FB\u9664\u4E2D", "Removing") : t("\u79FB\u9664\u6388\u6743", "Remove access");
+  $("sync").setAttribute("aria-busy", String(working));
+  $("authorize").setAttribute("aria-busy", String(busy === "authorize"));
+  paintButton($("authorize"), busy === "authorize" ? t("\u6388\u6743\u4E2D", "Allowing") : t("\u6388\u6743", "Authorize"), busy === "authorize" ? "refresh" : null);
+  const needsPermission = lastError === "E_PERMISSION";
+  const text = working ? t("\u540C\u6B65\u4E2D", "Syncing") : needsPermission ? t("\u91CD\u65B0\u6388\u6743", "Allow again") : syncedFeedback ? t("\u5DF2\u540C\u6B65", "Synced") : t("\u5DF2\u6388\u6743", "Allowed");
+  const hover = !working && !needsPermission && !syncedFeedback ? t("\u540C\u6B65", "Sync") : null;
+  paintButton($("sync"), text, working ? "refresh" : needsPermission ? null : "check", hover);
+  $("sync").toggleAttribute("data-authorized", Boolean(hover));
+  $("sync").setAttribute("aria-label", working ? t("\u6B63\u5728\u540C\u6B65\u767B\u5F55\u6001", "Syncing site session") : needsPermission ? t("\u91CD\u65B0\u6388\u6743\u5E76\u540C\u6B65\u672C\u7AD9\u767B\u5F55\u6001", "Allow access and sync this site") : t("\u5DF2\u6388\u6743\uFF0C\u70B9\u51FB\u540C\u6B65\u672C\u7AD9\u767B\u5F55\u6001", "Site authorized; sync this site"));
+  $("sync").title = needsPermission ? t("\u91CD\u65B0\u6388\u6743\u5E76\u540C\u6B65", "Allow access and sync") : t("\u70B9\u51FB\u540C\u6B65\u767B\u5F55\u6001", "Sync this site session");
+  $("authorize").setAttribute("aria-label", t("\u6388\u6743\u5E76\u540C\u6B65\u672C\u7AD9\u767B\u5F55\u6001", "Authorize and sync this site"));
 }
 function recovery(code) {
   if (code === "E_PERMISSION") return t("\u7AD9\u70B9\u6743\u9650\u5DF2\u79FB\u9664\uFF0C\u8BF7\u91CD\u65B0\u6388\u6743\u540E\u540C\u6B65\u3002", "Site permission was removed. Allow access and sync again.");
   if (code === "E_COOKIE_READ") return t("\u65E0\u6CD5\u8BFB\u53D6\u6D4F\u89C8\u5668\u4F1A\u8BDD\uFF0C\u8BF7\u68C0\u67E5\u6D4F\u89C8\u5668\u540E\u91CD\u8BD5\u3002", "Could not read the browser session. Check your browser and retry.");
-  if (/^E_BRIDGE(?:_|$)/.test(code || "")) return t("\u65E0\u6CD5\u8FDE\u63A5\u684C\u9762\u7AEF\uFF0C\u8BF7\u68C0\u67E5\u6269\u5C55\u914D\u7F6E\u4E0E Ameow \u540E\u91CD\u8BD5\u3002", "Could not connect to the desktop app. Check extension setup and Ameow, then retry.");
-  if (code === "E_SESSION_PROTOCOL") return t("\u684C\u9762\u7AEF\u8FDE\u63A5\u4E0D\u517C\u5BB9\uFF0C\u8BF7\u66F4\u65B0 Ameow \u540E\u91CD\u8BD5\u3002", "Desktop connection is incompatible. Update Ameow and retry.");
+  if (/^E_BRIDGE(?:_|$)/.test(code || "")) return t("\u6269\u5C55\u8FDE\u63A5\u4E0D\u53EF\u7528\uFF0C\u8BF7\u68C0\u67E5\u6269\u5C55\u914D\u7F6E\u4E0E Ameow \u540E\u91CD\u8BD5\u3002", "Extension connection unavailable. Check extension setup and Ameow, then retry.");
+  if (code === "E_SESSION_PROTOCOL") return t("\u6269\u5C55\u8FDE\u63A5\u7EC4\u4EF6\u4E0D\u517C\u5BB9\uFF0C\u8BF7\u66F4\u65B0 Ameow \u540E\u91CD\u8BD5\u3002", "Extension connection is incompatible. Update Ameow and retry.");
   if (code === "E_SESSION_STORAGE") return t("\u65E0\u6CD5\u4FDD\u5B58\u4F1A\u8BDD\uFF0C\u8BF7\u68C0\u67E5\u5B58\u50A8\u7A7A\u95F4\u540E\u91CD\u8BD5\u3002", "Could not save the session. Check storage and retry.");
   if (code === "E_SESSION_REVOKED" || code === "E_SESSION_SOURCE_CHANGED") return t("\u6388\u6743\u5DF2\u53D8\u66F4\uFF0C\u8BF7\u91CD\u65B0\u6388\u6743\u3002", "Access changed. Authorize again.");
   return t("\u540C\u6B65\u9047\u5230\u95EE\u9898\uFF0C\u8BF7\u68C0\u67E5\u8FDE\u63A5\u540E\u91CD\u8BD5\u3002", "Sync encountered a problem. Check the connection and retry.");
@@ -957,9 +1040,9 @@ function updateDiagnostic() {
   const count = Number.isSafeInteger(row?.cookie_count) && row.cookie_count >= 0 ? row.cookie_count : unknown;
   const excluded = Number.isSafeInteger(row?.skipped_partitioned) && row.skipped_partitioned >= 0 ? row.skipped_partitioned : unknown;
   const domain = typeof site === "string" && site.length <= 253 && /^[a-z0-9.-]+$/i.test(site) ? site : unknown;
-  $("diagnostic-report").textContent = [
+  diagnosticReport = [
     `${t("\u7AD9\u70B9", "Site")}: ${domain}`,
-    `${t("\u8FDE\u63A5", "Connection")}: ${connectionState === "ready" ? t("\u53EF\u7528", "Available") : connectionState === "unavailable" ? t("\u4E0D\u53EF\u7528", "Unavailable") : unknown}`,
+    `${t("\u6269\u5C55\u8FDE\u63A5", "Extension connection")}: ${connectionState === "ready" ? t("\u5C31\u7EEA", "Ready") : connectionState === "unavailable" ? t("\u4E0D\u53EF\u7528", "Unavailable") : unknown}`,
     `${t("\u6D4F\u89C8\u5668", "Browser")}: ${source}`,
     `${t("\u5B89\u88C5\u6765\u6E90", "Installation")}: ${safeId(row?.source_id || sourceId)}`,
     `${t("\u4FDD\u7559\u7684\u5FEB\u7167", "Retained snapshot")}: ${snapshot}`,
@@ -978,25 +1061,25 @@ function render(state) {
   if (valid) current = state.sites.find((row) => row?.site === site);
   const grant = state.grant, own = current ? current.source_id === sourceId : Boolean(grant);
   lastGrant = grant;
-  $("unauthorized").hidden = !valid || Boolean(current || grant);
-  $("scope").hidden = !valid || own;
+  authorized = own;
+  stateKnown = valid || own;
+  pending = Boolean(own && grant?.pending);
+  $("page-unavailable").hidden = true;
   $("authorize").hidden = !valid || own;
   $("sync").hidden = !own;
   $("revoke").hidden = !own;
+  $("site-actions").hidden = !own;
+  if (!own && $("site-menu").matches(":popover-open")) $("site-menu").hidePopover();
   $("retry-status").hidden = valid || own;
-  $("authorize").textContent = current ? t("\u6539\u7528\u6B64\u6D4F\u89C8\u5668", "Use this browser") : t("\u6388\u6743\u5E76\u540C\u6B65", "Authorize & sync");
-  $("authorize").disabled = false;
-  $("replace-copy").hidden = !valid || !current || own;
-  lastError = state.error || own && grant?.error || current?.last_result?.error;
+  const ownRow = own ? current : void 0;
+  lastError = state.error || own && grant?.error || ownRow?.last_result?.error;
   if (lastError) status(t("\u540C\u6B65\u672A\u5B8C\u6210", "Sync did not complete"), recovery(lastError), true);
-  else if (grant?.pending) status(t("\u6B63\u5728\u540C\u6B65", "Syncing"));
-  else if (current?.cookie_count === 0) status(t("\u6CA1\u6709\u53EF\u7528\u4F1A\u8BDD", "No available session"), t("\u8BF7\u5728\u6D4F\u89C8\u5668\u786E\u8BA4\u672C\u7AD9\u5DF2\u767B\u5F55\uFF0C\u7136\u540E\u91CD\u65B0\u540C\u6B65\u3002", "Check that you are signed in, then sync again."));
-  else if (current && !current.last_result) status(t("\u540C\u6B65\u7ED3\u679C\u672A\u77E5", "Sync status unknown"));
-  else if (current) {
-    status(t("\u5DF2\u540C\u6B65", "Synced"));
-    $("notice").setAttribute("data-success", "");
-  } else status(valid ? "" : t("\u4F1A\u8BDD\u72B6\u6001\u6682\u4E0D\u53EF\u786E\u8BA4", "Session status unavailable"));
-  $("sync").textContent = lastError ? t("\u91CD\u8BD5\u540C\u6B65", "Retry sync") : t("\u7ACB\u5373\u540C\u6B65", "Sync now");
+  else if (pending) status("");
+  else if (ownRow?.cookie_count === 0) status(t("\u6682\u65E0\u767B\u5F55\u6001", "No session available"), t("\u5148\u5728\u672C\u7AD9\u767B\u5F55\uFF0C\u518D\u70B9\u51FB\u540C\u6B65\u3002", "Sign in on this site, then sync again."));
+  else if (ownRow && !ownRow.last_result) status(t("\u540C\u6B65\u7ED3\u679C\u672A\u77E5", "Sync status unknown"), t("\u70B9\u51FB\u540C\u6B65\u4EE5\u66F4\u65B0\u72B6\u6001\u3002", "Sync to update the status."));
+  else if (ownRow) status("");
+  else status(valid ? "" : t("\u4F1A\u8BDD\u72B6\u6001\u6682\u4E0D\u53EF\u786E\u8BA4", "Session status unavailable"));
+  controls();
   updateDiagnostic();
 }
 async function refresh() {
@@ -1010,7 +1093,7 @@ $("retry-status").addEventListener("click", async () => {
     connection("unavailable");
     lastError = error.message;
     updateDiagnostic();
-    status(t("\u6D4F\u89C8\u5668\u8FDE\u63A5\u72B6\u6001\u4E0D\u53EF\u7528", "Browser connection unavailable"), t("\u8BF7\u91CD\u8BD5\u3002", "Try again."), true);
+    status(t("\u6269\u5C55\u8FDE\u63A5\u4E0D\u53EF\u7528", "Extension connection unavailable"), t("\u8BF7\u91CD\u8BD5\u3002", "Try again."), true);
   } finally {
     $("retry-status").disabled = false;
   }
@@ -1018,14 +1101,24 @@ $("retry-status").addEventListener("click", async () => {
 $("copy-diagnostic").addEventListener("click", async () => {
   clearTimeout(copiedTimer);
   try {
-    await navigator.clipboard.writeText($("diagnostic-report").textContent);
+    await navigator.clipboard.writeText(diagnosticReport);
     $("copy-error").hidden = true;
-    $("copy-diagnostic").textContent = t("\u5DF2\u590D\u5236", "Copied");
+    paintButton($("copy-diagnostic"), "", "check");
+    $("copy-diagnostic").setAttribute("data-copied", "");
+    $("copy-diagnostic").setAttribute("aria-label", t("\u5DF2\u590D\u5236\u8BCA\u65AD\u62A5\u544A", "Diagnostic report copied"));
+    $("copy-diagnostic").title = t("\u5DF2\u590D\u5236", "Copied");
+    $("announcement").textContent = t("\u8BCA\u65AD\u62A5\u544A\u5DF2\u590D\u5236", "Diagnostic report copied");
     copiedTimer = setTimeout(() => {
-      $("copy-diagnostic").textContent = t("\u590D\u5236\u8BCA\u65AD\u62A5\u544A", "Copy diagnostic report");
+      paintButton($("copy-diagnostic"), "", "copy");
+      $("copy-diagnostic").removeAttribute("data-copied");
+      $("copy-diagnostic").setAttribute("aria-label", t("\u590D\u5236\u8BCA\u65AD\u62A5\u544A", "Copy diagnostic report"));
+      $("copy-diagnostic").title = t("\u590D\u5236\u8BCA\u65AD\u62A5\u544A", "Copy diagnostic report");
     }, 2e3);
   } catch {
-    $("copy-diagnostic").textContent = t("\u590D\u5236\u8BCA\u65AD\u62A5\u544A", "Copy diagnostic report");
+    paintButton($("copy-diagnostic"), "", "copy");
+    $("copy-diagnostic").removeAttribute("data-copied");
+    $("copy-diagnostic").setAttribute("aria-label", t("\u590D\u5236\u8BCA\u65AD\u62A5\u544A", "Copy diagnostic report"));
+    $("copy-diagnostic").title = t("\u590D\u5236\u8BCA\u65AD\u62A5\u544A", "Copy diagnostic report");
     $("copy-error").textContent = t("\u65E0\u6CD5\u590D\u5236\uFF0C\u8BF7\u91CD\u8BD5\u3002", "Could not copy. Try again.");
     $("copy-error").hidden = false;
   }
@@ -1050,7 +1143,8 @@ $("toggle-tools").addEventListener("click", async () => {
   }
 });
 for (const action of ["authorize", "sync", "revoke"]) $(action).addEventListener("click", async () => {
-  for (const id of ["authorize", "sync", "revoke"]) $(id).disabled = true;
+  busy = action;
+  controls();
   try {
     if (action === "authorize") {
       if (!await chrome.permissions.request({ origins: scope(site) })) {
@@ -1068,50 +1162,102 @@ for (const action of ["authorize", "sync", "revoke"]) $(action).addEventListener
       if (!["synced", "revoked"].includes(result[site])) throw Error(result[site]);
     }
     await refresh();
+    if (action !== "revoke") {
+      clearTimeout(feedbackTimer);
+      syncedFeedback = true;
+      feedbackTimer = setTimeout(() => {
+        syncedFeedback = false;
+        controls();
+      }, 2e3);
+      $("announcement").textContent = t("\u767B\u5F55\u6001\u5DF2\u540C\u6B65", "Site session synced");
+    }
   } catch (error) {
     if (/^E_BRIDGE(?:_|$)|^E_SESSION_PROTOCOL$/.test(error.message)) connection("unavailable");
     lastError = error.message;
-    $("sync").textContent = t("\u91CD\u8BD5\u540C\u6B65", "Retry sync");
     updateDiagnostic();
     status(t("\u540C\u6B65\u672A\u5B8C\u6210", "Sync did not complete"), recovery(lastError), true);
   } finally {
-    for (const id of ["authorize", "sync", "revoke"]) $(id).disabled = false;
+    busy = "";
+    controls();
+    if (action === "revoke" && !authorized) $("authorize").focus();
   }
 });
 for (const [id, zh, en] of [
-  ["unauthorized", "\u672A\u6388\u6743", "Not authorized"],
   ["revoke", "\u79FB\u9664\u6388\u6743", "Remove access"],
   ["session-title", "\u767B\u5F55\u6001\u540C\u6B65", "Session sync"],
-  ["replace-copy", "\u6539\u7528\u6B64\u6D4F\u89C8\u5668\u4F1A\u66FF\u6362\u5F53\u524D\u6765\u6E90\u3002", "Using this browser replaces the current source."],
   ["diagnostics-title", "\u8BCA\u65AD", "Diagnostics"],
-  ["copy-diagnostic", "\u590D\u5236\u8BCA\u65AD\u62A5\u544A", "Copy diagnostic report"],
   ["retry-status", "\u91CD\u8BD5", "Retry"],
   ["tools-title", "\u9875\u9762\u5DE5\u5177", "Page tools"]
 ]) $(id).textContent = t(zh, en);
+for (const mark of document.querySelectorAll(".icon")) {
+  const name = [...mark.classList].find((value) => value.startsWith("icon-"))?.slice(5);
+  if (icons[name]) mark.replaceWith(makeIcon(name));
+}
+$("site-actions").setAttribute("aria-label", t("\u7AD9\u70B9\u9009\u9879", "Site options"));
+$("site-actions").title = t("\u7AD9\u70B9\u9009\u9879", "Site options");
+$("copy-diagnostic").setAttribute("aria-label", t("\u590D\u5236\u8BCA\u65AD\u62A5\u544A", "Copy diagnostic report"));
+$("copy-diagnostic").title = t("\u590D\u5236\u8BCA\u65AD\u62A5\u544A", "Copy diagnostic report");
+$("page-unavailable").textContent = t("\u8BF7\u5728\u7F51\u7AD9\u6253\u5F00", "Open a website");
+$("site").addEventListener("focus", () => {
+  if ($("site").matches(":focus-visible") && $("site").scrollWidth > $("site").clientWidth) {
+    $("site-full").textContent = site;
+    $("site-full").showPopover();
+  }
+});
+var hideFullSite = () => {
+  if ($("site-full").matches(":popover-open")) $("site-full").hidePopover();
+};
+$("site").addEventListener("blur", hideFullSite);
+$("site").addEventListener("keydown", (event) => {
+  if (event.key === "Escape") hideFullSite();
+});
+paintButton($("retry-status"), t("\u91CD\u8BD5", "Retry"), "refresh");
+controls();
 connection("unknown");
 updateDiagnostic();
 try {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   host = pageHost(tab.url);
   tabId = tab.id;
-  if (host) {
-    $("page-tools").hidden = false;
-    const reply = await chrome.runtime.sendMessage({ action: "pages-status", host });
-    toolsEnabled = Boolean(reply?.value?.enabled);
-    $("toggle-tools").setAttribute("aria-pressed", String(toolsEnabled));
-    $("toggle-tools").setAttribute("aria-label", toolsEnabled ? t("\u5173\u95ED\u9875\u9762\u5DE5\u5177", "Turn off page tools") : t("\u542F\u7528\u9875\u9762\u5DE5\u5177", "Enable page tools"));
-    $("toggle-tools").disabled = false;
-  }
   site = siteFromUrl(tab.url);
   $("site").textContent = site;
   $("site").title = site;
   $("site").setAttribute("aria-label", site);
-  $("scope").textContent = t("\u5141\u8BB8\u81EA\u52A8\u540C\u6B65 " + site + " \u53CA\u5176\u5B50\u57DF\u7684 Cookie\uFF0C\u4EC5\u7528\u4E8E Ameow \u4E0B\u8F7D\u3002", "Allow automatic cookie sync for " + site + " and its subdomains, for Ameow downloads only.");
-  await refresh();
+  $("authorize").title = t("\u5141\u8BB8\u540C\u6B65\u672C\u7AD9\u53CA\u5B50\u57DF\u7684\u767B\u5F55\u6001\uFF0C\u4EC5\u7528\u4E8E Ameow \u4E0B\u8F7D", "Allow this site and its subdomains for Ameow downloads");
+  const [pageResult, sessionResult] = await Promise.allSettled([
+    host ? chrome.runtime.sendMessage({ action: "pages-status", host }) : null,
+    send("status")
+  ]);
+  if (host) {
+    $("page-tools").hidden = false;
+    if (pageResult.status === "fulfilled" && pageResult.value?.ok && typeof pageResult.value.value?.enabled === "boolean") {
+      toolsEnabled = pageResult.value.value.enabled;
+      $("toggle-tools").setAttribute("aria-pressed", String(toolsEnabled));
+      $("toggle-tools").setAttribute("aria-label", toolsEnabled ? t("\u5173\u95ED\u9875\u9762\u5DE5\u5177", "Turn off page tools") : t("\u542F\u7528\u9875\u9762\u5DE5\u5177", "Enable page tools"));
+      $("toggle-tools").disabled = false;
+    } else {
+      $("page-status").textContent = t("\u9875\u9762\u5DE5\u5177\u72B6\u6001\u4E0D\u53EF\u7528\uFF0C\u8BF7\u91CD\u65B0\u6253\u5F00\u6269\u5C55\u3002", "Page tools status unavailable. Reopen the extension.");
+      $("toggle-tools").setAttribute("aria-label", t("\u9875\u9762\u5DE5\u5177\u72B6\u6001\u4E0D\u53EF\u7528", "Page tools status unavailable"));
+    }
+  }
+  if (sessionResult.status === "rejected") throw sessionResult.reason;
+  render(sessionResult.value);
 } catch (error) {
   connection(site && /^E_BRIDGE|^E_SESSION_PROTOCOL/.test(error.message) ? "unavailable" : "unknown");
   lastError = error.message;
   updateDiagnostic();
-  $("retry-status").hidden = !site;
-  status(site ? t("\u6D4F\u89C8\u5668\u8FDE\u63A5\u72B6\u6001\u4E0D\u53EF\u7528", "Browser connection unavailable") : t("\u8BF7\u5728\u666E\u901A\u7F51\u7AD9\u9875\u9762\u6253\u5F00\u6269\u5C55", "Open the extension on a regular website"), "", true);
+  $("retry-status").hidden = !site || authorized;
+  $("authorize").hidden = true;
+  $("sync").hidden = !authorized;
+  if (!site) {
+    $("site").textContent = t("\u5F53\u524D\u9875\u9762", "Current page");
+    $("authorize").hidden = true;
+    $("sync").hidden = true;
+    $("page-unavailable").hidden = false;
+  }
+  status(site ? t("\u6269\u5C55\u8FDE\u63A5\u4E0D\u53EF\u7528", "Extension connection unavailable") : t("\u8BF7\u5728\u666E\u901A\u7F51\u7AD9\u9875\u9762\u6253\u5F00\u6269\u5C55", "Open the extension on a regular website"), "", true);
+  if (!site) $("notice").hidden = true;
+} finally {
+  document.querySelector("main").getBoundingClientRect();
+  document.documentElement.removeAttribute("data-initializing");
 }

@@ -139,7 +139,7 @@ impl Build {
         }
         self.trust.trust()?;
         if self.schema == 3 {
-            let required = BTreeSet::from(["ameow-browser-host.exe", "browser-extension/manifest.json", "browser-extension/background.js", "browser-extension/popup.js", "browser-extension/popup.html", "browser-extension/popup.css", "browser-extension/build.json", "browser-extension/LICENSES.txt"]);
+            let required = BTreeSet::from(["ameow-browser-host.exe", "browser-extension/manifest.json", "browser-extension/background.js", "browser-extension/popup.js", "browser-extension/popup.html", "browser-extension/popup.css", "browser-extension/build.json", "browser-extension/LICENSES.txt", "browser-extension/page.js", "browser-extension/page.css", "browser-extension/ameow-cat.svg", "browser-extension/icons/16.png", "browser-extension/icons/24.png", "browser-extension/icons/32.png", "browser-extension/icons/48.png", "browser-extension/icons/128.png"]);
             let names: BTreeSet<_> = self.browser.iter().map(|r| r.path.as_str()).collect();
             if names != required || self.browser.len() != required.len() { return Err("E_RELEASE_BROWSER_ASSETS".into()); }
             for record in &self.browser { unhex(&record.sha256, 32)?; }

@@ -24,42 +24,18 @@ The command rejects other binaries; its pin does not identify a generic 0.5.0
 build. Review a different binary and its actual Gallery catalog before changing
 the pin. New recordings produce raw media for review.
 
-## Extension session sync
+## Extension demonstrations
 
-The popup's HTML, CSS and built JS are used unchanged. The renderer checks the
-approved Popup v2 build's source identity and exact HTML/CSS/JS/cat SVG hashes, injects
-only the credential-free [response contract](session-sync/sample-contract.json)
-adapted from the approved preview,
-and blocks external requests. No extension is installed. The current webpage's
-already-authorized site moves from Sync status unknown to Synced. Page tools
-stays on independently of session sync, and Diagnostics remains collapsed.
+The session renderer uses the exact product Popup build and a credential-free
+response contract. Provide the current reviewed browser-extension/dist as its
+argument; PLAYWRIGHT_MODULE and CHROMIUM_PATH select the browser tools.
+The Peek demonstration uses the current product page bundle and a synthetic
+range in the isolated manual fixture; no download is submitted. Source hashes
+and output identities are recorded in [media sources](../images/readme/README.md).
 
-```powershell
-$env:PLAYWRIGHT_MODULE = '<absolute-path-to-playwright-core/index.mjs>'
-$env:CHROMIUM_PATH = '<absolute-path-to-headless-chromium-executable>'
-$extensionDist = '<absolute-path-to-reviewed-popup-layout-v2/dist>'
-node docs/readme-media/session-sync/render.mjs $extensionDist
-```
+Run: node docs/readme-media/session-sync/render.mjs browser-extension/dist
 
-Use the approved Popup v2 build at `c9f7ca43cbc1e0acda24207d232763c931222cc4`,
-whose identity is recorded in the media sources. The script also compares HTML
-and CSS with that Git object, normalizing line endings only; the served resource
-bytes remain unchanged. A fresh build with different line endings or bytes needs
-its own review before changing the pins. Set `PLAYWRIGHT_MODULE` to an installed `playwright-core` module
-file and `CHROMIUM_PATH` to the Chromium executable to use. These variables also
-apply to `check.mjs`; provide your own paths explicitly. Node.js and FFmpeg must
-be available. No project dependencies are added.
-
-Only the fourth GIF/poster are replaced. New raw frames and capture metadata
-go to `.work/session-sync-popup-v2/`; the old capture remains in `.work/session-sync/`
-and its committed provenance remains in Git. The renderer uses its own isolated
-headless process and temporary local server; it does not open a user browser,
-install an extension or control an existing preview.
-
-## Existing clip assets
-
-Reuse `clip-selection.gif` and its poster without re-encoding. Their two hashes
-are documented in the media sources and checked by `check.mjs`.
+Run: node docs/readme-media/clip/render.mjs
 
 ## README preview and checks
 
@@ -84,7 +60,7 @@ and run `check.mjs` directly. No preview server is needed; file-mode checks also
 reject external resource requests. Media crops follow their actual headings,
 so introductory, setup and FAQ sections can change without mislabeling evidence.
 
-Checks decode every GIF frame with FFmpeg, preserve all three unaffected GIFs
+Checks decode every GIF frame with FFmpeg, preserve the unaffected cat and paste GIFs
 and their posters against the reviewed `1ee6e36f` Git baseline, and check
 README image/alt/local-link paths and six badge slots, then inspect both languages
 at desktop and 320px in GitHub light/dark. Tight section screenshots and a short

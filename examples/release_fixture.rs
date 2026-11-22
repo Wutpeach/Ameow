@@ -36,7 +36,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let product = PathBuf::from(&args[1]);
     let product = product.parent().ok_or("fixture app directory")?;
     let mut browser = Vec::new();
-    for name in ["ameow-browser-host.exe", "browser-extension/manifest.json", "browser-extension/background.js", "browser-extension/popup.js", "browser-extension/popup.html", "browser-extension/popup.css", "browser-extension/build.json", "browser-extension/LICENSES.txt"] {
+    for name in ["ameow-browser-host.exe", "browser-extension/manifest.json", "browser-extension/background.js", "browser-extension/popup.js", "browser-extension/popup.html", "browser-extension/popup.css", "browser-extension/build.json", "browser-extension/LICENSES.txt", "browser-extension/page.js", "browser-extension/page.css", "browser-extension/ameow-cat.svg", "browser-extension/icons/16.png", "browser-extension/icons/24.png", "browser-extension/icons/32.png", "browser-extension/icons/48.png", "browser-extension/icons/128.png"] {
         let bytes = fs::read(product.join(name))?;
         let path = input.join(name);
         fs::create_dir_all(path.parent().ok_or("browser asset directory")?)?;

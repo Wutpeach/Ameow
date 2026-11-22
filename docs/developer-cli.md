@@ -1,19 +1,18 @@
 # CLI 开发入口
 
-本指南只描述 debug 开发执行。普通桌面控制的安装、版本可用性见[用户指南](../site/src/content/docs/docs/cli.md)（[English](../site/src/content/docs/en/docs/cli.md)），完整命令契约见 [cli.md](cli.md)。当前 v0.5.0 正式包没有后加的 CLI；本组合候选已整合 PR #61、#63、#64；开发入口需使用本候选，没有 GUI 设置开关，也不能在 release 构建中开启。
+本指南只描述 debug 开发执行。普通桌面控制的安装、版本可用性见[用户指南](../site/src/content/docs/docs/cli.mdx)（[English](../site/src/content/docs/en/docs/cli.mdx)），完整命令契约见 [cli.md](cli.md)。开发入口使用包含该能力的当前 main 源码，没有 GUI 设置开关，也不能在 release 构建中开启。
 
 ## 准备独立开发目录
 
-已有包含 PR #61 的独立检出时，直接进入该目录。若需要新建组合候选检出，下面的目录名可自行替换，先安装 [CONTRIBUTING](../CONTRIBUTING.md) 要求的工具链：
+已有包含该能力的检出时，直接进入该目录。若需要新建独立检出，下面的目录名可自行替换，先安装 [CONTRIBUTING](../CONTRIBUTING.md) 要求的工具链：
 
 ~~~sh
 git clone https://github.com/Wutpeach/Ameow.git AmeowCliDev
 cd AmeowCliDev
-git fetch origin feat/cli-inspect-owner
-git switch -c cli-dev FETCH_HEAD
+git switch main
 ~~~
 
-这些命令适用于 PowerShell 和 zsh/bash；它们在新目录检出候选，不要求切换日常开发树。候选尚待具体合入验收；也可使用以后已包含该能力的 main。
+这些命令适用于 PowerShell 和 zsh/bash；它们在新目录检出 main，不要求切换日常开发树。
 
 ## 构建一次，运行场景
 
@@ -112,7 +111,7 @@ Held/owner lost 一经观察立即写事件并输出 stderr 提示。工具不�
 
 复用 scripts/test_app_update_media_server.py。其根目录需 source.mp4、master.m3u8 和 hls/；可用已校验组件 ffmpeg 生成自己的小视频：
 
-下列生成命令使用 Windows 组件的 libx264。Mac 组件未包含该编码器，可复用相同的受控输入，或选择本机 ffmpeg 实际提供的编码器；这不改变正式下载与验证路径。
+下列生成命令使用 FFmpeg 的 libx264；请使用包含该编码器的已验证组件，或选择本机 FFmpeg 实际提供的编码器。这不改变正式下载与验证路径。
 
 ~~~powershell
 New-Item -ItemType Directory evidence/media/hls

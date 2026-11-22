@@ -1,9 +1,9 @@
 {
-  "productCodeHead": "c9f7ca43cbc1e0acda24207d232763c931222cc4",
-  "popupBuildHead": "c9f7ca43cbc1e0acda24207d232763c931222cc4",
+  "productCodeHead": "24efab16ef72a4f8071105bbef22e14bd881996c",
+  "popupBuildHead": "24efab16ef72a4f8071105bbef22e14bd881996c",
   "productPr": "https://github.com/Wutpeach/Ameow/pull/76",
-  "popup": "Original product HTML/CSS/JS and safe API boundary only; diagnostics copy stays in preview memory.",
-  "sourceSha256": "2e1d393c1a08a401e94e4e005bdbdf7424c733b1b27c6944082fc250ce7be2b3",
+  "popup": "Current compact product popup, with synthetic transport and in-memory diagnostics.",
+  "sourceSha256": "716ba16ea769dba633900f0ef6b5ba6b1365a72b74e8edee12dfa7b9facb8df8",
   "previousCandidate": {
     "captureExeSha256": "14cdd01acb36d940fbdd4bdfce07566d5659c3b4e7a1ce099c4ce8ae830a021a",
     "revision": "c617b99bb2e0ac48b71ced51a50396c5b37ffe20",
@@ -83,26 +83,26 @@
   },
   "nativeCaptureHead": null,
   "nativeAssetsPending": true,
-  "peek": "Original Peek bundle and sample media unchanged; no recreation.",
+  "peek": "Current product Peek bundle and sample media; synthetic controls, no submission.",
   "nativeBuildHead": "18a55881ce44fddbcbf784264a4555f6d0a533e9",
   "assets": [
     {
       "packagePath": "popup.html",
       "sitePath": "site/src/components/manual/sources/popup.html",
-      "bytes": 1615,
-      "sha256": "1c1d1f4ba235a36cab9895950e184566371acae708593b1a15fb7810fffe8cbc"
+      "bytes": 2453,
+      "sha256": "77510c3182250c71170a3838d00828d43ff8d2d3b8e547afa7b391ae1c737466"
     },
     {
       "packagePath": "popup.css",
       "sitePath": "site/public/manual/browser/vendor/popup.css",
-      "bytes": 4279,
-      "sha256": "63e1b3f7c4c31be3489bfc3b8800cee71afaea8fae82ccd323f419124c0e57e2"
+      "bytes": 6996,
+      "sha256": "18b34fcdf5c94a0d22f585ef95566e578d1872a92278cfe7b502656e97e659ef"
     },
     {
       "packagePath": "popup.js",
       "sitePath": "site/public/manual/browser/vendor/popup.js",
-      "bytes": 190375,
-      "sha256": "f53bf2310efd39bd364b01e6157ebe3562632a1351f508af9256781edf4a66a5"
+      "bytes": 199787,
+      "sha256": "e10a4c9c1558a780efdfa8d3435633aa381a3d587c79dc911bf3dbdec47d1a87"
     },
     {
       "packagePath": "ameow-cat.svg",
@@ -113,14 +113,26 @@
     {
       "packagePath": "LICENSES.txt",
       "sitePath": "site/public/manual/browser/vendor/LICENSES.txt",
-      "bytes": 5477,
-      "sha256": "0b1761c8058e69bdcbcabd129abf5e7cf5643b2aabb557f4527a1b34c6318247"
+      "bytes": 5464,
+      "sha256": "28cc1068cb43ec54365ff66626365403f8307d0962755d02a5d4db1961ec3b84"
     },
     {
       "packagePath": "build.json",
       "sitePath": "site/public/manual/browser/vendor/build.json",
       "bytes": 163,
-      "sha256": "04e2bcc2a7c17087b02585e153f72a0b400d494e943de63d07539f3c6643d14e"
+      "sha256": "473d66d0f02108c4522b353a142c0604336f3b3aaa4c0df80468f4c35bd718f2"
+    },
+    {
+      "packagePath": "page.css",
+      "sitePath": "site/public/manual/browser/vendor/page.css",
+      "bytes": 2515,
+      "sha256": "42b2c33792fbbaf640e84f587464c1a3c335099cd6b8051c469c730d6b74d639"
+    },
+    {
+      "packagePath": "page.js",
+      "sitePath": "site/public/manual/browser/vendor/page.js",
+      "bytes": 61643,
+      "sha256": "c37cd77042ab89177335a7e8d5a7500d78b3e6acd379b90d5122f330192e1e1a"
     }
   ],
   "previousPopupCandidates": [
@@ -168,6 +180,6 @@
       ]
     }
   ],
-  "mergedMainHead": "a089cfaaf83c90202f2740125bc6242d537da51b",
-  "assetPackage": "popup-layout-v2-20261121/dist"
+  "mergedMainHead": "24efab16ef72a4f8071105bbef22e14bd881996c",
+  "assetPackage": "current browser-extension/dist"
 }

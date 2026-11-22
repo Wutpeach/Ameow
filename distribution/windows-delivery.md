@@ -2,10 +2,10 @@
 
 发行路径：确定源码 → 构建 → 本机签名 → 验证 → Inno 安装版与便携 ZIP → 发布。生产可信根、真实签名和完整性检查继续强制执行。构建与签名命令见[发行构建](packaging.md)。
 
-一次调用 scripts/package_portable.ps1 构建 App、Launcher、离线工具和未签名输入。正式候选来自独立干净 Commit，不要求先创建 Tag，也不必清理带有其它任务改动的主开发目录。离线 sign 之后，verify-signed 必须使用独立可信公钥副本。
+一次调用 scripts/package_portable.ps1 构建 App、Launcher、CLI、浏览器桥接、离线工具和未签名输入。正式候选来自独立干净 Commit，不要求先创建 Tag，也不必清理带有其它任务改动的主开发目录。离线 sign 之后，verify-signed 必须使用独立可信公钥副本。
 
 ~~~powershell
-./scripts/package_windows.ps1 -SignedDirectory D:/AmeowRelease/0.5.0/signed -ReleaseTool D:/AmeowRelease/0.5.0/build/ameow-release.exe -TrustedPublicRoots X:/AmeowSigning/public-roots.json -OutputDirectory D:/AmeowRelease/0.5.0/delivery
+./scripts/package_windows.ps1 -SignedDirectory D:/AmeowRelease/candidate/signed -ReleaseTool D:/AmeowRelease/candidate/build/ameow-release.exe -TrustedPublicRoots X:/AmeowSigning/public-roots.json -OutputDirectory D:/AmeowRelease/candidate/delivery
 ~~~
 
 此入口默认制作正式资产；不接受审批文件或 PackageMode。空生产公钥、fixture 根冒充、编入的版本/根不匹配、脏或伪造的正式源码身份、错误签名与成员哈希均拒绝。许可清单在签名核心内验证，不要求它等于当前开发工作区中的另一个副本。

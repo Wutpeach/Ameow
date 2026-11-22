@@ -63,10 +63,10 @@ Copy a media link and paste it into the floating window. Up to three tasks run a
 
 ## Keep the part you want
 
-With the extension loaded, use Peek and Marker on a YouTube or Bilibili page playing a single on-demand video to adjust a clip range, then send it to the cat. Fast cuts may start or end near a keyframe.
+With the extension loaded, use Peek and Marker on a YouTube or Bilibili page playing a single on-demand video to adjust a clip range, then send it to the cat. Fast cuts are the default and may start or end near a keyframe. Enable Precise for re-encoding, which takes longer. The choice is retained when reopening the same work and resets for a different work.
 
 <p align="center">
-  <img src="docs/images/readme/clip-selection.gif" alt="Add a Marker at one second in Peek and drag it to four seconds to create a clip range, with the playhead staying independent." width="560">
+  <img src="docs/images/readme/clip-selection.gif" alt="A Peek example marks one second and extends the range to four seconds, with Precise off by default." width="560">
 </p>
 
 ## Browser session sync
@@ -76,7 +76,7 @@ Page tools and session sync require the Chrome/Edge extension (Chromium 120 or l
 Sync reuses the browser session you already have. It does not sign you in or verify that the site still accepts the session. The Page tools switch and site-session permission are independent.
 
 <p align="center">
-  <img src="docs/images/readme/session-sync.gif" alt="The popup shows the current bilibili.com page with Page tools on. Click Sync now in Session sync to change Sync status unknown to Synced; Diagnostics stays collapsed." width="560">
+  <img src="docs/images/readme/session-sync.gif" alt="The popup shows the current bilibili.com page with Page tools on. The session sync button changes to Synced when selected; a copy button is available next to Diagnostics." width="560">
 </p>
 
 ## Frequently asked questions

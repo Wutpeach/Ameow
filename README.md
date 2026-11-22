@@ -63,10 +63,10 @@ Intel Mac 和 Linux 没有对应构建。
 
 ## 切片功能
 
-加载扩展后，在 YouTube 或 Bilibili 的单作品点播页面，用 Peek 和 Marker 调整片段选区，再交给小猫。采用快速粗切，实际边界可能落在关键帧附近。
+加载扩展后，在 YouTube 或 Bilibili 的单作品点播页面，用 Peek 和 Marker 调整片段选区，再交给小猫。默认快速粗切，实际边界可能落在关键帧附近；开启「精确」会重新编码，耗时更长。同一作品重新打开保留选择，换作品重置。
 
 <p align="center">
-  <img src="docs/images/readme/clip-selection.gif" alt="在 Peek 的 1 秒处添加 Marker，向右拖到 4 秒形成片段选区，播放头保持独立。" width="560">
+  <img src="docs/images/readme/clip-selection.gif" alt="Peek 示例在 1 秒处设置 Marker，并将片段范围扩展至 4 秒；精确开关默认关闭。" width="560">
 </p>
 
 ## 登录态同步
@@ -76,7 +76,7 @@ Intel Mac 和 Linux 没有对应构建。
 同步复用浏览器已有会话，不会替你登录，也不验证网站是否仍接受该会话。页面工具开关与站点会话授权彼此独立。
 
 <p align="center">
-  <img src="docs/images/readme/session-sync.gif" alt="扩展显示当前网页 bilibili.com：页面工具保持开启，在登录态同步区点击立即同步后，状态从同步结果未知变为已同步，诊断保持折叠。" width="560">
+  <img src="docs/images/readme/session-sync.gif" alt="扩展显示当前网页 bilibili.com：页面工具保持开启，点击登录态同步按钮后显示已同步；诊断旁提供复制按钮。" width="560">
 </p>
 
 ## 常见问题

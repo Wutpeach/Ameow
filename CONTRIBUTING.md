@@ -1,6 +1,6 @@
 # Development
 
-Use the repository root for Rust work. `rust-toolchain.toml` pins Rust 1.98.1. Windows x64 uses MSVC and requires Visual Studio C++ Build Tools and the Windows SDK. Apple Silicon Mac development requires Xcode development tools. The declared Mac minimum is macOS 13; native testing covers macOS 26.3 / arm64, not every older supported system. Intel Mac, Universal, and Linux are outside the 0.5.0 distribution scope.
+Use the repository root for Rust work. `rust-toolchain.toml` pins Rust 1.98.1. Windows x64 uses MSVC and requires Visual Studio C++ Build Tools and the Windows SDK. Apple Silicon Mac development requires Xcode development tools. The declared Mac minimum is macOS 13; native testing covers macOS 26.3 / arm64, not every older supported system. Intel Mac, Universal, and Linux are outside the current distribution scope.
 
 - `src/`, `tests/`, `examples/`: application, contracts and development probes.
 - `assets/`: embedded brand assets, fonts, trust material and runtime manifest.

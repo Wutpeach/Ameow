@@ -1,12 +1,12 @@
 # Ameow CLI
 
-[中英文用户指南与安装说明](../site/src/content/docs/docs/cli.md) · [English](../site/src/content/docs/en/docs/cli.md)。开发专用的有限无 GUI 执行和可重复场景见 [CLI 开发入口](developer-cli.md)。以下是普通桌面控制的完整调用契约。
+[中英文用户指南与安装说明](../site/src/content/docs/docs/cli.mdx) · [English](../site/src/content/docs/en/docs/cli.mdx)。开发专用的有限无 GUI 执行和可重复场景见 [CLI 开发入口](developer-cli.md)。以下是普通桌面控制的完整调用契约。
 
 ## 版本与启用
 
-当前正式 v0.5.0 包不包含后加的 CLI；现在需要匹配候选完整包或包含该能力的源码，后续完整正式包才会分发。普通控制 CLI 已在 main；本组合候选整合 PR #61 开发工具、PR #63 登录态与 PR #64 区间。无需另装扩展或开启 GUI 设置；安装不自动修改用户 PATH，也不注册全局命令。`dev-tools` 仅是 debug 开发构建特性，不能从正式包的设置中开启，release 构建会拒绝它。
+使用包含 CLI 的匹配完整包或当前 main 源码。无需另装扩展或开启 GUI 设置；安装不自动修改用户 PATH，也不注册全局命令。`dev-tools` 仅是 debug 开发构建特性，不能从正式包的设置中开启，release 构建会拒绝它。
 
-ameow-cli 控制本机当前用户的普通 Ameow 桌面实例。任务、组件准备、下载器、取消、重试和交付均使用 GUI 的同一个队列。Windows 和 macOS 是本阶段目标；实际验收覆盖以 PR 证据为准。
+ameow-cli 控制本机当前用户的普通 Ameow 桌面实例。任务、组件准备、下载器、取消、重试和交付均使用 GUI 的同一个队列。Windows 和 macOS 的实际验收覆盖以对应构建的验证记录为准。
 
 ## 构建与入口
 
@@ -58,7 +58,7 @@ CLI 退出、Ctrl+C、等待超时与失联均不取消任务。取消必须显�
 {"protocol_version":1,"request_id":"a_random_request_key","instance_id":"a_random_instance_identity","ok":true,"result":{"task_id":"a_random_instance_identity:1","job_id":1},"error":null}
 ~~~
 
-每个成功连接 owner 的机器结果还包含顶层 client 与 owner：client.version 是 CLI 自身版本；owner.instance_id、pid、app_version、protocol_version、startup_pending、commands_allowed 和 capabilities 来自当次 Hello。两个版本相同不能证明两个二进制相同；本候选 owner 未提供精确构建 hash，owner.build_hash 为 "unknown"。旧 owner 未提供的能力为 null，明确不支持为 false；不能把缺失推断为支持。components 可以在启动中读取这份摘要和真实 preparation，不自动启动或等待另一个实例。
+每个成功连接 owner 的机器结果还包含顶层 client 与 owner：client.version 是 CLI 自身版本；owner.instance_id、pid、app_version、protocol_version、startup_pending、commands_allowed 和 capabilities 来自当次 Hello。两个版本相同不能证明两个二进制相同；当前 owner 未提供精确构建 hash，owner.build_hash 为 "unknown"。旧 owner 未提供的能力为 null，明确不支持为 false；不能把缺失推断为支持。components 可以在启动中读取这份摘要和真实 preparation，不自动启动或等待另一个实例。
 
 show / wait 保留 task_id、原 job_id、revision、attempt、phase、冻结的 accepted.intent、进度、失败、resources_released 与 files。files 中的 path、bytes、sha256 来自业务 owner 的已交付记录，包含取消/部分成功时已经交付的集合文件。客户端自动取完有界任务/文件页；不输出下载器原始 stderr，不把百分比当完成。活动查询页面期间任务仍可变化，list 的 consistent 表示跨页 revision 是否一致；跨文件页变化返回 E_SNAPSHOT_CHANGED，可重新查询。终态结算后文件结果稳定。
 
@@ -106,7 +106,7 @@ $Url = Read-Host '公开媒体 URL'
 
 ## macOS 最小复验
 
-由本功能独立验证树检出 PR 的精确实现提交，不写 0.5.0 固定树。构建 app、CLI、updater；在长路径的独立实例根验证两个并发提交只建立一个桌面 owner，CLI/GUI 同任务可见，双向取消/重试，真实交付、等待超时/中断、旧 ID 拒绝，以及默认未被任务目录覆盖。核验 socket 当前用户权限和同根重绑；构建应用包时核对 CLI arm64、最低系统版本与完整包签名。Windows 结果不能替代 Mac 验证。
+在独立验证树检出待验证的准确提交，避免影响日常开发目录。构建 app、CLI、updater；在长路径的独立实例根验证两个并发提交只建立一个桌面 owner，CLI/GUI 同任务可见，双向取消/重试，真实交付、等待超时/中断、旧 ID 拒绝，以及默认未被任务目录覆盖。核验 socket 当前用户权限和同根重绑；构建应用包时核对 CLI arm64、最低系统版本与完整包签名。Windows 结果不能替代 Mac 验证。
 
 ## 开发只解析
 

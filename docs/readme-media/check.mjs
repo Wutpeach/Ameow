@@ -30,14 +30,14 @@ for (const [index, name] of images.entries()) {
   assert((await stat(poster)).size > 0);
   report.media.push({ name, ...probe, bytes:size });
 }
-// Keep the other three demonstrations byte-for-byte at the reviewed README baseline.
+// Keep the native demonstrations and the current clip capture pinned.
 const preserved = {
   'desktop-cat.gif': 'e773eabe1a47107519b1b2ddb8b482bf8ce9cb5e66bfd02e19b726f1416a8caf',
   'desktop-cat-poster.png': '82ca1279f3b6a064d828178345a3129ea440bbaf7a90900567bc94f80bfa960b',
   'paste-link.gif': 'cd894a9370797d40f0d6056b9cf8104af69655715195826688db400473ab0c82',
   'paste-link-poster.png': '8f57a0560983e85d0866718311b0687169d4c566eca96052d35a4a1f472c2c17',
-  'clip-selection.gif': 'a185f9c069426b852a87e6f248feb6ff44fab7ec5f51fc5433144c175d36233d',
-  'clip-poster.png': 'f069e0c1394ad40fdeb788633a9e4df73546cf73e3a37b6d57852214be02bb94',
+  'clip-selection.gif': '13c979579209022032de59a30dfd181ada661d0ea854a4daa433bb54e1b092a8',
+  'clip-poster.png': '6aec763f0c83619a843bc86e2bac37daf7eb0f7a06382e9b86498e5afd028064',
 };
 for (const [name, expected] of Object.entries(preserved)) {
   assert.equal(createHash('sha256').update(await readFile(join(root,'docs/images/readme',name))).digest('hex'), expected, name + ' must retain its reviewed bytes');

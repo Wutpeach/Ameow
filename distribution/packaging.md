@@ -1,9 +1,9 @@
 # Windows release inputs
 
-The single build entry is scripts/package_portable.ps1. It builds Ameow.exe, AmeowLauncher.exe and the offline ameow-release.exe, then prepares the single-EXE update ZIP and unsigned plan. It never signs or uploads.
+The single build entry is scripts/package_portable.ps1. It builds Ameow.exe, AmeowLauncher.exe, ameow-cli.exe, ameow-browser-host.exe and the offline ameow-release.exe, then prepares the single-EXE update ZIP and unsigned plan. It never signs or uploads.
 
 ~~~powershell
-./scripts/package_portable.ps1 -TargetDirectory D:/AmeowRelease/target -OutputDirectory D:/AmeowRelease/0.5.0/build
+./scripts/package_portable.ps1 -TargetDirectory D:/AmeowRelease/target -OutputDirectory D:/AmeowRelease/candidate/build
 ~~~
 
 Use Rust 1.98.1 / Windows x64 MSVC and prepare the locked dependencies for the offline build. The build uses static CRT, separate target/output directories and a fresh output directory. Existing evidence and output are never overwritten.
@@ -41,7 +41,7 @@ Set these variables to the candidate's paths before running the commands. Stop a
 
 Reuse the publisher's existing production key. `keygen <private.pk8> <public.hex>` is only for establishing a new signing identity and refuses existing outputs; it writes an unencrypted PKCS#8 key. `import-public <trust-template.json> <public.hex> <new-public-roots.json>` prepares public roots. Only public trust material belongs in the repository. A changed trust root requires matching application, Launcher and release-tool builds; a public key taken from an untrusted candidate is not an independent trust anchor. Keep private keys and backups out of Git, CI, logs, discussions and delivery directories.
 
-Pass the verified signed directory to [Windows delivery](windows-delivery.md). On Apple Silicon Mac, build both `ameow` and `ameow-updater` and use [package_macos.sh](../scripts/package_macos.sh); Windows delivery commands do not produce a Mac app.
+Pass the verified signed directory to [Windows delivery](windows-delivery.md). On Apple Silicon Mac, build `ameow`, `ameow-updater`, `ameow-cli` and `ameow-browser-host` and use [package_macos.sh](../scripts/package_macos.sh); Windows delivery commands do not produce a Mac app.
 
 ## Release checks
 

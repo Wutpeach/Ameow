@@ -126,8 +126,9 @@ try {
     $browser = @((& $recordFile (Join-Path $outputRoot 'ameow-browser-host.exe') 'ameow-browser-host.exe'))
     $extensionOutput = Join-Path $outputRoot 'browser-extension'
     New-Item -ItemType Directory -Path $extensionOutput | Out-Null
-    foreach ($asset in @('manifest.json','background.js','popup.js','popup.html','popup.css','build.json','LICENSES.txt')) {
+    foreach ($asset in @('manifest.json','background.js','popup.js','popup.html','popup.css','build.json','LICENSES.txt','page.js','page.css','ameow-cat.svg','icons/16.png','icons/24.png','icons/32.png','icons/48.png','icons/128.png')) {
         $destination = Join-Path $extensionOutput $asset
+        New-Item -ItemType Directory -Path ([IO.Path]::GetDirectoryName($destination)) -Force | Out-Null
         Copy-Item -LiteralPath (Join-Path $packageRoot "browser-extension/dist/$asset") -Destination $destination
         $browser += & $recordFile $destination "browser-extension/$asset"
     }

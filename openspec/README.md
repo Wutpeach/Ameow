@@ -1,6 +1,6 @@
 # Ameow 规范入口
 
-OpenSpec 是本仓库正式行为要求的记录与更新体系。当前工程为根目录 Rust/GPUI，0.5.0 分发目标为 Windows x64/MSVC 和 Apple Silicon Mac。平台实测范围见 [CONTRIBUTING](../CONTRIBUTING.md)。
+OpenSpec 是本仓库正式行为要求的记录与更新体系。当前工程为根目录 Rust/GPUI，当前分发目标为 Windows x64/MSVC 和 Apple Silicon Mac。平台实测范围见 [CONTRIBUTING](../CONTRIBUTING.md)。
 
 | 能力 | 内容 |
 | --- | --- |
