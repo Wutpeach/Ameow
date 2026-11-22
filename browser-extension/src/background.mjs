@@ -1,4 +1,4 @@
-import { Sessions, within } from './core.mjs';
+import { Sessions, within, scope, siteFromUrl } from './core.mjs';
 import { PageTools } from './page-background.mjs';
 const pages = new PageTools(chrome);
 const sessions = new Sessions(chrome);
@@ -45,7 +45,16 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     revoke: () => sessions.revoke(message.site),
   }[message.action];
   if (!action) return false;
-  enqueue(action).then(value => respond({ ok: true, value }), () => respond({ ok: false, error: 'E_BRIDGE' }));
+  // Request before queueing/awaiting so the Popup click's user gesture reaches Chromium.
+  // The worker owns the continuation even if the native permission prompt closes the Popup.
+  let permission;
+  try {
+    const needsPermission = message.action === 'authorize' || message.action === 'sync' && message.request_permission === true;
+    if (needsPermission && siteFromUrl(`https://${message.site}/`) !== message.site) throw Error('E_PAGE');
+    permission = needsPermission ? chrome.permissions.request({ origins: scope(message.site) }) : Promise.resolve(true);
+  } catch { respond({ ok: false, error: 'E_PERMISSION' }); return false; }
+  permission.catch(() => false).then(allowed => allowed ? enqueue(action) : { [message.site]: 'E_PERMISSION' })
+    .then(value => respond({ ok: true, value }), () => respond({ ok: false, error: 'E_BRIDGE' }));
   return true;
 });
 // Recreate an alarm lost during an extension update or browser restart.

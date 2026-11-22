@@ -1,4 +1,4 @@
-import { siteFromUrl, scope, SYNC_ERRORS } from './core.mjs';
+import { siteFromUrl, SYNC_ERRORS } from './core.mjs';
 import { PAGE_ORIGINS, pageHost } from './page-core.mjs';
 import copyIcon from '../../assets/copy.svg';
 import checkIcon from '../../assets/check.svg';
@@ -56,7 +56,7 @@ function paintButton(button, text, icon, hover) {
   button.replaceChildren(...children);
 }
 function controls() {
-  const working = Boolean(busy) || pending;
+  const working = Boolean(busy) || pending && !lastError;
   $('authorize').disabled = working || !stateKnown; $('sync').disabled = working || !stateKnown; $('revoke').disabled = working;
   $('revoke').textContent = busy === 'revoke' ? t('移除中','Removing') : t('移除授权','Remove access');
   $('sync').setAttribute('aria-busy', String(working));
@@ -177,16 +177,13 @@ $('toggle-tools').addEventListener('click', async () => {
 for (const action of ['authorize','sync','revoke']) $(action).addEventListener('click', async () => {
   busy = action; controls();
   try {
-    if (action === 'authorize') {
-      if (!await chrome.permissions.request({ origins:scope(site) })) { status(t('未授权','Not authorized')); return; }
-      const result = await send('authorize', { replaces:current?.grant_id || null, source_name:sourceName });
-      if (result[site] !== 'synced') throw Error(result[site]);
-    } else {
-      if (action === 'sync' && lastError === 'E_PERMISSION' && !await chrome.permissions.request({ origins:scope(site) })) { status(t('同步未完成','Sync did not complete'), recovery('E_PERMISSION'), true); return; }
-      const result = await send(action);
-      if (!['synced','revoked'].includes(result[site])) throw Error(result[site]);
-    }
+    const result = await send(action, action === 'authorize'
+      ? { replaces:current?.grant_id || null, source_name:sourceName }
+      : { request_permission:action === 'sync' && lastError === 'E_PERMISSION' });
     await refresh();
+    if (result[site] !== (action === 'revoke' ? 'revoked' : 'synced')) {
+      throw Error(result[site] === 'revoked' ? 'E_SESSION_REVOKED' : result[site]);
+    }
     if (action !== 'revoke') {
       clearTimeout(feedbackTimer); syncedFeedback = true;
       feedbackTimer = setTimeout(() => {syncedFeedback = false; controls();}, 2000);

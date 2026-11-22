@@ -28,6 +28,8 @@ const cases=[
   {name:'incomplete-en',locale:'en-US',value:{source_id:row.source_id}},
   {name:'null-status-en',locale:'en-US',value:null},
   {name:'pending-en',locale:'en-US',value:{sites:[],source_id:row.source_id,grant:{pending:true}}},
+  {name:'initial-error-zh',value:{sites:[],source_id:row.source_id,grant:{pending:true,error:'E_BRIDGE'}}},
+  {name:'authorization-revoked-zh',revoked:true,value:{sites:[],source_id:row.source_id}},
   {name:'other-source-en',locale:'en-US',value:{sites:[row],source_id:'b'.repeat(32)}},
   {name:'unknown-result-zh',value:own({...row,last_result:null})},
   {name:'long-source-zh',theme:'dark',url:'https://this-is-an-unusually-long-website-name-which-must-stay-readable.example/path',value:own({...row,site:'this-is-an-unusually-long-website-name-which-must-stay-readable.example',source_id:'bad identity token:SECRET',source_name:'private-account@example.com https://private.test/secret',extra:'private_cookie_value'})},
@@ -68,6 +70,7 @@ try {for(const scenario of cases){
         }
         if(message.action==='pages-set'){tools=message.enabled;return{ok:true,value:{enabled:tools}};}
         if(['authorize','sync','revoke'].includes(message.action)){
+          if(scenario.revoked)return {ok:true,value:{[domain]:'revoked'}};
           value=message.action==='revoke'?{sites:[],source_id:sourceId}:{sites:[{site:domain,source_id:sourceId,source_name:'Microsoft Edge',grant_id:'new-grant',synced_at:1700000400,cookie_count:3,skipped_partitioned:0,last_result:{at:1700000400,error:null}}],source_id:sourceId,grant:{}};
           return {ok:true,value:{[domain]:message.action==='revoke'?'revoked':'synced'}};
         }
@@ -117,6 +120,10 @@ try {for(const scenario of cases){
   }
   if(scenario.name==='unauthorized-zh'){
     await page.locator('#authorize').click();await page.locator('#sync').waitFor();
+    await page.waitForFunction(()=>document.querySelector('#sync .label-default').textContent==='已同步');
+    const calls=await page.evaluate(()=>window.__calls);
+    assert.equal(calls.filter(call=>call.action==='authorize').length,1);
+    assert(!calls.some(call=>call.permission),'the worker owns the session permission request');
     await page.locator('#sync').click();await page.locator('#site-actions').click();await page.locator('#revoke').click();await page.locator('#authorize').waitFor();
     assert(await page.locator('#authorize').evaluate(node=>node===document.activeElement));
   }
@@ -137,6 +144,21 @@ try {for(const scenario of cases){
   }
   if(scenario.toolsFailure){assert(await page.locator('#toggle-tools').isDisabled());assert.match(await page.locator('#page-status').innerText(),/页面工具状态不可用/);assert(await page.locator('#authorize').isEnabled());}
   if(scenario.name.startsWith('pending'))assert(await page.locator('#sync').isDisabled());
+  if(scenario.name==='initial-error-zh'){
+    assert(await page.locator('#sync').isEnabled());
+    assert(await page.locator('#revoke').isEnabled());
+    assert.match(await page.locator('#status-detail').innerText(),/检查扩展配置/);
+    await page.locator('#sync').click();
+    await page.waitForFunction(()=>window.__calls.filter(call=>call.action==='status').length===2);
+    assert((await page.evaluate(()=>window.__calls)).some(call=>call.action==='sync'));
+  }
+  if(scenario.name==='authorization-revoked-zh'){
+    await page.locator('#authorize').click();
+    await page.waitForFunction(()=>document.querySelector('#notice').hasAttribute('data-error'));
+    assert(!/登录态已同步/.test(await page.locator('#announcement').innerText()));
+    assert.match(await page.locator('#status-detail').innerText(),/授权已变更/);
+    assert(await page.locator('#authorize').isEnabled());
+  }
   if(scenario.name.startsWith('restricted'))assert.equal(await page.locator('#page-unavailable').innerText(),'Open a website');
   assert.deepEqual(errors,[]);assert(requests.every(url=>new URL(url).origin===origin));
   report.cases.push({name:scenario.name,firstPaint:paints[0],paintedFrames:paints.length,visibleStates:1,startupCalls:startupCalls.map(call=>call.action)});
