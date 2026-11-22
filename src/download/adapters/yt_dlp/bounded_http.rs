@@ -13,7 +13,7 @@ pub(super) fn prepare(
     range: Option<ClipRange>,
     resolved: &Value,
 ) -> Result<Option<File>, String> {
-    if !range.is_some_and(|range| !range.precise)
+    if range.is_none()
         || resolved["extractor_key"].as_str() != Some("Youtube")
     {
         return Ok(None);
@@ -51,10 +51,10 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn only_youtube_fast_transfer_loads_the_application_owned_processor() {
+    fn only_youtube_sections_load_the_application_owned_processor() {
         for (range, extractor, enabled) in [
             (None, "Youtube", false),
-            (Some(ClipRange { start_ms: 0, end_ms: 3000, precise: true }), "Youtube", false),
+            (Some(ClipRange { start_ms: 0, end_ms: 3000, precise: true }), "Youtube", true),
             (Some(ClipRange { start_ms: 0, end_ms: 3000, precise: false }), "Generic", false),
             (Some(ClipRange { start_ms: 0, end_ms: 3000, precise: false }), "Youtube", true),
         ] {

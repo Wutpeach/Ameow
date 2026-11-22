@@ -54,8 +54,6 @@ class AmeowBoundedHttpPP(PostProcessor):
         return [], info
 
     def _apply(self, info):
-        if self.get_param('force_keyframes_at_cuts', False):
-            return 'not_applicable'
         if not isinstance(info, dict) or info.get('extractor_key') != 'Youtube':
             return 'not_applicable'
         if info.get('_type') not in (None, 'video') or info.get('is_live') not in (None, False):

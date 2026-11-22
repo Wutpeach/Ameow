@@ -146,7 +146,7 @@ impl DownloaderAdapter for YtDlpAdapter {
                 // Precision is opt-in; the ordinary section path keeps native stream copy.
                 args.extend(["--download-sections".into(), range.section(), "--downloader-args".into(), "ffmpeg_i:-seekable 1 -xerror".into(),
                     "--downloader-args".into(), if range.precise {
-                        "ffmpeg_o:-c:v libx264 -preset fast -crf 18 -c:a aac -b:a 192k -f matroska -progress pipe:1 -stats_period 0.2 -nostats"
+                        "ffmpeg_o:-c:v libx264 -preset faster -crf 18 -c:a aac -b:a 192k -f matroska -progress pipe:1 -stats_period 0.2 -nostats"
                     } else { "ffmpeg_o:-progress pipe:1 -stats_period 0.2 -nostats" }.into()]);
                 if range.precise { args.push("--force-keyframes-at-cuts".into()); }
             }

@@ -98,14 +98,18 @@ class BoundedHttpTests(unittest.TestCase):
                 self.assertIn(self.run_pp(info).split('=')[-1], ('conflict', 'not_applicable'))
                 self.assertEqual(info, original)
 
-    def test_explicit_precise_is_never_injected_even_if_registered(self):
+    def test_precise_uses_the_same_input_policy_without_changing_encoder_settings(self):
         info = fixture()
         original = copy.deepcopy(info)
         pp = mod.AmeowBoundedHttpPP()
         pp.messages = []
-        pp.params = {'force_keyframes_at_cuts': True}
+        pp.params = {'force_keyframes_at_cuts': True, 'external_downloader_args': {'ffmpeg_o':['-c:v','libx264','-preset','faster','-crf','18']}}
+        original_params = copy.deepcopy(pp.params)
         pp.run(info)
-        self.assertEqual(pp.messages, ['AMEOW_BOUNDED_HTTP=not_applicable'])
+        self.assertEqual(pp.messages, ['AMEOW_BOUNDED_HTTP=applied'])
+        self.assertEqual(pp.params, original_params)
+        info['requested_formats'][0].pop('downloader_options')
+        info['requested_formats'][1]['downloader_options']['ffmpeg_args'] = ['-reconnect', '1']
         self.assertEqual(info, original)
 
 if __name__ == '__main__':
