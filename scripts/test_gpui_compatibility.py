@@ -67,7 +67,7 @@ def run(exe, output):
                         if pid.value == process.pid:
                             name = c.create_unicode_buffer(256)
                             u.GetClassNameW(w.HWND(hwnd),name,256)
-                            if name.value == 'AmeowNextTrayOwner':
+                            if name.value == 'AmeowTrayOwner':
                                 found.append(hwnd)
                         return True
                     u.EnumWindows(visit,0)
