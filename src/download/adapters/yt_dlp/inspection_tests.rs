@@ -207,7 +207,10 @@ fn supervised_inspection_runs_only_resolve_and_retains_no_raw_output() -> Result
         );
     }
     fs::write(work.path().join("bad-json"), b"").map_err(|e| e.to_string())?;
-    let failure = YtDlpAdapter::new(requirements.clone()).inspect(&ExecutionRequest { accepted, resume: None }, &context).unwrap_err();
+    let mut engine = None;
+    let error = inspect_resolve(&accepted, &context, &network::Route::Direct, &mut engine).unwrap_err();
+    let mut failure = diagnostics::classify(&Phase::Resolving, &error);
+    failure.engine = engine;
     assert_eq!(failure.code, "E_METADATA_INVALID_JSON");
     assert_eq!(failure.engine.as_ref().unwrap().exit_code, 0);
     assert_eq!(failure.engine.as_ref().unwrap().stage, Some(crate::download::diagnostics::EngineStage::Resolve));
