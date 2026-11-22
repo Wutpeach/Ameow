@@ -1,14 +1,21 @@
 # 只读入口的证据
 
-从仓库根目录运行 scripts/check_release_readiness.py。--repo 可指定检出目录；--assets、--evidence、--version、--commit 均由本次候选提供，不固定日期或机器路径。需要 Python 3.11+、Git；在线核验用现有 gh 登录，调用的只有 ls-remote 与 GitHub GET API。无法访问时相关项 PENDING，不采用缓存 success 冒充当前查询。JSON 写到 stdout，需留存时由调用者重定向到独立交接目录。
+从仓库根目录运行 scripts/check_release_readiness.py，需要 Python 3.11+ 与 Git；先核实际 Python 版本，默认入口过旧时选现有 3.11+ 的路径，不自行安装。--repo、--evidence、--version、--commit 均参数化。默认 --phase source：核当前 main 对应远端、实际版本和功能证据，不接收/要求 ASSETS.json，不查询发行 CI，不构建或宣称发行资产齐备；输出 releaseAssetsStatus=NOT_PREPARED。只有实际安装/打包/发行检查才用 --phase release --assets <ASSETS.json>，此时在线 CI 另需现有 gh 登录，只读 GET；不可访问则 PENDING。JSON 写到 stdout，可重定向至独立交接目录。
 
-ASSETS.json 复用现有格式：顶层 version/commit/tree、assets 数组，每项 name/relativePath/bytes/sha256/target，以及 ci.rust、ci.docs 的准确 run URL。relativePath 相对 ASSETS.json；仅以它定位资产，忽略历史绝对 path，允许整体迁移候选目录。资产必须恰为本版 Windows installer/portable/update ZIP/feed 与 Mac App ZIP/feed 六项。
+源码阶段 evidence 只需 schema=1、phase=source、identity={version,commit,tree} 和 records。功能 PASS 的 source 写 kind=development、version、实际源码 commit/tree、buildInputsMatch=true、app={path,sha256}；涉及 CLI/host 时同样写实际 cli/host。执行者在实际构建/运行时确认输入对应该 commit 并记录，不从一个合法 commit 或事后 exe 哈希推导 buildInputsMatch。存在无关 dirty 时列出 dirty=true 与 dirtyPaths；实际开发输入 dirty/不一致拒绝，未知路径待核。原始报告相反字段不被索引覆盖。开发输入比较覆盖 Cargo/源码/资源/host/扩展与开发构建配置；纯打包/安装器/发行 CI 变化仍归独立发行自检，不强迫重复源码功能验收。源码手验不与 release exe 强行同哈希，也不要求为共享 target 留副本。Windows 默认 cargo run；Mac 依原生机制复用固定 main 开发 App。
 
-evidence.json 是本次任务的轻量索引，不放入候选、不签发新权威。索引内所有文件路径相对索引目录，也可为显式绝对路径。将既有工具原始回执填入，避免复制或重写签名/成员规则：
+只有已由负责者实际清理后，旧专用候选索引才标 status=RETIRED，附清理回执路径/hash。工具在读取旧资产前返回 PENDING/RETIRED，不要求补造包。当前源码索引独立保留旧索引及退役回执出处，不把旧包的 PASS 搬成主线来源不明的功能 PASS。用户验收始终须明确记录。
+
+开发来源通常从 windows.* / mac.* 记录名确定平台；user-acceptance 可用 source.platform 声明本人实际平台。Mac 固定开发 App 的 package_macos.sh 与 logo 图标仍是其实际输入，不能当普通站点文档忽略；它们不改变 Windows cargo run 的证据身份。未指定平台的共同记录按双平台输入处理。原生 bundle/安装流程仍按实际改动追加验证。
+
+发行阶段 ASSETS.json 复用现有格式：顶层 version/commit/tree、assets 数组，每项 name/relativePath/bytes/sha256/target，以及 ci.rust、ci.docs 的准确 run URL。relativePath 相对 ASSETS.json，忽略历史绝对 path。只有该阶段检查本版 Windows installer/portable/update ZIP/feed 与 Mac App ZIP/feed 六项；源码功能阶段不以它们为前置。
+
+evidence.json 是轻量索引，不签发新权威。文件路径相对索引目录或显式绝对路径。以下是发行阶段示例，源码阶段省略 assetsSha256 与 windows/mac 打包回执：
 
 ~~~json
 {
   "schema": 1,
+  "phase": "release",
   "identity": {"version": "<版本>", "commit": "<产品commit>", "tree": "<tree>", "assetsSha256": "<ASSETS.json的SHA256>"},
   "windows": {"build": "<release-build.json>", "inputs": "<input-manifest.json>", "delivery": "<delivery.json>", "verified": "<verify-signed JSON回执>"},
   "mac": {"inputs": "<完整input-manifest.json或现有摘要>", "verified": "<signature-and-package-verified JSON回执>"},
@@ -20,9 +27,9 @@ evidence.json 是本次任务的轻量索引，不放入候选、不签发新权
 }
 ~~~
 
-必需记录 id：docs、user-acceptance；每个平台 windows/mac 的 startup、paste、download、cancel、extension、exit；Mac 另有 focus、full-compact、background、menu-bar。按改动可增加 id。每项只有 PASS/FAIL/PENDING；未知状态与缺项返回 PENDING。PASS 必须附非空说明与可读文件的实际哈希，docs 还须提供在当前 main 历史中的文档 commit。记录身份继承顶层 identity，不能把别的候选报告直接改名复用；原始报告不含候选身份时，由执行者核实后在 note 写明绑定依据。工具核对报告字节与声明身份，不能判读报告是否足以证明真实 GUI 或用户批准。用户批准证据需含明确接受本候选的原话或原生会话出处，不从技术报告推导。
+两阶段功能记录 id：docs、user-acceptance；每个平台 windows/mac 的 startup、paste、download、cancel、extension、exit；Mac 另有 focus、full-compact、background、menu-bar。按改动可增加 id。状态 PASS/FAIL/PENDING，未知/缺项不算 PASS。PASS 附说明及报告哈希；源码功能 PASS 还须实际 development 来源，docs 提供当前 main 历史中的文档 commit。发行阶段未声明 source 的旧包记录维持原含义，显式 kind=package 须绑定产品身份。原始报告已有相反身份时不能靠改索引覆盖；未含身份时执行者在 note 写明绑定。工具不能判读报告是否充分证明 GUI 或批准，用户验收须原话或原生会话出处。
 
-Windows inputs 应是现有 schema 2 回执，build 是 schema 3。检查其 sourceAndResources/packagingInputs 与产品 commit；保留 Windows CRLF 与 Git LF 差异的可解释匹配，不强求两个平台的字节清单哈希相同。Mac 完整输入回执可使用同样的 baselineHead/baselineTree/dirty/sourceAndResources/packagingInputs/sourceInventorySha256；旧摘要只有 commit/tree/dirty 和摘要哈希时可核身份，但完整输入证据列 PENDING，不能凭摘要宣称全部匹配。
+Windows inputs 应是现有 schema 2 回执，build 是 schema 3。检查其 sourceAndResources/packagingInputs 与产品 commit；保留 Windows CRLF 与 Git LF 差异的可解释匹配，不强求两个平台的字节清单哈希相同。Mac 支持分列回执，也直接支持既有 commit/tree/dirty/source/sourceInventorySha256 合并格式：按原数组核摘要与 Git 字节，并要求其中含 Mac 打包脚本、许可输入及图标。两平台按各自实际输入范围核对，不要求 Mac 的清单含 Windows vendor/notices。原件不改名、不拆写成另一格式。只有摘要、没有文件数组时仍列 PENDING。
 
 后续 main 提交按实际构建输入判断。源码、资源、依赖、打包脚本/安装器及 Mac 图标输入变化返回 FAIL；纯文档与本 Skill/检查工具变化允许复用候选。未知路径返回 PENDING 等待判定，不静默当成文档。未提交输入变化同样列出；AGENTS 和 DocsSync 状态的外部修改不改写候选身份。docs.commit 后又改动发布相关文档/演示时，旧文档记录返回 PENDING，需补核最新文档及准确 Docs CI，产品候选不因此重打。
 

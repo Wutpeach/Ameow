@@ -31,7 +31,7 @@ class ReleaseReadinessTests(unittest.TestCase):
             self.head, self.tree = template['head'], template['tree']
             self.app, self.assets, self.evidence = copy.deepcopy(template['data'])
             self.args = argparse.Namespace(repo=self.repo, assets=self.root/'ASSETS.json',
-                                           evidence=self.root/'evidence.json', version='1.2.3', commit=self.head)
+                                           evidence=self.root/'evidence.json', version='1.2.3', commit=self.head, phase='release')
             self.start_mock()
             return
         self.temp = tempfile.TemporaryDirectory()
@@ -50,6 +50,7 @@ class ReleaseReadinessTests(unittest.TestCase):
             'browser-extension/package.json': '{"version":"1.2.3"}',
             'browser-extension/package-lock.json': '{"version":"1.2.3","packages":{"":{"version":"1.2.3"}}}',
             'src/main.rs': 'fn main() {}\n',
+            'distribution/macos-license-inputs.json': '{"synthetic":true}',
         }
         package_paths = ['scripts/package_portable.ps1', 'scripts/package_windows.ps1',
                          'scripts/package_macos.sh', '.github/workflows/rust.yml',
@@ -62,7 +63,7 @@ class ReleaseReadinessTests(unittest.TestCase):
         self.head = self.git('rev-parse', 'HEAD')
         self.tree = self.git('rev-parse', 'HEAD^{tree}')
         self.args = argparse.Namespace(repo=self.repo, assets=self.root/'ASSETS.json',
-                                       evidence=self.root/'evidence.json', version='1.2.3', commit=self.head)
+                                       evidence=self.root/'evidence.json', version='1.2.3', commit=self.head, phase='release')
         self.app = self.record('app', b'synthetic executable')
         identity = dict(version='1.2.3', commit=self.head, tree=self.tree)
         source_records = [self.record(n, (self.repo/n).read_bytes()) for n in sorted(sources)]
@@ -222,6 +223,28 @@ class ReleaseReadinessTests(unittest.TestCase):
         self.write(self.root/'report.txt', b'changed after acceptance')
         with self.assertRaises(ValueError): checker.Check(self.args).record('user-acceptance')
 
+    def test_mac_original_combined_input_receipt(self):
+        inputs = checker.load_json(self.root/'inputs.json')
+        sources = inputs['sourceAndResources'] + [r for r in inputs['packagingInputs']
+                   if r['path'] in ('scripts/package_macos.sh', 'site/public/ameow-logo.png')]
+        receipt = dict(commit=self.head, tree=self.tree, dirty=False, source=sources,
+                       cargoLockSha256=checker.digest((self.repo/'Cargo.lock').read_bytes()))
+        def save():
+            receipt['sourceInventorySha256'] = checker.digest(json.dumps(receipt['source'], ensure_ascii=False,
+                                                                         separators=(',', ':')).encode())
+            self.json('mac-combined.json', receipt)
+        save()
+        self.evidence['mac']['inputs'] = 'mac-combined.json'
+        self.save()
+        self.assertEqual(checker.Check(self.args).inputs('mac')['format'], 'mac-combined')
+        receipt['source'] = [r for r in sources if r['path'] != 'scripts/package_macos.sh']
+        save()
+        with self.assertRaises(ValueError): checker.Check(self.args).inputs('mac')
+        receipt['source'] = copy.deepcopy(sources)
+        receipt['source'][0]['sha256'] = '0'*64
+        save()
+        with self.assertRaises(ValueError): checker.Check(self.args).inputs('mac')
+
     def test_mixed_verification_and_mac_feed(self):
         verified = checker.load_json(self.root/'verified.json')
         verified['build']['commit'] = '0'*40
@@ -243,6 +266,74 @@ class ReleaseReadinessTests(unittest.TestCase):
         self.assets['windows']['app'] = dict(self.app, sha256='0'*64)
         self.save()
         with self.assertRaises(ValueError): checker.Check(self.args).packaging('windows')
+
+    def test_source_acceptance_has_no_release_asset_prerequisite(self):
+        self.args.phase, self.args.assets = 'source', None
+        for record in self.evidence['records']:
+            if record['id'] != 'docs':
+                record['source'] = dict(kind='development', version='1.2.3', commit=self.head, tree=self.tree,
+                                        buildInputsMatch=True,
+                                        app=dict(path=str(self.repo/'target/debug/ameow.exe'), sha256=self.app['sha256']))
+        self.evidence['phase'] = 'source'
+        self.json('evidence.json', self.evidence)
+        (self.root/'ASSETS.json').unlink()
+        result = checker.Check(self.args).check()
+        self.assertEqual(result['status'], 'PASS')
+        self.assertEqual(result['releaseAssetsStatus'], 'NOT_PREPARED')
+        self.assertFalse(result['publicationAuthorized'])
+        self.assertFalse(any(c['id'] in ('assets', 'feeds', 'windows.packaging', 'ci.rust') for c in result['checks']))
+
+    def test_retired_evidence_does_not_request_recreated_packages(self):
+        self.evidence['status'] = 'RETIRED'
+        self.json('evidence.json', self.evidence)
+        (self.root/'ASSETS.json').unlink()
+        with self.assertRaises(checker.Pending): checker.Check(self.args)
+
+    def test_development_functional_evidence_uses_its_own_executable(self):
+        self.write(self.repo/'scripts/check_release_readiness.py', b'# tool-only followup\n')
+        self.commit()
+        commit, tree = self.git('rev-parse', 'HEAD'), self.git('rev-parse', 'HEAD^{tree}')
+        app = dict(path=str(self.repo/'target/debug/ameow.exe'), sha256=checker.digest(b'development executable'))
+        self.json('development-run.json', dict(version='1.2.3', commit=commit, tree=tree, app_sha256=app['sha256']))
+        record = next(r for r in self.evidence['records'] if r['id']=='windows.paste')
+        record['source'] = dict(kind='development', version='1.2.3', commit=commit, tree=tree,
+                                buildInputsMatch=True, app=copy.deepcopy(app))
+        record['files'] = [dict(path='development-run.json', sha256=checker.digest((self.root/'development-run.json').read_bytes()))]
+        self.save()
+        self.assertEqual(checker.Check(self.args).record('windows.paste')['source']['kind'], 'development')
+        check = checker.Check(self.args)
+        with self.assertRaises(ValueError):
+            check.report_identity('windows.paste', record, dict(dirty=True, buildInputsMatch=False))
+        with self.assertRaises(ValueError):
+            check.report_identity('windows.paste', record, dict(dirty=True, dirtyPaths=['src/main.rs']))
+        check.report_identity('windows.paste', record, dict(dirty=True, dirtyPaths=['AGENTS.md']))
+        self.write(self.repo/'scripts/package_windows.ps1', b'# packaging-only change\n')
+        self.commit()
+        record['source'].update(commit=self.git('rev-parse', 'HEAD'), tree=self.git('rev-parse', 'HEAD^{tree}'))
+        check = checker.Check(self.args)
+        check.functional_source('windows.paste', record)
+        self.write(self.repo/'site/public/ameow-logo.png', b'changed Mac App resource')
+        self.commit()
+        record['source'].update(commit=self.git('rev-parse', 'HEAD'), tree=self.git('rev-parse', 'HEAD^{tree}'))
+        check = checker.Check(self.args)
+        check.functional_source('windows.paste', record)
+        with self.assertRaises(ValueError): check.functional_source('mac.paste', record)
+        self.write(self.repo/'unknown-build.cfg', b'needs classification')
+        self.commit()
+        record['source'].update(commit=self.git('rev-parse', 'HEAD'), tree=self.git('rev-parse', 'HEAD^{tree}'))
+        with self.assertRaises(checker.Pending): checker.Check(self.args).functional_source('windows.paste', record)
+        (self.repo/'unknown-build.cfg').unlink()
+        self.commit()
+        record['source'].update(commit=commit, tree=tree)
+        record['source']['app']['sha256'] = '0'*64
+        self.save()
+        with self.assertRaises(ValueError): checker.Check(self.args).record('windows.paste')
+        record['source']['app'] = app
+        self.write(self.repo/'src/main.rs', b'fn main() { panic!() }\n')
+        self.commit()
+        record['source'].update(commit=self.git('rev-parse', 'HEAD'), tree=self.git('rev-parse', 'HEAD^{tree}'))
+        self.save()
+        with self.assertRaisesRegex(ValueError, 'Functional source changes'): checker.Check(self.args).record('windows.paste')
 
     def test_crlf_is_explained_not_arbitrary_content(self):
         record = self.record('text', b'line\r\n')

@@ -16,6 +16,8 @@ MAC = 'aarch64-apple-darwin'
 SOURCE_ROOTS = ('Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', 'vendor/accesskit_windows',
                 'build.rs', 'build_support', 'THIRD_PARTY_NOTICES.md', 'LICENSE', 'src',
                 'assets', 'browser-extension', 'distribution/notices', 'distribution/license-inputs.json')
+MAC_SOURCE_ROOTS = ('Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', 'build.rs', 'build_support',
+                    'src', 'assets', 'browser-extension', 'distribution/macos-license-inputs.json')
 EXTRA_INPUTS = ('scripts/package_portable.ps1', 'scripts/package_windows.ps1',
                 'scripts/package_macos.sh', '.github/workflows/rust.yml', '.cargo',
                 '.gitattributes', 'distribution/ameow.iss', 'distribution/languages',
@@ -55,6 +57,11 @@ def under(path, roots):
 
 def input_change(path):
     return under(path, SOURCE_ROOTS + EXTRA_INPUTS)
+
+
+def development_input_change(path, platform=None):
+    return (under(path, SOURCE_ROOTS + ('.cargo', '.gitattributes', 'distribution/macos-license-inputs.json'))
+            or platform != 'windows' and path in ('scripts/package_macos.sh', 'site/public/ameow-logo.png'))
 
 
 def known_non_input(path):
@@ -115,9 +122,11 @@ class Check:
     def __init__(self, args):
         self.args = args
         self.repo = args.repo.resolve()
-        self.assets = load_json(args.assets)
         self.evidence = load_json(args.evidence) if args.evidence else {}
-        self.base = args.evidence.resolve().parent if args.evidence else args.assets.resolve().parent
+        if self.evidence.get('status') == 'RETIRED':
+            raise Pending('Dedicated candidate evidence is retired; use source phase without reconstructing its assets')
+        self.assets = load_json(args.assets) if args.assets else {}
+        self.base = args.evidence.resolve().parent if args.evidence else args.assets.resolve().parent if args.assets else self.repo
         self.tree = run(['git', 'rev-parse', f'{args.commit}^{{tree}}'], self.repo)
         self.head = run(['git', 'rev-parse', 'HEAD'], self.repo)
         self.results = []
@@ -147,7 +156,8 @@ class Check:
     def candidate(self):
         require(re.fullmatch(r'[0-9a-f]{40}', self.args.commit), 'Use a full product commit')
         require(re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', self.args.version), 'Use an actual release version')
-        self.identity(self.assets)
+        if self.args.phase == 'release':
+            self.identity(self.assets)
         paths = ['Cargo.toml', 'Cargo.lock', 'browser-extension/manifest.json',
                  'browser-extension/package.json', 'browser-extension/package-lock.json']
         blobs = git_blobs(self.repo, self.args.commit, paths)
@@ -181,6 +191,8 @@ class Check:
     def main_sync(self):
         branch = run(['git', 'branch', '--show-current'], self.repo)
         require(branch == 'main', f'Expected main checkout, found {branch}')
+        if self.args.phase == 'source':
+            require(self.args.commit == self.head, 'Source acceptance must select the current main commit')
         run(['git', 'merge-base', '--is-ancestor', self.args.commit, self.head], self.repo)
         try:
             remote = run(['git', 'ls-remote', '--exit-code', 'origin', 'refs/heads/main'], self.repo).split()[0]
@@ -194,9 +206,11 @@ class Check:
         dirty = run(['git', 'diff', '--name-only', 'HEAD'], self.repo).splitlines()
         dirty += run(['git', 'ls-files', '--others', '--exclude-standard'], self.repo).splitlines()
         changed = sorted(set(committed + dirty))
-        inputs = [p for p in changed if input_change(p)]
+        affects = input_change if self.args.phase == 'release' else development_input_change
+        inputs = [p for p in changed if affects(p)]
         require(not inputs, f'Actual build/packaging inputs changed; reassess candidate: {inputs}')
-        unknown = [p for p in changed if not known_non_input(p)]
+        unknown = [p for p in changed if not known_non_input(p)
+                   and not (self.args.phase == 'source' and input_change(p) and not affects(p))]
         if unknown:
             raise Pending(f'Classify additional changed paths before reusing candidate: {unknown}')
         return dict(productCommit=self.args.commit, currentHead=self.head, nonInputChanges=changed,
@@ -229,10 +243,12 @@ class Check:
         if not self.evidence:
             raise Pending('No evidence index supplied; native/user results remain unknown')
         require(self.evidence['schema'] == 1, 'Unsupported evidence index schema')
+        require(self.evidence.get('phase', self.args.phase) == self.args.phase, 'Evidence phase differs from selected phase')
         identity = self.evidence['identity']
         self.identity(identity)
-        require(identity['assetsSha256'] == digest(self.args.assets.read_bytes()),
-                'Evidence is bound to a different ASSETS.json')
+        if self.args.phase == 'release':
+            require(identity['assetsSha256'] == digest(self.args.assets.read_bytes()),
+                    'Evidence is bound to a different ASSETS.json')
         return identity
 
     def inputs(self, platform):
@@ -241,17 +257,20 @@ class Check:
                         tree=receipt.get('baselineTree', receipt.get('tree')))
         self.identity(identity, version=False)
         require(receipt['dirty'] is False, f'{platform} build was dirty')
-        if 'sourceAndResources' not in receipt:
+        combined = platform == 'mac' and 'source' in receipt and 'sourceAndResources' not in receipt
+        if 'sourceAndResources' not in receipt and not combined:
             raise Pending(f'{platform}: only input summary available; need full sourceAndResources/packagingInputs')
-        sources = receipt['sourceAndResources']
+        sources = receipt['source'] if combined else receipt['sourceAndResources']
         serialized = json.dumps(sources, ensure_ascii=False, separators=(',', ':')).encode()
         require(digest(serialized) == receipt['sourceInventorySha256'].lower(), 'Source inventory digest mismatch')
-        records = sources + receipt['packagingInputs']
+        records = sources if combined else sources + receipt['packagingInputs']
         paths = {r['path'] for r in records}
         required_packaging = ({'scripts/package_portable.ps1', '.github/workflows/rust.yml', 'rust-toolchain.toml'}
-                              if platform == 'windows' else {'scripts/package_macos.sh', 'site/public/ameow-logo.png'})
+                              if platform == 'windows' else {'scripts/package_macos.sh', 'site/public/ameow-logo.png',
+                                                            'distribution/macos-license-inputs.json'})
         require(required_packaging <= paths, f'{platform} receipt omits packaging inputs')
-        expected = set(run(['git', 'ls-tree', '-r', '--name-only', self.args.commit, '--', *SOURCE_ROOTS], self.repo).splitlines())
+        roots = SOURCE_ROOTS if platform == 'windows' else MAC_SOURCE_ROOTS
+        expected = set(run(['git', 'ls-tree', '-r', '--name-only', self.args.commit, '--', *roots], self.repo).splitlines())
         require(expected <= {r['path'] for r in sources}, 'Input receipt omits source/resource files')
         blobs = git_blobs(self.repo, self.args.commit, sorted(paths))
         for record in records:
@@ -265,7 +284,11 @@ class Check:
             lock = next((r for r in sources if r['path'] == 'Cargo.lock'), None)
             require(lock is not None, 'Input receipt omits Cargo.lock')
             require(build['cargo_lock_sha256'] == lock['sha256'].lower(), 'Build lockfile mismatch')
-        return dict(records=len(records), commit=self.args.commit, newlinePolicy='Git bytes or UTF-8 CRLF checkout')
+        elif 'cargoLockSha256' in receipt:
+            lock = next(r for r in sources if r['path'] == 'Cargo.lock')
+            require(receipt['cargoLockSha256'] == lock['sha256'].lower(), 'Mac build lockfile mismatch')
+        return dict(records=len(records), commit=self.args.commit, format='mac-combined' if combined else 'split',
+                    newlinePolicy='Git bytes or UTF-8 CRLF checkout')
 
     def packaging(self, platform):
         assets = {a['name']: a for a in self.assets['assets']}
@@ -342,6 +365,7 @@ class Check:
         require(status != 'FAIL', f'{name}: {note}')
         if status != 'PASS':
             raise Pending(f'{name}: {note or "unknown; not PASS"}')
+        self.functional_source(name, record)
         require(note and record.get('files'), f'{name} PASS requires explanation and evidence files')
         for file in record['files']:
             path = self.base / file['path']
@@ -351,32 +375,91 @@ class Check:
         if name == 'docs':
             commit = record.get('commit', '')
             require(re.fullmatch(r'[0-9a-f]{40}', commit), 'docs requires exact documentation commit')
-            run(['git', 'merge-base', '--is-ancestor', self.args.commit, commit], self.repo)
+            if self.args.phase == 'release':
+                run(['git', 'merge-base', '--is-ancestor', self.args.commit, commit], self.repo)
             run(['git', 'merge-base', '--is-ancestor', commit, self.head], self.repo)
             changed = run(['git', 'diff', '--name-only', commit], self.repo).splitlines()
             changed += run(['git', 'ls-files', '--others', '--exclude-standard'], self.repo).splitlines()
             uncovered = [p for p in changed if release_doc(p)]
             if uncovered:
                 raise Pending(f'Documentation changed after reviewed commit {commit}: {uncovered}')
-        return dict(note=note, files=record['files'])
+        result = dict(note=note, files=record['files'])
+        if name != 'docs':
+            result['source'] = record.get('source', {'kind': 'package'})
+        return result
+
+    def functional_platform(self, name, source):
+        platform = name.split('.')[0] if name.startswith(('windows.', 'mac.')) else source.get('platform')
+        require(platform in (None, 'windows', 'mac'), 'Unknown functional evidence platform')
+        return platform
+
+    def development_inputs(self, source, platform=None):
+        require(source.get('buildInputsMatch') is not False and source.get('dirtyInputs') is not True,
+                'Development receipt reports mismatched build inputs')
+        if source.get('buildInputsMatch') is not True:
+            raise Pending('Development run must record actual build inputs matching its source commit')
+        if source.get('dirty') is True:
+            paths = source.get('dirtyPaths')
+            if not isinstance(paths, list) or not paths:
+                raise Pending('Dirty development build needs the recorded changed paths')
+            require(not any(development_input_change(p, platform) for p in paths), 'Development build used dirty inputs')
+            if any(not known_non_input(p) and not input_change(p) for p in paths):
+                raise Pending('Classify unknown dirty development paths before reusing evidence')
+
+    def functional_source(self, name, record):
+        source = record.get('source')
+        if source is None:
+            require(self.args.phase == 'release' or name == 'docs', 'Source functional PASS requires actual executable provenance')
+            return
+        require(source['kind'] in ('package', 'development'), 'Unknown functional evidence source')
+        if source['kind'] == 'package':
+            require(self.args.phase == 'release', 'Package evidence does not establish current main source acceptance')
+            self.identity(source)
+            return
+        require(name != 'docs', 'Development executable evidence cannot replace documentation review')
+        platform = self.functional_platform(name, source)
+        self.development_inputs(source, platform)
+        require(source['version'] == self.args.version and re.fullmatch(r'[0-9a-f]{40}', source['commit']),
+                'Development source version/commit mismatch')
+        tree = run(['git', 'rev-parse', f'{source["commit"]}^{{tree}}'], self.repo)
+        require(source['tree'] == tree, 'Development source tree mismatch')
+        run(['git', 'merge-base', '--is-ancestor', source['commit'], self.head], self.repo)
+        changed = run(['git', 'diff', '--name-only', self.args.commit, source['commit']], self.repo).splitlines()
+        require(not any(development_input_change(p, platform) for p in changed), 'Functional source changes candidate build inputs')
+        if any(not known_non_input(p) and not input_change(p) for p in changed):
+            raise Pending('Classify unknown development source changes before reusing evidence')
+        require(source.get('app'), 'Development evidence requires actual executable path/hash')
+        for key in ('app', 'cli', 'host'):
+            if key in source:
+                require(source[key]['path'] and re.fullmatch(r'[0-9a-fA-F]{64}', source[key]['sha256']),
+                        f'Development {key} requires actual path/SHA256 from the run receipt')
 
     def report_identity(self, name, record, report):
         if not isinstance(report, dict):
             return
-        commit = record.get('commit', self.args.commit) if name == 'docs' else self.args.commit
+        source = record.get('source', {})
+        if source.get('kind') == 'development':
+            provenance = dict(source)
+            provenance.update({k: report[k] for k in ('buildInputsMatch', 'dirtyInputs', 'dirty', 'dirtyPaths') if k in report})
+            self.development_inputs(provenance, self.functional_platform(name, source))
+        commit = source.get('commit', record.get('commit', self.args.commit) if name == 'docs' else self.args.commit)
         for key in ('commit', 'head_sha'):
             if key in report:
                 require(report[key] == commit, f'{name} raw report {key} belongs to another source')
         if isinstance(report.get('source'), str) and re.fullmatch(r'[0-9a-f]{40}', report['source']):
             require(report['source'] == commit, f'{name} raw report source differs')
-        if 'tree' in report and commit == self.args.commit:
-            require(report['tree'] == self.tree, f'{name} raw report tree differs')
+        if 'tree' in report and (source or commit == self.args.commit):
+            require(report['tree'] == source.get('tree', self.tree), f'{name} raw report tree differs')
         if isinstance(report.get('version'), str) and re.fullmatch(r'\d+\.\d+\.\d+', report['version']):
             require(report['version'] == self.args.version, f'{name} raw report version differs')
         platforms = [name.split('.')[0]] if name.startswith(('windows.', 'mac.')) else ['windows', 'mac']
         for key in ('app', 'cli', 'host'):
             field = key + '_sha256'
             if field not in report:
+                continue
+            if source.get('kind') == 'development':
+                require(key in source and report[field].lower() == source[key]['sha256'].lower(),
+                        f'{name} raw report development {key} differs')
                 continue
             hashes = set()
             for platform in platforms:
@@ -389,36 +472,47 @@ class Check:
             require(report[field].lower() in hashes, f'{name} raw report {key} executable differs')
 
     def check(self):
-        for name, action in [('candidate', self.candidate), ('assets', self.asset_files),
-                             ('main', self.main_sync), ('followup-inputs', self.followups),
+        for name, action in [('candidate', self.candidate), ('main', self.main_sync), ('followup-inputs', self.followups),
                              ('evidence-identity', self.evidence_identity)]:
             self.add(name, action)
-        for role in ('rust', 'docs'):
-            self.add(f'ci.{role}', lambda role=role: self.ci(role))
-        for platform in ('windows', 'mac'):
-            self.add(f'{platform}.inputs', lambda p=platform: self.inputs(p))
-            self.add(f'{platform}.packaging', lambda p=platform: self.packaging(p))
-        self.add('feeds', self.feeds)
+        if self.args.phase == 'release':
+            self.add('assets', self.asset_files)
+            for role in ('rust', 'docs'):
+                self.add(f'ci.{role}', lambda role=role: self.ci(role))
+            for platform in ('windows', 'mac'):
+                self.add(f'{platform}.inputs', lambda p=platform: self.inputs(p))
+                self.add(f'{platform}.packaging', lambda p=platform: self.packaging(p))
+            self.add('feeds', self.feeds)
         extra = [r['id'] for r in self.evidence.get('records', []) if r['id'] not in REQUIRED]
         for name in REQUIRED + sorted(set(extra)):
             self.add(name, lambda name=name: self.record(name))
         states = {r['status'] for r in self.results}
         status = 'FAIL' if 'FAIL' in states else 'PENDING' if 'PENDING' in states else 'PASS'
-        return dict(schema=1, status=status, version=self.args.version, productCommit=self.args.commit,
+        return dict(schema=1, status=status, phase=self.args.phase, version=self.args.version, productCommit=self.args.commit,
                     currentHead=self.head, publicationAuthorized=False, checks=self.results,
-                    scope='Read-only file/receipt identity checks; no native tests, signature execution or publication')
+                    releaseAssetsStatus='NOT_PREPARED' if self.args.phase == 'source' else 'SEE_RELEASE_CHECKS',
+                    scope='Source functional evidence only; release assets not assessed' if self.args.phase == 'source'
+                    else 'Read-only release file/receipt identity checks; no native tests, signature execution or publication')
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--phase', choices=('source', 'release'), default='source')
     parser.add_argument('--version', required=True)
     parser.add_argument('--commit', required=True)
-    parser.add_argument('--assets', required=True, type=Path)
+    parser.add_argument('--assets', type=Path)
     parser.add_argument('--evidence', type=Path)
     parser.add_argument('--repo', type=Path, default=Path(__file__).resolve().parents[1])
     args = parser.parse_args()
+    if args.phase == 'release' and not args.assets:
+        parser.error('--phase release requires --assets; source acceptance needs no release assets')
+    if args.phase == 'source' and args.assets:
+        parser.error('Use --phase release to inspect assets; source acceptance does not consume an asset manifest')
     try:
         report = Check(args).check()
+    except Pending as error:
+        report = dict(schema=1, status='PENDING', phase=args.phase, releaseAssetsStatus='RETIRED',
+                      detail=str(error), publicationAuthorized=False)
     except (ValueError, OSError, KeyError, TypeError, AttributeError, subprocess.SubprocessError) as error:
         report = dict(schema=1, status='FAIL', error=str(error), publicationAuthorized=False)
     print(json.dumps(report, ensure_ascii=False, indent=2))
