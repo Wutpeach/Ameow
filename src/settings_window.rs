@@ -2234,7 +2234,7 @@ impl Prototype {
                 view.health = Some(Ok(()));
                 view.notice = None;
                 view.browser_ui = browser_sessions_ui::BrowserUi::default();
-                view.browser_ui.guide = match scene.state.as_str() { "browser-connect" | "browser-connect-demo" => 1, _ => 0 };
+                view.browser_ui.guide = match scene.state.as_str() { "browser-connect" => 1, _ => 0 };
                 view.browser_ui.guide_focus_pending = view.browser_ui.guide > 0;
                 view.browser_ui.details = scene.state == "browser-session-long";
                 if view.browser_ui.guide > 0 { view.browser_ui.preview_path(); }
