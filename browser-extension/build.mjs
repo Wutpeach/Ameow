@@ -28,7 +28,7 @@ await writeFile(new URL('LICENSES.txt', out), licenses.join('\n\n'));
 const extensionId = [...createHash('sha256').update(Buffer.from(manifest.key, 'base64')).digest().subarray(0, 16)]
   .map(b => String.fromCharCode(97 + (b >> 4), 97 + (b & 15))).join('');
 const source = createHash('sha256');
-for (const file of ['manifest.json','popup.html','popup.css','build.mjs','package-lock.json','src/core.mjs','src/background.mjs','src/popup.mjs','src/page.mjs','src/icons/scissors.svg','src/icons/marker-range-in.svg','src/icons/marker-range-out.svg','src/icons/broom-sparkles.svg','third-party/lucide-LICENSE','src/page-core.mjs','src/page-background.mjs','src/page-ui.css','src/page.css','../assets/brand/tray/macos/ameow-menu-bar-white.svg','../assets/brand/ameow.ico']) {
+for (const file of ['manifest.json','popup.html','popup.css','build.mjs','package-lock.json','src/core.mjs','src/background.mjs','src/popup.mjs','src/page.mjs','src/icons/scissors.svg','src/icons/marker-range-in.svg','src/icons/marker-range-out.svg','third-party/lucide-LICENSE','src/page-core.mjs','src/page-background.mjs','src/page-ui.css','src/page.css','../assets/brand/tray/macos/ameow-menu-bar-white.svg','../assets/brand/ameow.ico']) {
   source.update(file); source.update(await readFile(new URL(file, import.meta.url)));
 }
 for(const name of ['copy','check','rotate-ccw','circle-alert','info','chevron-down']) {
