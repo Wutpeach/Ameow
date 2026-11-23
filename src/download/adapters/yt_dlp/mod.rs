@@ -4,6 +4,7 @@ pub mod identity;
 pub mod progress;
 pub mod selection;
 mod bounded_http;
+mod attempt_resolution;
 #[cfg(target_os = "macos")]
 pub(crate) mod settlement_macos;
 
@@ -57,19 +58,9 @@ const SAFE_SELECTION: &str = r#"{"id":%(id)j,"extractor_key":%(extractor_key)j,"
 
 const METADATA_LIMIT: usize = process_supervisor::MAX_STDOUT_CAPTURE;
 const EVIDENCE: &[(&str, u64)] = &[
-    (RESOLVED_FILE, METADATA_LIMIT as u64),
-    (TRANSFER_INFO_FILE, METADATA_LIMIT as u64),
-    (SELECTION_FILE, METADATA_LIMIT as u64),
-    ("resolve-argv.json", 8 * 1024 * 1024),
-    ("resolve-stdout.log", METADATA_LIMIT as u64),
-    ("resolve-stderr.log", 1024 * 1024),
     ("resolve-settlement.txt", 65536),
-    ("transfer-argv.json", 8 * 1024 * 1024),
-    ("transfer-stdout.log", 4 * 1024 * 1024),
-    ("transfer-stderr.log", 1024 * 1024),
     ("transfer-settlement.txt", 65536),
     ("final-object.txt", 4096),
-    ("adapter-error.log", 65536),
     ("resolve-media.json", 65536),
     ("transfer-media.json", 65536),
 ];
@@ -118,7 +109,6 @@ impl DownloaderAdapter for YtDlpAdapter {
             context
                 .admit(&proof)
                 .map_err(|failure| format!("{}: {}", failure.code, failure.reason))?;
-            context.write_evidence(RESOLVED_FILE, &bytes)?;
             let canonical = identity::canonical_url(accepted, &proof.identity);
             if network::engine_route(&canonical)
                 .map_err(|e| format!("E_NETWORK_ENGINE_ROUTE_UNSUPPORTED: {e}"))?
@@ -126,6 +116,11 @@ impl DownloaderAdapter for YtDlpAdapter {
             {
                 return Err("E_NETWORK_ENGINE_ROUTE_UNSUPPORTED: canonical origin differs from accepted route".into());
             }
+            let input_bytes = attempt_resolution::input_bytes(&metadata, &canonical, context.authentication.is_some())?;
+            context.write_evidence(RESOLVED_FILE, input_bytes.as_deref().unwrap_or(&bytes))?;
+            let attempt_input = input_bytes.as_ref().map(|bytes|
+                attempt_resolution::AttemptResolution::open(&working.join(RESOLVED_FILE), bytes)
+            ).transpose()?;
             if context.cancelled() {
                 return Err("Cancelled before media transfer".into());
             }
@@ -160,7 +155,7 @@ impl DownloaderAdapter for YtDlpAdapter {
                 "mkv".into(),
                 "--output".into(),
                 working.join("media.%(ext)s").display().to_string(),
-                if context.authentication.is_some() { "--no-write-info-json" } else { "--write-info-json" }.into(),
+                if context.authentication.is_some() || attempt_input.is_some() { "--no-write-info-json" } else { "--write-info-json" }.into(),
                 "--no-overwrites".into(),
                 "--newline".into(),
                 "--progress".into(),
@@ -178,15 +173,13 @@ impl DownloaderAdapter for YtDlpAdapter {
                 "--print-to-file".into(),
                 "after_move:AMEOW_FINAL=%(filepath)j".into(),
                 working.join("final-object.txt").display().to_string(),
-                "--".into(),
-                canonical,
             ]);
-            if context.authentication.is_some() {
-                let end = args.len() - 2;
-                args.splice(end..end, ["--print-to-file".into(), format!("after_move:{SAFE_METADATA}"), working.join(TRANSFER_INFO_FILE).display().to_string()]);
+            if context.authentication.is_some() || attempt_input.is_some() {
+                args.extend(["--print-to-file".into(), format!("after_move:{}", if context.authentication.is_some() { SAFE_METADATA } else { "%()j" }), working.join(TRANSFER_INFO_FILE).display().to_string()]);
             }
+            attempt_resolution::append_input(&mut args, attempt_input.as_ref(), &canonical);
             let timeline = progress::Timeline::from_args();
-            let feed = Mutex::new((false, progress::ProgressFeed::selected(&Value::Null).with_timeline(timeline.clone())));
+            let feed = Mutex::new((0, progress::ProgressFeed::selected(&Value::Null).with_timeline(timeline.clone())));
             let selected_path = working.join(SELECTION_FILE);
             let expected = proof.identity.canonical_key();
             let accepted_for_progress = accepted.clone();
@@ -199,13 +192,15 @@ impl DownloaderAdapter for YtDlpAdapter {
                 } = event
                 {
                     let mut state = crate::download::lock(&feed);
-                    if !state.0
-                        && let Ok(value) = read_selection(&selected_path)
-                        && let Ok(proof) = identity::proof(&accepted_for_progress, &value)
+                    if let Ok(file) = fs::symlink_metadata(&selected_path)
+                        && file.len() != state.0
+                        && let Ok(selections) = read_selections(&selected_path)
+                        && let Some(value) = selections.last()
+                        && let Ok(proof) = identity::proof(&accepted_for_progress, value)
                         && proof.identity.canonical_key() == expected
                     {
-                        state.1 = progress::ProgressFeed::selected(&value).with_clip(accepted_for_progress.intent.clip).with_timeline(timeline.clone());
-                        state.0 = true;
+                        state.1 = progress::ProgressFeed::selected(value).with_clip(accepted_for_progress.intent.clip).with_timeline(timeline.clone());
+                        state.0 = file.len();
                     }
                     if let Some(sample) =
                         state
@@ -216,7 +211,10 @@ impl DownloaderAdapter for YtDlpAdapter {
                     }
                 }
             });
-            let record = invoke(context, args, Some(output), &mut engine_observation, InvocationPhase::Transfer, #[cfg(target_os = "macos")] Some(&metadata))?;
+            if let Some(input) = &attempt_input { input.validate()?; }
+            let transfer = invoke(context, args, Some(output), &mut engine_observation, InvocationPhase::Transfer, #[cfg(target_os = "macos")] Some(&metadata));
+            if let Some(input) = &attempt_input { input.validate()?; }
+            let record = transfer?;
             phase = Phase::Validating;
             let final_path = parse_final_record(&record)?;
             let final_metadata = fs::symlink_metadata(&final_path).map_err(|e| e.to_string())?;
@@ -240,8 +238,13 @@ impl DownloaderAdapter for YtDlpAdapter {
                 || !identity::consistent(&metadata, &actual) {
                 return Err("E_IDENTITY: transfer differs from admitted object".into());
             }
-            let before = read_selection(&working.join(SELECTION_FILE)).ok();
-            let mut video = transfer_expectation(&actual, before.as_ref(), accepted.intent.quality)?;
+            let selections = read_selections(&working.join(SELECTION_FILE));
+            let selections = if attempt_input.is_some() { Some(selections?) } else { selections.ok() };
+            if let Some(selections) = &selections {
+                check_selection_identities(accepted, &metadata, selections)?;
+            }
+            let before = selections.as_ref().and_then(|rows| rows.last());
+            let mut video = transfer_expectation(&actual, before, accepted.intent.quality)?;
             let verification = if let Some(range) = accepted.intent.clip {
                 if range.precise { video.codec = Some(crate::download::contract::VideoCodec::H264); }
                 check_clip_source(&actual, range)?;
@@ -397,6 +400,17 @@ fn transfer_expectation(actual: &Value, before: Option<&Value>, quality: crate::
         video.requires_audio |= observed.requires_audio;
     }
     Ok(video)
+}
+fn check_selection_identities(accepted: &Accepted, resolved: &Value, selections: &[Value]) -> Result<(), String> {
+    let expected = identity::proof(accepted, resolved).map_err(|error| format!("E_IDENTITY: {error}"))?.identity.canonical_key();
+    for selected in selections {
+        check_generic_object(accepted, selected)?;
+        let proof = identity::proof(accepted, selected).map_err(|error| format!("E_IDENTITY: {error}"))?;
+        if proof.identity.canonical_key() != expected || !identity::consistent(resolved, selected) {
+            return Err("E_IDENTITY: native selection differs from admitted object".into());
+        }
+    }
+    Ok(())
 }
 fn generic_args(args: &mut Vec<String>, accepted: &Accepted, resolving: bool) {
     if !matches!(accepted.object, Object::Generic { .. }) { return; }
@@ -567,14 +581,18 @@ fn read_metadata_file(path: &Path) -> Result<Value, String> {
         .map_err(|e| e.to_string())?;
     parse_metadata(&bytes)
 }
+#[cfg(test)]
 fn read_selection(path: &Path) -> Result<Value, String> {
+    read_selections(path)?.pop().ok_or_else(|| "Selection marker missing".into())
+}
+fn read_selections(path: &Path) -> Result<Vec<Value>, String> {
     let meta = fs::symlink_metadata(path).map_err(|e| e.to_string())?;
     if !super::super::is_plain_file(&meta) || meta.len() > METADATA_LIMIT as u64
     {
         return Err("Native selection record type/bound".into());
     }
     let mut bytes = Vec::new();
-    File::open(path)
+    crate::download::runtime::open_identity_file(path)
         .map_err(|e| e.to_string())?
         .take(METADATA_LIMIT as u64 + 1)
         .read_to_end(&mut bytes)
@@ -583,21 +601,20 @@ fn read_selection(path: &Path) -> Result<Value, String> {
         return Err("Incomplete or oversized native selection observation".into());
     }
     let text = std::str::from_utf8(&bytes).map_err(|_| "Selection UTF8")?;
-    let mut lines = text.lines();
-    let record = lines
-        .next()
-        .and_then(|line| line.strip_prefix(SELECTION_PREFIX))
-        .ok_or("Selection marker missing")?;
-    if lines.next().is_some() {
-        return Err("Multiple native selection observations".into());
+    let mut selections = Vec::new();
+    for line in text.lines() {
+        if selections.len() == 2 { return Err("Too many native selection observations".into()); }
+        let record = line.strip_prefix(SELECTION_PREFIX).ok_or("Selection marker missing")?;
+        let mut metadata = parse_metadata(record.as_bytes())?;
+        // Native traversal yields [] for a single stream; its root remains the selection.
+        if let Some(selected) = metadata.as_object_mut().and_then(|o| o.remove("_ameow_selected_formats"))
+            && selected.as_array().is_some_and(|streams| !streams.is_empty()) {
+            metadata["requested_formats"] = selected;
+        }
+        selections.push(metadata);
     }
-    let mut metadata = parse_metadata(record.as_bytes())?;
-    // Native traversal yields [] for a single stream; its root remains the selection.
-    if let Some(selected) = metadata.as_object_mut().and_then(|o| o.remove("_ameow_selected_formats"))
-        && selected.as_array().is_some_and(|streams| !streams.is_empty()) {
-        metadata["requested_formats"] = selected;
-    }
-    Ok(metadata)
+    if selections.is_empty() { return Err("Selection marker missing".into()); }
+    Ok(selections)
 }
 pub(crate) fn parse_final_record(bytes: &[u8]) -> Result<PathBuf, String> {
     if bytes.len() > 4096 {
@@ -722,17 +739,17 @@ use crate::download::{request::{self, Accepted, DownloadIntent}};
         );
         fs::write(working.join("resolve-stdout.log"), &bytes).map_err(|e| e.to_string())?;
         let archived = crate::download::preserve_diagnostics(root.path(), &working, 1, EVIDENCE, &Default::default())?;
-        assert_eq!(
-            fs::read(archived.join("resolve-stdout.log")).map_err(|e| e.to_string())?,
-            bytes
-        );
+        assert!(!archived.join("resolve-stdout.log").exists());
         let overflow = vec![b'x'; process_supervisor::MAX_STDOUT_CAPTURE + 1];
         let failure = parse_metadata(&overflow).unwrap_err();
         assert!(failure.starts_with("E_METADATA_TOO_LARGE:"));
         fs::write(working.join("resolve-stdout.log"), overflow).map_err(|e| e.to_string())?;
+        fs::write(working.join("resolve-settlement.txt"), vec![b'x'; 65537]).map_err(|e| e.to_string())?;
         fs::write(working.join("attempt-error.log"), &failure).map_err(|e| e.to_string())?;
         let archived = crate::download::preserve_diagnostics(root.path(), &working, 2, EVIDENCE, &Default::default())?;
-        assert!(archived.join("resolve-stdout.log.omitted.txt").is_file());
+        assert!(!archived.join("resolve-stdout.log").exists());
+        assert!(!archived.join("resolve-stdout.log.omitted.txt").exists());
+        assert!(archived.join("resolve-settlement.txt.omitted.txt").is_file());
         assert_eq!(
             fs::read_to_string(archived.join("attempt-error.log")).map_err(|e| e.to_string())?,
             failure

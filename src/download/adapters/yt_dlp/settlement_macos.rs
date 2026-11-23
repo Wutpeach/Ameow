@@ -1,4 +1,6 @@
-use super::{InvocationPhase, RESOLVED_FILE, SELECTION_FILE, SELECTION_PREFIX, TRANSFER_INFO_FILE};
+use super::{InvocationPhase, RESOLVED_FILE, SELECTION_FILE, TRANSFER_INFO_FILE};
+#[cfg(test)]
+use super::SELECTION_PREFIX;
 use crate::download::{process_supervisor::ProcessSpec, runtime::{self, RuntimeLease}};
 use std::{fs::{self, File}, io::{self, Read}, path::Path};
 
@@ -182,8 +184,7 @@ fn transfer_record(path: &Path, prefix: Option<&str>) -> Option<serde_json::Valu
 }
 
 fn transfer_media_completion(workspace: &Path, safe_records: bool) -> bool {
-    let Some(selection) =
-        transfer_record(&workspace.join(SELECTION_FILE), Some(SELECTION_PREFIX))
+    let Ok(selections) = super::read_selections(&workspace.join(SELECTION_FILE))
     else {
         return false;
     };
@@ -192,9 +193,9 @@ fn transfer_media_completion(workspace: &Path, safe_records: bool) -> bool {
     };
     // The original in-memory resolution already qualified the actual invocation. Safe
     // native receipts retain protocol/kind without persisting URLs or request headers.
-    (if safe_records { transfer_media_kind(&selection) } else { transfer_media_value(&selection) })
+    selections.iter().all(|selection| if safe_records { transfer_media_kind(selection) } else { transfer_media_value(selection) })
         && transfer_media_kind(&summary)
-        && summary["protocol"] == selection["protocol"]
+        && selections.last().is_some_and(|selection| summary["protocol"] == selection["protocol"])
 }
 
 fn transfer_not_started(workspace: &Path) -> bool {
@@ -224,6 +225,22 @@ mod tests {
     use super::*;
     use crate::download::process_supervisor::{self, Control};
     use std::{sync::Arc, time::Duration};
+
+    #[test]
+    fn recovery_audits_every_selection_and_keeps_one_final_object() {
+        let workspace = tempfile::tempdir().unwrap();
+        let good = serde_json::json!({"id":"same", "protocol":"https", "url":"https://example.com/media"});
+        let bad = serde_json::json!({"id":"same", "protocol":"rtmp", "url":"rtmp://example.com/media"});
+        fs::write(workspace.path().join(TRANSFER_INFO_FILE), serde_json::to_vec(&good).unwrap()).unwrap();
+        for (first, second, expected) in [(&good, &good, true), (&bad, &good, false), (&good, &bad, false)] {
+            fs::write(workspace.path().join(SELECTION_FILE), format!("{SELECTION_PREFIX}{first}\n{SELECTION_PREFIX}{second}\n")).unwrap();
+            assert_eq!(transfer_media_completion(workspace.path(), false), expected);
+        }
+        fs::write(workspace.path().join(SELECTION_FILE), format!("{SELECTION_PREFIX}{good}\n{SELECTION_PREFIX}{good}\n")).unwrap();
+        fs::remove_file(workspace.path().join(TRANSFER_INFO_FILE)).unwrap();
+        assert!(!transfer_media_completion(workspace.path(), false));
+        assert!(super::super::parse_final_record(b"AMEOW_FINAL=\"one\"\nAMEOW_FINAL=\"two\"\n").is_err());
+    }
 
     #[test]
     fn changed_invocation_cannot_reuse_completion_or_spawn() {
