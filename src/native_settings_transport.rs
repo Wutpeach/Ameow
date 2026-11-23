@@ -81,7 +81,7 @@ fn isolated_transport_saves_through_real_owner_and_refuses_download_actions() {
         std::thread::sleep(Duration::from_millis(10));
     };
     while ui.settings().is_none() { spin(&mut ui); }
-    assert!(!ui.upstream_check_available() && !ui.request_upstream_check());
+    assert!(!ui.upstream_check_available() && !ui.request_downloader_check(ameow_next::download::contract::Downloader::YtDlp, true));
     assert!(ui.request_preferences(ThemePreference::Dark, LanguagePreference::English, 1));
     while ui.settings_pending { spin(&mut ui); }
     assert!(matches!(ui.settings_status, SettingsStatus::Saved));

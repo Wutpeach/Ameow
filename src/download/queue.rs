@@ -605,7 +605,7 @@ mod tests {
         use super::super::runtime_update::{RuntimeSelectionPolicy, RuntimeUpdatePhase, Selection};
         use std::sync::atomic::{AtomicUsize, Ordering};
         let root = tempfile::tempdir().map_err(|e| e.to_string())?;
-        let selected = Selection { policy: RuntimeSelectionPolicy::UserSelected, version: Some("2026.10.01".into()), previous: None };
+        let selected = Selection { policy: RuntimeSelectionPolicy::UserSelected, version: Some("2026.10.01".into()), previous: None, ..Default::default() };
         selected.persist(root.path())?;
         let backend = fake_backend(root.path());
         let manager = backend.shared.manager.clone();
@@ -679,7 +679,7 @@ mod tests {
         use super::super::runtime::TrustedRuntimeRequirements;
         use super::super::runtime_update::{RuntimeSelectionPolicy, RuntimeUpdatePhase, Selection};
         let root = tempfile::tempdir().map_err(|e| e.to_string())?;
-        let selected = Selection { policy: RuntimeSelectionPolicy::UserSelected, version: Some("2025.01.01".into()), previous: None };
+        let selected = Selection { policy: RuntimeSelectionPolicy::UserSelected, version: Some("2025.01.01".into()), previous: None, ..Default::default() };
         let baseline = super::super::runtime::manifest()?.components.into_iter()
             .find(|component| component.name == "yt-dlp").ok_or("Missing baseline")?.version;
         assert_eq!(super::super::upstream::compare_stable_versions(selected.version.as_deref().unwrap(), &baseline), Some(std::cmp::Ordering::Less));
@@ -759,6 +759,42 @@ mod tests {
         model.records.get_mut(&job).unwrap().view.slot_owned = false;
         model.stopping = true;
         assert!(!model.can_activate_update(false));
+        Ok(())
+    }
+    #[test]
+    fn downloader_requests_share_one_owner_and_preserve_the_other_choice() -> Result<(), String> {
+        use super::super::{contract::Downloader, runtime_update::{RuntimeUpdatePhase, Selection}};
+        let root = tempfile::tempdir().map_err(|error| error.to_string())?;
+        let backend = fake_backend(root.path());
+        let mut selected = Selection::default();
+        selected.select(Downloader::YtDlp, Some("2026.10.01".into()));
+        selected.select(Downloader::GalleryDl, Some("1.32.20".into()));
+        selected.persist(root.path())?;
+        {
+            let mut model = lock(&backend.shared.model);
+            model.verified_runtime_versions = vec![("yt-dlp".into(), "2026.10.01".into()), ("gallery-dl".into(), "1.32.20".into())];
+            model.runtime_update.selected = selected.selected();
+        }
+        assert!(matches!(backend.apply(QueueCommand::UpgradeDownloader { downloader: Downloader::GalleryDl, version: "1.32.21".into() }), CommandReply::Applied(true)));
+        {
+            let model = lock(&backend.shared.model);
+            let next = model.update_request.as_ref().unwrap();
+            assert_eq!(next.version_for(Downloader::YtDlp), Some("2026.10.01"));
+            assert_eq!(next.version_for(Downloader::GalleryDl), Some("1.32.21"));
+            assert_eq!(model.snapshot().component_update(Downloader::YtDlp).phase, RuntimeUpdatePhase::Idle);
+            assert_eq!(model.snapshot().component_update(Downloader::GalleryDl).phase, RuntimeUpdatePhase::Preparing);
+        }
+        assert!(matches!(backend.apply(QueueCommand::RestoreRecommendedDownloader { downloader: Downloader::YtDlp }), CommandReply::Error(_)));
+        assert_eq!(Selection::load(root.path())?, selected);
+        {
+            let mut model = lock(&backend.shared.model);
+            model.update_request = None; model.runtime_update.phase = RuntimeUpdatePhase::Failed;
+        }
+        assert!(matches!(backend.apply(QueueCommand::RestoreRecommendedDownloader { downloader: Downloader::YtDlp }), CommandReply::Applied(true)));
+        let model = lock(&backend.shared.model);
+        let next = model.update_request.as_ref().unwrap();
+        assert_eq!(next.version_for(Downloader::YtDlp), None);
+        assert_eq!(next.version_for(Downloader::GalleryDl), Some("1.32.20"));
         Ok(())
     }
     #[test]
@@ -2634,12 +2670,29 @@ pub struct QueueSnapshot {
     pub stopped: bool,
     pub main_job: Option<u64>,
 }
+impl QueueSnapshot {
+    pub fn component_update(&self, downloader: super::contract::Downloader) -> super::runtime_update::RuntimeUpdateSnapshot {
+        let mut state = self.runtime_update.clone();
+        if state.downloader != downloader {
+            state.downloader = downloader;
+            state.phase = super::runtime_update::RuntimeUpdatePhase::Idle;
+            state.requested_version = None; state.error = None;
+        }
+        state.policy = self.runtime_update.selected.iter().find(|item| item.downloader == downloader)
+            .map(|item| item.policy).unwrap_or_else(|| if self.runtime_update.downloader == downloader { self.runtime_update.policy } else { Default::default() });
+        state.active_version = self.verified_runtime_versions.iter().find(|(name, _)| name == downloader.label()).map(|(_, version)| version.clone())
+            .or_else(|| (self.runtime_update.downloader == downloader).then(|| self.runtime_update.active_version.clone()).flatten());
+        state
+    }
+}
 pub enum QueueCommand {
     Inspect { url: String, quality: Quality },
     InstallBrowserBridge,
     RemoveBrowserSession { site: String, grant_id: String },
     UpgradeEngine { version: String },
     RestoreRecommended,
+    UpgradeDownloader { downloader: super::contract::Downloader, version: String },
+    RestoreRecommendedDownloader { downloader: super::contract::Downloader },
     Submit { url: String },
     SubmitWithOptions { url: String, quality: Option<Quality>, output_dir: Option<PathBuf>, clip: Option<super::request::ClipRange> },
     SaveSettings(Settings),
@@ -2818,7 +2871,8 @@ impl Model {
             && !matches!(self.runtime_update.phase, super::runtime_update::RuntimeUpdatePhase::Preparing | super::runtime_update::RuntimeUpdatePhase::Downloading | super::runtime_update::RuntimeUpdatePhase::Verifying | super::runtime_update::RuntimeUpdatePhase::Waiting)
             && (self.preparation.phase == PreparationPhase::Failed ||
                 (self.runtime_update.phase == super::runtime_update::RuntimeUpdatePhase::RecoveryRequired
-                    && self.runtime_update.policy == super::runtime_update::RuntimeSelectionPolicy::UserSelected))
+                    && (self.runtime_update.policy == super::runtime_update::RuntimeSelectionPolicy::UserSelected
+                        || self.runtime_update.selected.iter().any(|item| item.policy == super::runtime_update::RuntimeSelectionPolicy::UserSelected))))
             && self.active() == 0
     }
     fn event(&mut self, job: u64, kind: &str) {
@@ -3441,38 +3495,10 @@ impl DownloadCoordinator {
                 model.revision += 1; self.shared.publish(&model);
                 CommandReply::Applied(result.is_ok())
             }
-            QueueCommand::UpgradeEngine { version } => {
-                let mut model = lock(&self.shared.model);
-                let valid = super::upstream::normalize_stable_version(&version).as_deref() == Some(version.as_str())
-                    && model.runtime_update.active_version.as_ref().is_some_and(|active|
-                        super::upstream::compare_stable_versions(&version, active) == Some(std::cmp::Ordering::Greater));
-                if !valid || model.stopping || model.app_update_draining || model.preparing || model.preparation_owner_lost || model.update_request.is_some() || model.runtime_update.phase == super::runtime_update::RuntimeUpdatePhase::Waiting {
-                    return CommandReply::Error("E_RUNTIME_UPDATE: Invalid version or update unavailable".into());
-                }
-                model.update_request = Some(super::runtime_update::Selection {
-                    policy: super::runtime_update::RuntimeSelectionPolicy::UserSelected,
-                    version: Some(version.clone()), previous: None,
-                });
-                model.runtime_update.requested_version = Some(version);
-                model.runtime_update.phase = super::runtime_update::RuntimeUpdatePhase::Preparing;
-                model.runtime_update.error = None;
-                model.revision += 1;
-                self.shared.publish(&model);
-                CommandReply::Applied(true)
-            }
-            QueueCommand::RestoreRecommended => {
-                let mut model = lock(&self.shared.model);
-                if model.stopping || model.app_update_draining || model.preparing || model.preparation_owner_lost || model.update_request.is_some() || model.runtime_update.phase == super::runtime_update::RuntimeUpdatePhase::Waiting {
-                    return CommandReply::Error("E_RUNTIME_UPDATE: Update unavailable".into());
-                }
-                model.update_request = Some(Default::default());
-                model.runtime_update.requested_version = None;
-                model.runtime_update.phase = super::runtime_update::RuntimeUpdatePhase::Preparing;
-                model.runtime_update.error = None;
-                model.revision += 1;
-                self.shared.publish(&model);
-                CommandReply::Applied(true)
-            }
+            QueueCommand::UpgradeEngine { version } => self.request_downloader_selection(super::contract::Downloader::YtDlp, Some(version)),
+            QueueCommand::RestoreRecommended => self.request_downloader_selection(super::contract::Downloader::YtDlp, None),
+            QueueCommand::UpgradeDownloader { downloader, version } => self.request_downloader_selection(downloader, Some(version)),
+            QueueCommand::RestoreRecommendedDownloader { downloader } => self.request_downloader_selection(downloader, None),
             QueueCommand::RetryPreparation => CommandReply::Applied(self.retry_preparation()),
             QueueCommand::CopyPreparationDiagnostic => {
                 let snapshot = self.snapshot();
@@ -3514,6 +3540,43 @@ impl DownloadCoordinator {
             }
         }
     }
+    fn request_downloader_selection(&self, downloader: super::contract::Downloader, version: Option<String>) -> CommandReply {
+        use super::{contract::Downloader, runtime_update::{RuntimeSelectionPolicy, RuntimeUpdatePhase, Selection}};
+        let mut model = lock(&self.shared.model);
+        if model.stopping || model.stopped || model.app_update_draining || model.preparing || model.preparation_held || model.preparation_owner_lost
+            || model.update_request.is_some() || model.runtime_update.phase == RuntimeUpdatePhase::Waiting {
+            return CommandReply::Error("E_RUNTIME_UPDATE: Update unavailable".into());
+        }
+        if let Some(version) = &version {
+            let current = model.verified_runtime_versions.iter().find(|(name, _)| name == downloader.label()).map(|(_, version)| version.as_str())
+                .or_else(|| (model.runtime_update.downloader == downloader).then(|| model.runtime_update.active_version.as_deref()).flatten());
+            let valid_version = match downloader { Downloader::YtDlp => super::upstream::normalize_stable_version(version), Downloader::GalleryDl => super::runtime_update::normalize_gallery_version(version) };
+            let newer = current.is_some_and(|current| match downloader {
+                Downloader::YtDlp => super::upstream::compare_stable_versions(version, current) == Some(std::cmp::Ordering::Greater),
+                Downloader::GalleryDl => gallery_newer(version, current),
+            });
+            if valid_version.as_deref() != Some(version.as_str()) || !newer { return CommandReply::Error("E_RUNTIME_UPDATE: Invalid version".into()); }
+        }
+        // The dispatch's committed projection is authoritative even when the next disk transaction cannot be written.
+        let mut next = Selection::default();
+        for selected in &model.runtime_update.selected {
+            next.select(selected.downloader, selected.version.clone());
+        }
+        if model.runtime_update.selected.is_empty() && model.runtime_update.policy == RuntimeSelectionPolicy::UserSelected {
+            next.select(model.runtime_update.downloader, model.runtime_update.active_version.clone());
+        }
+        let retained_version = model.verified_runtime_versions.iter().find(|(name, _)| name == downloader.label()).map(|(_, version)| version.clone())
+            .or_else(|| (model.runtime_update.downloader == downloader).then(|| model.runtime_update.active_version.clone()).flatten());
+        model.runtime_update.downloader = downloader;
+        model.runtime_update.policy = if next.version_for(downloader).is_some() { RuntimeSelectionPolicy::UserSelected } else { RuntimeSelectionPolicy::FollowAmeow };
+        model.runtime_update.active_version = retained_version;
+        next.select(downloader, version.clone());
+        model.update_request = Some(next);
+        model.runtime_update.requested_version = version;
+        model.runtime_update.phase = RuntimeUpdatePhase::Preparing; model.runtime_update.error = None;
+        model.revision += 1; self.shared.publish(&model);
+        CommandReply::Applied(true)
+    }
     pub fn retry_preparation(&self) -> bool {
         let _ordered = lock(&self.shared.command_gate);
         let mut model = lock(&self.shared.model);
@@ -3521,11 +3584,12 @@ impl DownloadCoordinator {
             return false;
         }
         if model.runtime_update.phase == super::runtime_update::RuntimeUpdatePhase::RecoveryRequired
-            && model.runtime_update.policy == super::runtime_update::RuntimeSelectionPolicy::UserSelected {
+            && (model.runtime_update.policy == super::runtime_update::RuntimeSelectionPolicy::UserSelected
+                || model.runtime_update.selected.iter().any(|item| item.policy == super::runtime_update::RuntimeSelectionPolicy::UserSelected)) {
             let Ok(selection) = super::runtime_update::Selection::load(&self.shared.manager.root) else { return false; };
-            if selection.policy != super::runtime_update::RuntimeSelectionPolicy::UserSelected { return false; }
+            if selection.version.is_none() && selection.gallery_version.is_none() { return false; }
             model.update_request = Some(selection.clone());
-            model.runtime_update.requested_version = selection.version;
+            model.runtime_update.requested_version = selection.version_for(selection.downloader).map(str::to_owned);
             model.runtime_update.phase = super::runtime_update::RuntimeUpdatePhase::Preparing;
             model.runtime_update.error = None;
         } else if model.runtime_update.policy == super::runtime_update::RuntimeSelectionPolicy::FollowAmeow {
@@ -3780,6 +3844,10 @@ fn observe_preparation(shared: &Shared, event: PreparationSnapshot) {
         persist_preparation(shared, &history);
     }
 }
+fn gallery_newer(version: &str, current: &str) -> bool {
+    fn parts(version: &str) -> Option<Vec<u32>> { super::runtime_update::normalize_gallery_version(version)?.split('.').map(|part| part.parse().ok()).collect() }
+    parts(version).zip(parts(current)).is_some_and(|(version, current)| version > current)
+}
 fn runtime_update_phase(phase: PreparationPhase) -> Option<super::runtime_update::RuntimeUpdatePhase> {
     use super::runtime_update::RuntimeUpdatePhase as Update;
     match phase {
@@ -3812,12 +3880,14 @@ fn dispatch(shared: Arc<Shared>) {
     let mut selection_invalid = false;
     let mut selection = match super::runtime_update::Selection::load(&shared.manager.root) {
         Ok(selection) => {
-            if selection.policy == super::runtime_update::RuntimeSelectionPolicy::UserSelected {
+            if selection.version.is_some() || selection.gallery_version.is_some() {
                 let mut model = lock(&shared.model);
                 model.preparation_requested = false;
                 model.update_request = Some(selection.clone());
-                model.runtime_update.policy = selection.policy;
-                model.runtime_update.requested_version = selection.version.clone();
+                model.runtime_update.downloader = selection.downloader;
+                model.runtime_update.selected = selection.selected();
+                model.runtime_update.policy = if selection.version_for(selection.downloader).is_some() { super::runtime_update::RuntimeSelectionPolicy::UserSelected } else { super::runtime_update::RuntimeSelectionPolicy::FollowAmeow };
+                model.runtime_update.requested_version = selection.version_for(selection.downloader).map(str::to_owned);
                 model.runtime_update.phase = super::runtime_update::RuntimeUpdatePhase::Preparing;
                 shared.publish(&model);
             }
@@ -3943,7 +4013,7 @@ fn dispatch(shared: Arc<Shared>) {
             }
             match result {
                 Ok(Ok(lease)) => {
-                    model.runtime_update.active_version = lease.versions.iter().find(|(name, _)| name == "yt-dlp").map(|(_, version)| version.clone());
+                    model.runtime_update.active_version = lease.versions.iter().find(|(name, _)| name == model.runtime_update.downloader.label()).map(|(_, version)| version.clone());
                     if !model.stopping && !model.stopped && !model.preparation_owner_lost {
                         model.verified_runtime_versions = lease.versions.clone();
                     }
@@ -4106,10 +4176,9 @@ fn dispatch(shared: Arc<Shared>) {
                     if let Some(test) = lock(&worker.preparation_test).clone() {
                         return test(control, observer);
                     }
-                    if let Some(request) = update
-                        && let Some(version) = request.version {
-                        return super::runtime_update_trust::prepare_candidate(
-                            worker.manager.root.clone(), &version, allow_acquire, worker.services.adapter.requirements(),
+                    if let Some(request) = update {
+                        return super::runtime_update_trust::prepare_selected(
+                            worker.manager.root.clone(), &request, allow_acquire, worker.services.adapter.requirements(),
                             &control, observer, |event| {
                                 let mut model = lock(&worker.model);
                                 if let Some(phase) = runtime_update_phase(event.phase) {
@@ -4204,7 +4273,7 @@ fn dispatch(shared: Arc<Shared>) {
                 candidate.take();
             } else if model.can_activate_update(preparation.is_some()) {
                 let (mut next, lease) = candidate.take().unwrap();
-                let unchanged = !selection_invalid && next.policy == selection.policy && next.version == selection.version;
+                let unchanged = !selection_invalid && next.policy == selection.policy && next.version == selection.version && next.gallery_version == selection.gallery_version;
                 if !unchanged {
                     let mut previous = selection.clone();
                     previous.previous = None;
@@ -4214,8 +4283,10 @@ fn dispatch(shared: Arc<Shared>) {
                 match committed {
                     Ok(()) => {
                         model.verified_runtime_versions = lease.versions.clone();
-                        model.runtime_update.active_version = lease.versions.iter().find(|(name, _)| name == "yt-dlp").map(|(_, version)| version.clone());
-                        model.runtime_update.policy = next.policy;
+                        model.runtime_update.active_version = lease.versions.iter().find(|(name, _)| name == model.runtime_update.downloader.label()).map(|(_, version)| version.clone());
+                        model.runtime_update.downloader = next.downloader;
+                        model.runtime_update.policy = if next.version_for(next.downloader).is_some() { super::runtime_update::RuntimeSelectionPolicy::UserSelected } else { super::runtime_update::RuntimeSelectionPolicy::FollowAmeow };
+                        model.runtime_update.selected = next.selected();
                         model.runtime_update.requested_version = None;
                         model.runtime_update.error = None;
                         model.runtime_update.phase = super::runtime_update::RuntimeUpdatePhase::Activated;
