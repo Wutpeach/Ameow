@@ -1,23 +1,15 @@
+# Ameow project
+
+Use the shared `ship` Skill for project collaboration and the [Ameow execution and delivery Skill](.agents/skills/ameow-release-prep/SKILL.md) for project methods. Read only the references relevant to the current task.
+
 ## UI Design
 
-Read [DESIGN.md](DESIGN.md) before changing user-visible UI. It provides design
-references; formal behavior requirements live in OpenSpec. Use the linked Rust
-sources for current implementation values. Keep its tokens and
-`.impeccable/design.json` in sync when updating it.
-Later explicit user decisions take precedence; do not restore superseded styles
-from historical evidence.
+Read [DESIGN.md](DESIGN.md) before UI changes; keep its tokens and `.impeccable/design.json` in sync. Its linked Rust sources provide current values; later user decisions take precedence over historical examples.
 
 ## File Search
 
-For any file search, filename or path lookup, or content grep in the current git-indexed directory, use the `fff` MCP tools instead of the default search tools.
-
-Prefer:
-- `fffind` for file and path search.
-- `ffgrep` for content search.
-- `fff-multi-grep` for broader multi-query grep tasks.
-
-Only fall back to default tools if `fff` is unavailable or the target is outside the indexed project.
+In the indexed project use `fff`: `fffind` for paths, `ffgrep` for content, and `fff-multi-grep` for multiple queries. Fall back only when unavailable or outside its index.
 
 ## Development contracts
 
-Use [OpenSpec](openspec/README.md) as the formal behavior specification and GitHub Issues/Projects/PRs for task and delivery records. Read only the relevant capability specs. Follow [spec maintenance](docs/spec-maintenance.md); its migration map supplies historical reference evidence. Use Cindy native history for session recall.
+Use [OpenSpec](openspec/README.md) for formal behavior and follow [spec maintenance](docs/spec-maintenance.md). GitHub tracks delivery; Cindy native history supplies session recall.

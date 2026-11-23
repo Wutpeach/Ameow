@@ -65,9 +65,12 @@ def development_input_change(path, platform=None):
 
 
 def known_non_input(path):
+    # Historical moved/retired tool paths stay non-inputs for existing evidence.
     return (path in ('AGENTS.md', '.ameow-docs-reviewed-state.json', 'DESIGN.md',
                      '.impeccable/design.json', 'CONTRIBUTING.md', 'README.md', 'README.en.md',
-                     'scripts/check_release_readiness.py', 'scripts/test_release_readiness.py')
+                     'scripts/check_release_readiness.py', 'scripts/test_release_readiness.py',
+                     'scripts/docs-sync.mjs', 'scripts/docs-sync.test.mjs',
+                     'scripts/schedule-checks/ameow-docs-sync.mjs')
             or under(path, ('docs', 'openspec', '.agents/skills', 'site'))
             or path.startswith('distribution/') and path.endswith('.md'))
 
@@ -505,7 +508,7 @@ def main():
     parser.add_argument('--commit', required=True)
     parser.add_argument('--assets', type=Path)
     parser.add_argument('--evidence', type=Path)
-    parser.add_argument('--repo', type=Path, default=Path(__file__).resolve().parents[1])
+    parser.add_argument('--repo', type=Path, default=Path(__file__).resolve().parents[4])
     args = parser.parse_args()
     if args.phase == 'release' and not args.assets:
         parser.error('--phase release requires --assets; source acceptance needs no release assets')

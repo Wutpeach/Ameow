@@ -170,7 +170,7 @@ stdout 只有一条 JSON（不要求 --json）；stderr 为即时人读提示。
 | scripts/test_app_update_media_server.py | 固定受控媒体 fixture；共用保留 | 上述 --fixture-media-port，仍服务更新回归 |
 | scripts/test_app_update_native.ps1、test_app_update_ui_native.ps1 | Launcher/更新事务、受限 token/Ready 与原生 UI；保留 | 原 app-update-fixture 路径/权限/签名要求 |
 | scripts/package_portable.ps1、package_windows.ps1、package_macos.sh、test_release_preparation.ps1、test_windows_delivery.ps1 | 构建、许可、发行与交付；保留 | 原发行 CI/签发流程，不属于本次旧开发入口删除 |
-| scripts/docs-sync.mjs、docs-sync.test.mjs、schedule-checks/ameow-docs-sync.mjs | 文档同步/审阅状态及调度；保留 | 文档独立流程，本次不启动或清理 |
+| Ameow Docs Sync 专用同步、测试与调度检查脚本 | 已退役并移除 | 文档随获授权任务维护，统一走 [Ameow 专属 Skill](../.agents/skills/ameow-release-prep/SKILL.md)；旧审阅状态保留历史事实，不恢复 PR53 |
 
 上述三个 example 的历史参数不再兼容；替代命令统一使用完整根，避免继续提供默认生产 runtime 或任意 output 的工程入口。
 不删除忽略的证据/缓存、交接、真实失败材料、旧工作树或已拒绝清理的任何路径。

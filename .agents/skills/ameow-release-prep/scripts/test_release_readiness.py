@@ -237,7 +237,10 @@ class ReleaseReadinessTests(unittest.TestCase):
         with self.assertRaises(ValueError): check.ci('rust')
 
     def test_docs_tools_can_follow_product_but_inputs_cannot(self):
-        self.write(self.repo/'scripts/check_release_readiness.py', b'# tool\n')
+        self.write(self.repo/'.agents/skills/ameow-release-prep/scripts/check_release_readiness.py', b'# tool\n')
+        for path in ('scripts/docs-sync.mjs', 'scripts/docs-sync.test.mjs',
+                     'scripts/schedule-checks/ameow-docs-sync.mjs'):
+            self.write(self.repo/path, b'# retired documentation tool\n')
         self.write(self.repo/'docs/guide.md', b'Updated guide\n')
         self.commit()
         self.assertFalse(checker.Check(self.args).followups()['rebuildRequired'])
@@ -323,7 +326,7 @@ class ReleaseReadinessTests(unittest.TestCase):
         with self.assertRaises(checker.Pending): checker.Check(self.args)
 
     def test_development_functional_evidence_uses_its_own_executable(self):
-        self.write(self.repo/'scripts/check_release_readiness.py', b'# tool-only followup\n')
+        self.write(self.repo/'.agents/skills/ameow-release-prep/scripts/check_release_readiness.py', b'# tool-only followup\n')
         self.commit()
         commit, tree = self.git('rev-parse', 'HEAD'), self.git('rev-parse', 'HEAD^{tree}')
         app = dict(path=str(self.repo/'target/debug/ameow.exe'), sha256=checker.digest(b'development executable'))

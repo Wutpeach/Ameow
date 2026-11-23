@@ -4,6 +4,7 @@
 
 | 入口 | 用途 |
 | --- | --- |
+| [Ameow 专属 Skill](../.agents/skills/ameow-release-prep/SKILL.md) | 项目执行、文档写作、体验验收与发行准备的统一入口 |
 | [CLI 使用与安装](../site/src/content/docs/docs/cli.md) · [English](../site/src/content/docs/en/docs/cli.md) | 版本可用性、包内入口和日常调用；[完整调用契约](cli.md) |
 | [CLI 开发入口](developer-cli.md) | 隔离有限执行、离线场景、证据与旧工具替代 |
 | [预览指南](preview.md) | Windows Gallery、原生场景与截图工具 |

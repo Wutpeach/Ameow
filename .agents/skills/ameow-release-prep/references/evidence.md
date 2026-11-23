@@ -1,6 +1,12 @@
 # 只读入口的证据
 
-从仓库根目录运行 scripts/check_release_readiness.py，需要 Python 3.11+ 与 Git；先核实际 Python 版本，默认入口过旧时选现有 3.11+ 的路径，不自行安装。--repo、--evidence、--version、--commit 均参数化。默认 --phase source：核当前 main 对应远端、实际版本和功能证据，不接收/要求 ASSETS.json，不查询发行 CI，不构建或宣称发行资产齐备；输出 releaseAssetsStatus=NOT_PREPARED。只有实际安装/打包/发行检查才用 --phase release --assets <ASSETS.json>，此时在线 CI 另需现有 gh 登录，只读 GET；不可访问则 PENDING。JSON 写到 stdout，可重定向至独立交接目录。
+从仓库根目录运行本 Skill 的 `scripts/check_release_readiness.py`，需要 Python 3.11+ 与 Git；先核实际 Python 版本，Windows 选择已确认的启动器，Mac 默认 python3 过旧时选现有 3.11+ 的路径，不自行安装。--repo、--evidence、--version、--commit 均参数化。默认 --phase source：核当前 main 对应远端、实际版本和功能证据，不接收/要求 ASSETS.json，不查询发行 CI，不构建或宣称发行资产齐备；输出 releaseAssetsStatus=NOT_PREPARED。只有实际安装/打包/发行检查才用 --phase release --assets <ASSETS.json>，此时在线 CI 另需现有 gh 登录，只读 GET；不可访问则 PENDING。JSON 写到 stdout，可重定向至独立交接目录。
+
+~~~powershell
+python .agents/skills/ameow-release-prep/scripts/check_release_readiness.py --phase source --version <版本> --commit <远端main完整commit> --evidence <功能证据.json>
+~~~
+
+发行阶段追加 `--phase release --assets <ASSETS.json>`（替换 source）。入口只读 Git/远端 main 和指定文件，发行阶段再查询准确 CI；不 build、push、签名、发 Tag、上传或驱动桌面。退出码 0=该阶段所列证据齐全，1=不一致/失败，2=待补证或人工；均不授予发布权限。仅验证工具本身时运行同目录的 `test_release_readiness.py`，它使用临时合成仓库与模拟 GitHub，不是产品/原生/生产签名测试。
 
 源码阶段 evidence 只需 schema=1、phase=source、identity={version,commit,tree} 和 records。功能 PASS 的 source 写 kind=development、version、实际源码 commit/tree、buildInputsMatch=true、app={path,sha256}；涉及 CLI/host 时同样写实际 cli/host。执行者在实际构建/运行时确认输入对应该 commit 并记录，不从一个合法 commit 或事后 exe 哈希推导 buildInputsMatch。存在无关 dirty 时列出 dirty=true 与 dirtyPaths；实际开发输入 dirty/不一致拒绝，未知路径待核。原始报告相反字段不被索引覆盖。开发输入比较覆盖 Cargo/源码/资源/host/扩展与开发构建配置；纯打包/安装器/发行 CI 变化仍归独立发行自检，不强迫重复源码功能验收。源码手验不与 release exe 强行同哈希，也不要求为共享 target 留副本。Windows 默认 cargo run；Mac 依原生机制复用固定 main 开发 App。
 
@@ -33,8 +39,12 @@ evidence.json 是轻量索引，不签发新权威。文件路径相对索引目
 
 Windows inputs 应是现有 schema 2 回执，build 是 schema 3。检查其 sourceAndResources/packagingInputs 与产品 commit；保留 Windows CRLF 与 Git LF 差异的可解释匹配，不强求两个平台的字节清单哈希相同。Mac 支持分列回执，也直接支持既有 commit/tree/dirty/source/sourceInventorySha256 合并格式：按原数组核摘要与 Git 字节，并要求其中含 Mac 打包脚本、许可输入及图标。两平台按各自实际输入范围核对，不要求 Mac 的清单含 Windows vendor/notices。原件不改名、不拆写成另一格式。只有摘要、没有文件数组时仍列 PENDING。
 
-后续 main 提交按实际构建输入判断。源码、资源、依赖、打包脚本/安装器及 Mac 图标输入变化返回 FAIL；纯文档与本 Skill/检查工具变化允许复用候选。未知路径返回 PENDING 等待判定，不静默当成文档。未提交输入变化同样列出；AGENTS 和 DocsSync 状态的外部修改不改写候选身份。docs.commit 后又改动发布相关文档/演示时，旧文档记录返回 PENDING，需补核最新文档及准确 Docs CI，产品候选不因此重打。
+后续 main 提交按实际构建输入判断。源码、资源、依赖、打包脚本/安装器及 Mac 图标输入变化返回 FAIL；纯文档与本 Skill/检查工具变化允许复用候选。未知路径返回 PENDING 等待判定，不静默当成文档。未提交输入变化同样列出；AGENTS 和已退役 Docs Sync 的历史状态不属于产品构建输入，外部修改不改写候选身份。状态文件保留历史审阅/失败事实，不能据旧 pending 恢复自动化或修补 PR53。docs.commit 后又改动发布相关文档/演示时，旧文档记录返回 PENDING，需补核最新文档及准确 Docs CI，产品候选不因此重打。
 
 原始 JSON 报告已有的顶层 commit/head_sha、tree、语义版本、源码 SHA 与 app_sha256 会再次交叉核对，旧报告不能靠改索引标签变成新候选证据。嵌套或无结构报告仍需执行者审读其覆盖，不能仅凭文件哈希宣称交互/验收通过。
 
 签名与成员校验仍由原工具负责，本入口只核既有验签回执与实际六项资产的绑定；不会重新验签、解包或执行候选。回执 PASS 只说明该回执记录了成功，不扩大其覆盖。线上发布检查和明确发布授权是后续独立步骤。
+
+`docs` 的版本/链接/Docs CI 核对通过，不等于用户已经审阅最终发行说明或重要文档。另保留用户所审稿件/运行版本、资产用途与反馈；伙伴核事实及自动检查不能代替用户对体验的验收，也不把内部覆盖记录粘进公开日志。已有对应版本的用户通过记录可复用，不重复索取同一批准。公开前还需读取不可变设置并核 Draft 的最终内容，既有只读脚本不会代替这些操作。
+
+更新验证记录实际运行的旧生产版本、EXE/App身份、目标feed和已观察阶段。仅旧公钥静态验签、当前源码fixture或新版NoUpdate，各自只证明其实际范围；不能据此写旧版Available/Ready/安装/重启PASS。此处只细化已有报告的解释，不新增证据JSON schema或要求重造历史报告。
