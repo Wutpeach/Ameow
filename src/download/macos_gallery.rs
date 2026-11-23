@@ -5,6 +5,7 @@ use super::{
     runtime,
 };
 use sha2::{Digest, Sha256};
+use runtime::identity::PathIdentity;
 use std::{
     fs::{self, File, OpenOptions},
     io::{Read, Write},
@@ -139,29 +140,50 @@ fn make_readonly(path: &Path) -> std::io::Result<()> {
 
 pub(super) fn verify_gallery(directory: &Path) -> Result<(), String> {
     runtime::check_file(&directory.join("gallery-dl"), LAUNCHER_SHA)?;
-    runtime::check_file(&directory.join("gallery-entry.py"), ENTRY_SHA)?;
+    verify_gallery_dependencies(directory, |path, expected| runtime::check_file(path, expected).map(|_| ()))?;
+    Ok(())
+}
+
+pub(super) fn verify_gallery_dependencies(
+    directory: &Path, mut verify: impl FnMut(&Path, &str) -> Result<(), String>,
+) -> Result<Vec<PathIdentity>, String> {
+    verify(&directory.join("gallery-entry.py"), ENTRY_SHA)?;
+    let identity = PathIdentity::capture(&directory.join("gallery-wheels"))?;
     let wheel_dir = fs::symlink_metadata(directory.join("gallery-wheels"))
         .map_err(|error| error.to_string())?;
     if !wheel_dir.is_dir() || wheel_dir.file_type().is_symlink() {
         return Err("Invalid gallery dependency directory".into());
     }
     for wheel in WHEELS {
-        let guard = runtime::check_file(&directory.join("gallery-wheels").join(wheel.name), wheel.sha256)?;
-        if guard.metadata().map_err(|error| error.to_string())?.len() != wheel.bytes {
+        let path = directory.join("gallery-wheels").join(wheel.name);
+        verify(&path, wheel.sha256)?;
+        if fs::symlink_metadata(&path).map_err(|error| error.to_string())?.len() != wheel.bytes {
             return Err("Gallery wheel size mismatch".into());
         }
     }
-    Ok(())
+    identity.validate()?;
+    Ok(vec![identity])
 }
 
 pub(super) fn verify_python(directory: &Path) -> Result<(), String> {
-    if fingerprint(&directory.join("python"))? != PYTHON_TREE_SHA {
-        return Err("Managed Python tree hash mismatch".into());
-    }
-    Ok(())
+    verified_python(directory).map(|_| ())
 }
 
+pub(super) fn verified_python(directory: &Path) -> Result<Vec<PathIdentity>, String> {
+    let (fingerprint, identities) = fingerprint_verified(&directory.join("python"))?;
+    if fingerprint != PYTHON_TREE_SHA {
+        return Err("Managed Python tree hash mismatch".into());
+    }
+    Ok(identities)
+}
+
+#[cfg(test)]
 fn fingerprint(root: &Path) -> Result<String, String> {
+    fingerprint_verified(root).map(|(digest, _)| digest)
+}
+
+fn fingerprint_verified(root: &Path) -> Result<(String, Vec<PathIdentity>), String> {
+    let root_identity = PathIdentity::capture(root)?;
     let metadata = fs::symlink_metadata(root).map_err(|error| error.to_string())?;
     if !metadata.is_dir() || metadata.file_type().is_symlink() { return Err("Invalid Python root".into()); }
     let mut paths = Vec::new();
@@ -169,7 +191,8 @@ fn fingerprint(root: &Path) -> Result<String, String> {
     collect(root, root, &mut paths, &mut total)?;
     paths.sort_by(|left, right| left.0.cmp(&right.0));
     let mut digest = Sha256::new();
-    for (relative, path) in paths {
+    let mut identities = vec![root_identity];
+    for (relative, path, identity) in paths {
         let metadata = fs::symlink_metadata(&path).map_err(|error| error.to_string())?;
         let (kind, value) = if metadata.file_type().is_symlink() {
             (b'L', fs::read_link(&path).map_err(|error| error.to_string())?.as_os_str().as_bytes().to_vec())
@@ -184,6 +207,7 @@ fn fingerprint(root: &Path) -> Result<String, String> {
                 if count == 0 { break; }
                 contents.update(&buffer[..count]);
             }
+            identity.validate_handle(&file)?;
             (b'F', contents.finalize().to_vec())
         } else { return Err("Unsupported Python tree entry".into()); };
         digest.update([kind]);
@@ -191,15 +215,17 @@ fn fingerprint(root: &Path) -> Result<String, String> {
         digest.update(&relative);
         digest.update((value.len() as u32).to_be_bytes());
         digest.update(&value);
+        identities.push(identity);
     }
-    Ok(format!("{:X}", digest.finalize()))
+    for identity in &identities { identity.validate()?; }
+    Ok((format!("{:X}", digest.finalize()), identities))
 }
 
-fn collect(root: &Path, directory: &Path, paths: &mut Vec<(Vec<u8>, PathBuf)>, total: &mut u64) -> Result<(), String> {
+fn collect(root: &Path, directory: &Path, paths: &mut Vec<(Vec<u8>, PathBuf, PathIdentity)>, total: &mut u64) -> Result<(), String> {
     for entry in fs::read_dir(directory).map_err(|error| error.to_string())? {
         let path = entry.map_err(|error| error.to_string())?.path();
         let relative = path.strip_prefix(root).map_err(|error| error.to_string())?.as_os_str().as_bytes().to_vec();
-        paths.push((relative, path.clone()));
+        paths.push((relative, path.clone(), PathIdentity::capture(&path)?));
         if paths.len() > MAX_ENTRIES { return Err("Python tree entry limit exceeded".into()); }
         let metadata = fs::symlink_metadata(&path).map_err(|error| error.to_string())?;
         if metadata.is_file() {
@@ -245,6 +271,35 @@ fn copy_tree(source: &Path, target: &Path) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn verified_tree_rejects_nested_edits_additions_removals_and_link_replacement() {
+        for change in ["edit", "add", "remove", "link"] {
+            let root = tempfile::tempdir().unwrap();
+            fs::create_dir(root.path().join("lib")).unwrap();
+            let path = root.path().join("lib/module.py");
+            fs::write(&path, b"trusted").unwrap();
+            symlink("lib/module.py", root.path().join("entry")).unwrap();
+            let (_, identities) = fingerprint_verified(root.path()).unwrap();
+            assert!(identities.iter().all(|identity| identity.validate().is_ok()));
+            match change {
+                "edit" => {
+                    let modified = fs::metadata(&path).unwrap().modified().unwrap();
+                    fs::write(&path, b"changed").unwrap();
+                    File::options().write(true).open(&path).unwrap()
+                        .set_times(std::fs::FileTimes::new().set_modified(modified)).unwrap();
+                }
+                "add" => fs::write(root.path().join("lib/extra.py"), b"injected").unwrap(),
+                "remove" => fs::remove_file(&path).unwrap(),
+                "link" => {
+                    fs::remove_file(root.path().join("entry")).unwrap();
+                    symlink("lib/other.py", root.path().join("entry")).unwrap();
+                }
+                _ => unreachable!(),
+            }
+            assert!(identities.iter().any(|identity| identity.validate().is_err()), "{change}");
+        }
+    }
 
     #[test]
     fn bundled_entrypoints_match_their_pins() {

@@ -17,6 +17,17 @@ use std::os::windows::fs::{MetadataExt, OpenOptionsExt};
 #[cfg(target_os = "macos")]
 use std::os::unix::{fs::{MetadataExt, OpenOptionsExt, PermissionsExt}, io::AsRawFd};
 
+#[cfg(target_os = "macos")]
+#[path = "runtime_identity_macos.rs"]
+pub(super) mod identity;
+
+#[cfg(test)]
+thread_local! { static FILE_HASHES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) }; }
+
+#[cfg(all(test, target_os = "macos"))]
+#[path = "runtime_reuse_macos_tests.rs"]
+mod reuse_tests;
+
 #[cfg(not(target_os = "macos"))]
 const MANIFEST: &str = include_str!("../../assets/runtime-manifest.json");
 #[cfg(target_os = "macos")]
@@ -87,6 +98,8 @@ pub fn hash(mut input: impl Read) -> Result<String, String> {
     Ok(format!("{:X}", hasher.finalize()))
 }
 pub fn check_file(path: &Path, expected: &str) -> Result<File, String> {
+    #[cfg(target_os = "macos")]
+    let identity = identity::PathIdentity::capture(path)?;
     let metadata = fs::symlink_metadata(path)
         .map_err(|e| format!("Runtime identity {}: {e}", path.display()))?;
     if !super::is_plain_file(&metadata) {
@@ -97,6 +110,8 @@ pub fn check_file(path: &Path, expected: &str) -> Result<File, String> {
     }
     let mut file = open_identity_file(path)
         .map_err(|e| format!("Runtime read-only lease: {e}"))?;
+    #[cfg(test)]
+    FILE_HASHES.with(|count| count.set(count.get() + 1));
     let actual = hash(&mut file)?;
     if actual != expected {
         return Err(format!(
@@ -104,6 +119,8 @@ pub fn check_file(path: &Path, expected: &str) -> Result<File, String> {
             path.display()
         ));
     }
+    #[cfg(target_os = "macos")]
+    identity.validate_handle(&file)?;
     Ok(file)
 }
 pub(crate) fn open_identity_file(path: &Path) -> std::io::Result<File> {
@@ -443,13 +460,56 @@ impl TrustedRuntimeRequirements {
     }
 }
 
+#[derive(Default)]
+struct VerifiedRuntime {
+    guards: Vec<File>,
+    #[cfg(target_os = "macos")]
+    identities: Vec<identity::PathIdentity>,
+}
+impl VerifiedRuntime {
+    fn file(&mut self, path: &Path, expected: &str,
+        component: super::preparation::RuntimeComponent, stage: super::preparation::PreparationStage,
+    ) -> Result<(), super::preparation::PreparationFailure> {
+        #[cfg(target_os = "macos")]
+        let identity = identity::PathIdentity::from_metadata(path, &fs::symlink_metadata(path)
+            .map_err(|error| super::preparation::PreparationFailure::io_operation(component, stage,
+                super::preparation::PreparationOperation::FileOpen, error))?);
+        let guard = typed_check_file(path, expected, component, stage)?;
+        #[cfg(target_os = "macos")]
+        {
+            identity.validate_handle(&guard).map_err(|_| super::preparation::PreparationFailure::new(
+                component, stage, super::preparation::ErrorCategory::Hash))?;
+            self.identities.push(identity);
+        }
+        self.guards.push(guard);
+        Ok(())
+    }
+    fn marker(&mut self, directory: &Path, digest: &str, bytes: u64)
+        -> Result<(), super::preparation::PreparationFailure> {
+        #[cfg(target_os = "macos")]
+        use super::preparation::{ErrorCategory as E, PreparationFailure as F, PreparationOperation as O, PreparationStage as S, RuntimeComponent as C};
+        #[cfg(target_os = "macos")]
+        let identity = identity::PathIdentity::from_metadata(&directory.join("complete.json"),
+            &fs::symlink_metadata(directory.join("complete.json"))
+                .map_err(|error| F::io_operation(C::Runtime, S::Cache, O::MarkerCheck, error))?);
+        let guard = typed_marker_guard(directory, digest, bytes)?;
+        #[cfg(target_os = "macos")]
+        {
+            identity.validate_handle(&guard).map_err(|_| F::new(C::Runtime, S::Cache, E::Hash))?;
+            self.identities.push(identity);
+        }
+        self.guards.push(guard);
+        Ok(())
+    }
+}
+
 pub struct RuntimeLease {
     pub directory: PathBuf,
     requirement_id: String,
     marker_bytes: u64,
     pub files: BTreeMap<String, PathBuf>,
     #[cfg(target_os = "macos")]
-    hashes: BTreeMap<String, String>,
+    identities: Vec<identity::PathIdentity>,
     pub versions: Vec<(String, String)>,
     pub digest: String,
     _guards: Vec<File>,
@@ -457,24 +517,19 @@ pub struct RuntimeLease {
 impl RuntimeLease {
     #[cfg(target_os = "macos")]
     pub(crate) fn execution_guards(&self) -> Result<Vec<File>, String> {
-        self.files.iter().map(|(name, path)| {
-            let expected = self.hashes.get(name).ok_or("Runtime executable hash missing")?;
-            check_file(path, expected)
-        }).collect()
+        self.validate_identity()?;
+        self._guards.iter().map(|guard| guard.try_clone().map_err(|error| error.to_string())).collect()
+    }
+    fn validate_identity(&self) -> Result<(), String> {
+        #[cfg(target_os = "macos")]
+        for identity in &self.identities { identity.validate()?; }
+        Ok(())
     }
     pub fn file(&self, name: &str) -> Result<PathBuf, String> {
         let name = native_tool_name(name);
         let path = self.files.get(name).cloned()
             .ok_or_else(|| format!("Manifest executable missing: {name}"))?;
-        #[cfg(target_os = "macos")]
-        {
-            let expected = self.hashes.get(name).ok_or("Runtime executable hash missing")?;
-            check_file(&path, expected)?;
-            if matches!(name, "yt-dlp" | "gallery-dl" | PYTHON_TOOL) {
-                super::macos_gallery::verify_python(&self.directory)?;
-            }
-            if name == "gallery-dl" { super::macos_gallery::verify_gallery(&self.directory)?; }
-        }
+        self.validate_identity()?;
         Ok(path)
     }
 }
@@ -485,15 +540,16 @@ fn execution_guards_use_current_lease_hashes_and_reject_changed_files() {
     let path = root.path().join("yt-dlp");
     for bytes in [b"recommended runtime".as_slice(), b"user selected newer runtime".as_slice()] {
         fs::write(&path, bytes).unwrap();
+        let guard = check_file(&path, &hash(bytes).unwrap()).unwrap();
         let lease = RuntimeLease {
             directory: root.path().into(), requirement_id: "fixture".into(), marker_bytes: 0,
             files: BTreeMap::from([("yt-dlp".into(), path.clone())]),
-            hashes: BTreeMap::from([("yt-dlp".into(), hash(bytes).unwrap())]),
-            versions: Vec::new(), digest: String::new(), _guards: Vec::new(),
+            identities: vec![identity::PathIdentity::capture(&path).unwrap()],
+            versions: Vec::new(), digest: String::new(), _guards: vec![guard],
         };
         assert_eq!(lease.execution_guards().unwrap().len(), 1);
         fs::write(&path, b"changed executable").unwrap();
-        assert!(lease.execution_guards().unwrap_err().contains("SHA-256 mismatch"));
+        assert!(lease.execution_guards().unwrap_err().contains("identity changed"));
     }
 }
 
@@ -617,7 +673,7 @@ impl RuntimeManager {
                 marker_bytes: 0,
                 files: BTreeMap::new(),
                 #[cfg(target_os = "macos")]
-                hashes: BTreeMap::new(),
+                identities: Vec::new(),
                 versions: Vec::new(),
                 digest: hash(b"empty-trusted-set".as_slice())
                     .map_err(|_| fail(S::Cache, E::Unknown))?,
@@ -653,21 +709,12 @@ impl RuntimeManager {
         };
         let digest = hash(marker_content.as_slice()).map_err(|_| fail(S::Cache, E::Unknown))?;
         if let Some(lease) = cache.upgrade() {
-            if lease.requirement_id != requirement_id {
+            if lease.requirement_id != requirement_id || lease.digest != digest
+                || lease.marker_bytes != marker_content.len() as u64 {
                 return Err(fail(S::Cache, E::Unknown));
             }
-            typed_marker_guard(&lease.directory, &digest, lease.marker_bytes)?;
-            for component in &manifest.components {
-                for file in &component.files {
-                    typed_check_file(
-                        &lease.directory.join(&file.name),
-                        &file.sha256,
-                        C::from_name(&component.name),
-                        S::Cache,
-                    )?;
-                }
-            }
-            verify_bundles(&lease.directory, &manifest, S::Cache)?;
+            lease.validate_identity().map_err(|_| fail(S::Cache, E::Hash))?;
+            if control.is_cancelled() { return Err(fail(S::Cache, E::Cancelled)); }
             return Ok(lease);
         }
         typed_safe_dir(&self.root, C::Runtime, S::Cache)?;
@@ -696,42 +743,34 @@ impl RuntimeManager {
             }
             let candidate = (|| {
                 typed_safe_existing_dir(&target)?;
-                let marker = typed_marker_guard(&target, &digest, marker_content.len() as u64)?;
-                let mut guards = Vec::new();
+                let mut verified = VerifiedRuntime::default();
+                verified.marker(&target, &digest, marker_content.len() as u64)?;
                 for component in &manifest.components {
                     for file in &component.files {
-                        guards.push(typed_check_file(
+                        verified.file(
                             &target.join(&file.name),
                             &file.sha256,
                             C::from_name(&component.name),
                             S::Cache,
-                        )?);
+                        )?;
                     }
                 }
-                verify_bundles(&target, &manifest, S::Cache)?;
-                Ok::<_, F>((marker, guards))
+                verify_bundles(&target, &manifest, S::Cache, &mut verified)?;
+                Ok::<_, F>(verified)
             })();
             match candidate {
-                Ok((marker, mut guards)) => {
-                    // A complete cache still runs supervised local probes; it never resolves a network route.
-                    self.probe(
-                        &target,
-                        &manifest,
-                        requirements,
-                        control,
-                        observer.clone(),
-                        &mut state,
-                        &mut observed,
-                    )?;
-                    guards.push(marker);
+                Ok(verified) => {
+                    if control.is_cancelled() { return Err(fail(S::Cache, E::Cancelled)); }
                     let lease = runtime_lease(
                         target,
                         requirement_id.clone(),
                         digest.clone(),
                         marker_content.len() as u64,
                         &manifest,
-                        guards,
+                        verified,
                     );
+                    lease.validate_identity().map_err(|_| fail(S::Cache, E::Hash))?;
+                    if control.is_cancelled() { return Err(fail(S::Cache, E::Cancelled)); }
                     *cache = Arc::downgrade(&lease);
                     return Ok(lease);
                 }
@@ -934,7 +973,8 @@ impl RuntimeManager {
                     .map_err(|e| F::io(C::from_name(&component.name), S::Extract, e))?;
             }
         }
-        verify_bundles(stage, &manifest, S::Verify)?;
+        let mut verified = VerifiedRuntime::default();
+        verify_bundles(stage, &manifest, S::Verify, &mut verified)?;
         self.probe(
             stage,
             &manifest,
@@ -947,15 +987,14 @@ impl RuntimeManager {
         if control.is_cancelled() {
             return Err(fail(S::Publish, E::Cancelled));
         }
-        let mut guards = Vec::new();
         for component in &manifest.components {
             for file in &component.files {
-                guards.push(typed_check_file(
+                verified.file(
                     &target.join(&file.name),
                     &file.sha256,
                     C::from_name(&component.name),
                     S::Verify,
-                )?);
+                )?;
             }
         }
         state.observe(P::Verifying, None, S::Publish, 0, None, None);
@@ -976,15 +1015,16 @@ impl RuntimeManager {
         if control.is_cancelled() { return Err(fail(S::Publish, E::Cancelled)); }
         super::output::move_no_replace(&stage.join("complete.pending"), &stage.join("complete.json"))
             .map_err(|e| F::io_operation(C::Runtime, S::Publish, O::MarkerPublish, e))?;
-        guards.push(typed_marker_guard(&target, &digest, marker_content.len() as u64)?);
+        verified.marker(&target, &digest, marker_content.len() as u64)?;
         let lease = runtime_lease(
             target,
             requirement_id,
             digest,
             marker_content.len() as u64,
             &manifest,
-            guards,
+            verified,
         );
+        lease.validate_identity().map_err(|_| fail(S::Verify, E::Hash))?;
         *cache = Arc::downgrade(&lease);
         Ok(lease)
     }
@@ -1116,18 +1156,22 @@ fn verify_bundles(
     directory: &Path,
     manifest: &Manifest,
     stage: super::preparation::PreparationStage,
+    verified: &mut VerifiedRuntime,
 ) -> Result<(), super::preparation::PreparationFailure> {
     #[cfg(target_os = "macos")]
     if manifest.components.iter().any(|component| component.name == "python") {
-        super::macos_gallery::verify_python(directory).map_err(|_| super::preparation::PreparationFailure::new(
-            super::preparation::RuntimeComponent::Runtime, stage, super::preparation::ErrorCategory::Hash))?;
+        verified.identities.extend(super::macos_gallery::verified_python(directory).map_err(|_| super::preparation::PreparationFailure::new(
+            super::preparation::RuntimeComponent::Runtime, stage, super::preparation::ErrorCategory::Hash))?);
     }
     #[cfg(target_os = "macos")]
     if manifest.components.iter().any(|component| component.name == "gallery-dl") {
-        super::macos_gallery::verify_gallery(directory).map_err(|_| super::preparation::PreparationFailure::new(
+        let directories = super::macos_gallery::verify_gallery_dependencies(directory, |path, expected| {
+            verified.file(path, expected, super::preparation::RuntimeComponent::GalleryDl, stage).map_err(|error| error.to_string())
+        }).map_err(|_| super::preparation::PreparationFailure::new(
             super::preparation::RuntimeComponent::GalleryDl, stage, super::preparation::ErrorCategory::Hash))?;
+        verified.identities.extend(directories);
     }
-    let _ = (directory, manifest, stage);
+    let _ = (directory, manifest, stage, verified);
     Ok(())
 }
 
@@ -1175,7 +1219,7 @@ fn runtime_lease(
     digest: String,
     marker_bytes: u64,
     manifest: &Manifest,
-    guards: Vec<File>,
+    verified: VerifiedRuntime,
 ) -> Arc<RuntimeLease> {
     Arc::new(RuntimeLease {
         directory: target.clone(),
@@ -1191,15 +1235,14 @@ fn runtime_lease(
             })
             .collect(),
         #[cfg(target_os = "macos")]
-        hashes: manifest.components.iter().flat_map(|component| component.files.iter()
-            .map(|file| (file.name.clone(), file.sha256.clone()))).collect(),
+        identities: verified.identities,
         versions: manifest
             .components
             .iter()
             .map(|c| (c.name.clone(), c.version.clone()))
             .collect(),
         digest,
-        _guards: guards,
+        _guards: verified.guards,
     })
 }
 pub(crate) fn typed_safe_existing_dir(
@@ -1250,6 +1293,8 @@ fn typed_check_file(
     }
     let mut file = open_identity_file(path)
         .map_err(|e| F::io_operation(component, stage, O::FileOpen, e))?;
+    #[cfg(test)]
+    FILE_HASHES.with(|count| count.set(count.get() + 1));
     let mut hasher = Sha256::new();
     let mut buffer = [0u8; 65536];
     loop {
@@ -1409,7 +1454,7 @@ mod requirement_tests {
         assert!(Arc::ptr_eq(&lease, &live));
         drop(live);
         drop(lease);
-        // A fresh manager still succeeds through marker/hash/native probes with the failing provider.
+        // A fresh manager still authenticates the complete cache with the failing provider.
         assert!(
             manager
                 .prepare_observed(&requirements, &Control::default(), Arc::new(|_| {}), |_| {})
@@ -1639,7 +1684,7 @@ mod requirement_tests {
     #[test]
     #[cfg(windows)]
     #[ignore = "requires an existing pinned cache via AMEOW_RUNTIME_TEST_ROOT; never acquires assets"]
-    fn genuine_pinned_cache_probes_settle_and_same_process_reuses_lease_without_acquisition() {
+    fn genuine_pinned_cache_authenticates_without_probes_and_same_process_reuses_lease() {
         use std::sync::atomic::{AtomicUsize, Ordering};
         let root = PathBuf::from(std::env::var_os("AMEOW_RUNTIME_TEST_ROOT").expect("existing cache root"));
         let manager = RuntimeManager::new(root).with_root_source(super::super::preparation::RuntimeRootSource::ExplicitRuntimeRoot);
@@ -1653,11 +1698,11 @@ mod requirement_tests {
         let lease = manager.prepare_observed(&requirements, &Control::default(), observer.clone(), |state| {
             assert_ne!(state.phase, super::super::preparation::PreparationPhase::Downloading);
         }).unwrap();
-        assert_eq!(settled.load(Ordering::SeqCst), 5);
+        assert_eq!(settled.load(Ordering::SeqCst), 0);
         let reused = manager.prepare_observed(&requirements, &Control::default(), observer, |_| {}).unwrap();
         assert!(Arc::ptr_eq(&lease, &reused));
-        assert_eq!(settled.load(Ordering::SeqCst), 5);
-        println!("{}", serde_json::json!({"pid":std::process::id(),"settled_probes":5,"acquired":0,
+        assert_eq!(settled.load(Ordering::SeqCst), 0);
+        println!("{}", serde_json::json!({"pid":std::process::id(),"settled_probes":0,"acquired":0,
             "lease_reused":true,"files":lease.files.len(),"versions":lease.versions,"elapsed_ms":started.elapsed().as_millis()}));
     }
     #[test]
