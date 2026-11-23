@@ -87,7 +87,7 @@ class ReleaseReadinessTests(unittest.TestCase):
             self.write(self.root/name, data)
             self.assets['assets'].append(dict(self.record(name, data), name=name, relativePath=name, target=target))
         for suffix, target in [('windows-x64', checker.WINDOWS), ('macos-arm64', checker.MAC)]:
-            package = next(a for a in self.assets['assets'] if a['name'] == f'Ameow-1.2.3-{suffix}.zip')
+            package = next(a for a in self.assets['assets'] if a['name'] == f'Ameow-1.2.3-{suffix + ("-portable" if target == checker.WINDOWS else "")}.zip')
             payload = dict(schema=1, product='Ameow', channel='stable', target=target, version='1.2.3', sequence=1,
                            issued=1, url=f'https://example.invalid/{package["name"]}',
                            package_bytes=package['bytes'], package_sha256=package['sha256'],
@@ -103,9 +103,10 @@ class ReleaseReadinessTests(unittest.TestCase):
                         installerSource=dict(commit=self.head, tree=self.tree, dirty=False),
                         installerDefinition=self.record('distribution/ameow.iss', b'synthetic input\n'),
                         packaging=self.record('scripts/package_windows.ps1', b'synthetic input\n'), installerResources=[])
-        for key, name in zip(('installer','portable','update','manifest'), list(checker.expected_assets('1.2.3'))[:4]):
+        for key, name in zip(('installer','portable','manifest'), list(checker.expected_assets('1.2.3'))[:3]):
             a = assets_by_name[name]
             delivery[key] = {k:a[k] for k in ('path','bytes','sha256')}
+        delivery['update'] = delivery['portable']
         verified = dict(build=build, fixture=False, members=[self.app], update=delivery['update'], portable=delivery['portable'])
         for name, data in [('build.json', build), ('inputs.json', inputs), ('delivery.json', delivery),
                            ('verified.json', verified), ('mac-verified.json', mac_verified)]:
@@ -370,6 +371,13 @@ class ReleaseReadinessTests(unittest.TestCase):
         record['source'].update(commit=self.git('rev-parse', 'HEAD'), tree=self.git('rev-parse', 'HEAD^{tree}'))
         self.save()
         with self.assertRaisesRegex(ValueError, 'Functional source changes'): checker.Check(self.args).record('windows.paste')
+
+    def test_five_assets_reuse_portable_without_rewriting_historical_release_layout(self):
+        current = checker.expected_assets('0.5.2')
+        self.assertEqual(len(current), 5)
+        self.assertIn('Ameow-0.5.2-windows-x64-portable.zip', current)
+        self.assertNotIn('Ameow-0.5.2-windows-x64.zip', current)
+        self.assertEqual(len(checker.expected_assets('0.5.1')), 6)
 
     def test_crlf_is_explained_not_arbitrary_content(self):
         record = self.record('text', b'line\r\n')

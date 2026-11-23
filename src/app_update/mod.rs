@@ -23,8 +23,11 @@ mod store;
 use crate::download::queue::DownloadCoordinator;
 #[cfg(any(test, all(feature = "app-update-fixture", debug_assertions)))]
 pub use package::fixture_envelope;
+#[cfg(any(test, all(feature = "app-update-fixture", debug_assertions)))]
+pub use package::fixture_windows_package;
 pub use package::hash;
 pub use package::{BUILD_VERSION, Manifest, SignedManifest, TARGET, Trust, Version};
+pub use package::{BundleFile, WindowsBundle};
 use serde::{Deserialize, Serialize};
 use std::{path::PathBuf, sync::Mutex};
 pub use store::{Install, Release, State};
@@ -193,13 +196,31 @@ pub fn startup_entry_for(exe: &std::path::Path) -> Result<PathBuf, String> {
         let entry = versions
             .parent()
             .ok_or("E_APP_UPDATE_LAYOUT")?
-            .join("AmeowLauncher.exe");
+            .join("Ameow.exe");
         if !entry.is_file() {
             return Err("E_APP_UPDATE_LAUNCHER_MISSING".into());
         }
         return Ok(entry);
     }
     Ok(exe.to_path_buf())
+}
+/// Stable CLI/host use the accepted set, or a verified bootstrap before first acceptance.
+#[cfg(windows)]
+pub fn forward_component(name: &str) -> Result<Option<i32>, String> {
+    let executable = std::env::current_exe().map_err(|e| e.to_string())?;
+    let root = executable.parent().ok_or("E_APP_UPDATE_LAYOUT")?;
+    if (!root.join("state.json").is_file() && !root.join("versions").is_dir()) || root.parent().and_then(std::path::Path::file_name).is_some_and(|p| p == "versions") { return Ok(None); }
+    #[cfg(all(feature = "app-update-fixture", debug_assertions))]
+    let install = Install::fixture(root.to_path_buf())?;
+    #[cfg(not(all(feature = "app-update-fixture", debug_assertions)))]
+    let install = Install::production(root.to_path_buf())?;
+    let (release, _guard) = install.component_release()?;
+    let _component_guard = install.verify_component(&release, name)?;
+    let path = install.release_dir(&release.version)?.join(name);
+    store::plain(&path)?;
+    let status = std::process::Command::new(path).args(std::env::args_os().skip(1))
+        .status().map_err(|e| format!("E_APP_UPDATE_SPAWN: {e}"))?;
+    Ok(Some(status.code().unwrap_or(1)))
 }
 #[cfg(test)]
 mod tests;

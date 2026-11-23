@@ -82,13 +82,20 @@ def release_doc(path):
             or path.startswith('distribution/') and path.endswith('.md'))
 
 
+def full_windows_layout(version):
+    return tuple(map(int, version.split('.'))) >= (0, 5, 2)
+
+
 def expected_assets(version):
+    common = {'ameow-update-windows-x64.json': WINDOWS,
+              f'Ameow-{version}-macos-arm64.zip': MAC,
+              'ameow-update-macos-arm64.json': MAC}
+    if full_windows_layout(version):
+        return {f'Ameow_{version}_windows_x64_installer.exe': WINDOWS,
+                f'Ameow-{version}-windows-x64-portable.zip': WINDOWS, **common}
     return {f'Ameow_{version}_windows_x64_installer.exe': WINDOWS,
             f'Ameow_{version}_windows_x64_portable.zip': WINDOWS,
-            f'Ameow-{version}-windows-x64.zip': WINDOWS,
-            'ameow-update-windows-x64.json': WINDOWS,
-            f'Ameow-{version}-macos-arm64.zip': MAC,
-            'ameow-update-macos-arm64.json': MAC}
+            f'Ameow-{version}-windows-x64.zip': WINDOWS, **common}
 
 
 def git_blobs(repo, commit, paths):
@@ -324,6 +331,8 @@ class Check:
                 require(asset['target'] == WINDOWS and all(asset[k] == record[k] for k in ('bytes', 'sha256')),
                         f'Delivery asset differs: {key}')
             require(delivery['update'] == verified['update'], 'Signed update differs from delivery')
+            if full_windows_layout(self.args.version):
+                require(delivery['update'] == delivery['portable'], 'Windows update must be the complete portable ZIP')
             require(all(delivery['portable'][k] == verified['portable'][k] for k in ('bytes', 'sha256')),
                     'Verified portable archive differs from delivery')
             packaging = [delivery['installerDefinition'], delivery['packaging']] + delivery['installerResources']
@@ -347,7 +356,8 @@ class Check:
             feed = assets[f'ameow-update-{suffix}.json']
             envelope = load_json(self.args.assets.resolve().parent / feed['relativePath'])
             payload = json.loads(envelope['payload'])
-            package = assets[f'Ameow-{self.args.version}-{suffix}.zip']
+            package_suffix = 'windows-x64-portable' if platform == 'windows' and full_windows_layout(self.args.version) else suffix
+            package = assets[f'Ameow-{self.args.version}-{package_suffix}.zip']
             app = self.receipt('windows', 'build')['app'] if platform == 'windows' else self.assets['mac']['app']
             require(payload['version'] == self.args.version and payload['target'] == target,
                     f'{platform} feed version/target mismatch')

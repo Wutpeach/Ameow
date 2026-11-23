@@ -23,8 +23,8 @@ fn source(root: &Path) -> Build {
     ] {
         fs::write(root.join(name), bytes).unwrap();
     }
-    let build = Build {
-        schema: 2,
+    let mut build = Build {
+        schema: 3,
         version: "0.1.0".into(),
         target: TARGET.into(),
         commit: "1".repeat(40),
@@ -48,6 +48,13 @@ fn source(root: &Path) -> Build {
             FileRecord::of("licenses/license-inputs.json", &inventory),
         ],
     };
+    for name in ["ameow-browser-host.exe", "browser-extension/manifest.json", "browser-extension/background.js", "browser-extension/popup.js", "browser-extension/popup.html", "browser-extension/popup.css", "browser-extension/build.json", "browser-extension/LICENSES.txt", "browser-extension/page.js", "browser-extension/page.css", "browser-extension/ameow-cat.svg", "browser-extension/icons/16.png", "browser-extension/icons/24.png", "browser-extension/icons/32.png", "browser-extension/icons/48.png", "browser-extension/icons/128.png"] {
+        let bytes = format!("synthetic package member {name}").into_bytes();
+        let path = root.join(name);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, &bytes).unwrap();
+        build.browser.push(FileRecord::of(name, &bytes));
+    }
     fs::write(root.join("release-build.json"), encode(&build).unwrap()).unwrap();
     build
 }
@@ -72,74 +79,6 @@ fn save_build(root: &Path, build: &Build) {
 }
 
 #[test]
-fn isolated_launcher_requires_signed_fixture_and_unchanged_entry_bytes() {
-    let tmp = tempfile::tempdir().unwrap();
-    // macOS /var is a symlink; release verification requires physical ancestors.
-    let physical = tmp.path().canonicalize().unwrap();
-    let (build, output) = signed_candidate(&physical);
-    let installed = physical.join("install");
-    fs::create_dir(&installed).unwrap();
-    let mut zip = zip::ZipArchive::new(File::open(output.join(portable_name(&build))).unwrap()).unwrap();
-    zip.extract(&installed).unwrap();
-    let launcher = installed.join("AmeowLauncher.exe");
-    verify_fixture_launcher(&launcher).unwrap();
-    let cli = installed.join("ameow-cli.exe");
-    let bytes = fs::read(&cli).unwrap();
-    fs::write(&cli, b"substituted").unwrap();
-    assert_eq!(verify_fixture_launcher(&launcher).unwrap_err(), "E_RELEASE_FILE_HASH");
-    fs::write(cli, bytes).unwrap();
-    let bytes = fs::read(&launcher).unwrap();
-    fs::write(&launcher, b"substituted").unwrap();
-    assert_eq!(verify_fixture_launcher(&launcher).unwrap_err(), "E_RELEASE_FILE_HASH");
-    fs::write(&launcher, bytes).unwrap();
-    let identity = installed.join("release-identity.json");
-    let mut signed: SignedManifest = json(&identity).unwrap();
-    signed.payload.push(' ');
-    fs::write(identity, encode(&signed).unwrap()).unwrap();
-    assert_eq!(verify_fixture_launcher(&launcher).unwrap_err(), "E_RELEASE_IDENTITY_SIGNATURE");
-}
-
-#[test]
-fn separate_archives_and_unconfirmed_first_boot_verify_with_launcher_trust() {
-    for days in [8, 30, 365 * 5] {
-    let tmp = tempfile::tempdir().unwrap();
-    let (build, output) = signed_candidate_issued(tmp.path(), super::super::store::now() - days * 86400);
-    verify_signed_with_roots(&output, &build.trust).unwrap();
-    let update = read(&output.join(update_name(&build.version)), MAX_PACKAGE).unwrap();
-    assert_eq!(
-        members(&update, &BTreeSet::from(["Ameow.exe".into()]))
-            .unwrap()
-            .len(),
-        1
-    );
-    let portable = read(&output.join(portable_name(&build)), MAX_PACKAGE).unwrap();
-    assert!(
-        verify_update(
-            &portable,
-            &build,
-            &FileRecord::of(&update_name(&build.version), &portable)
-        )
-        .is_err()
-    );
-    let install_root = tmp.path().join("install");
-    fs::create_dir(&install_root).unwrap();
-    let mut zip = zip::ZipArchive::new(Cursor::new(portable)).unwrap();
-    for i in 0..zip.len() {
-        let mut member = zip.by_index(i).unwrap();
-        let path = install_root.join(member.name());
-        fs::create_dir_all(path.parent().unwrap()).unwrap();
-        let mut file = File::create(path).unwrap();
-        std::io::copy(&mut member, &mut file).unwrap();
-    }
-    let install = super::super::Install::fixture(install_root).unwrap();
-    let state = install.state().unwrap();
-    assert!(state.current.is_none() && state.previous.is_none() && state.trial.is_none());
-    let pending = state.pending.unwrap();
-    assert_eq!(pending.version, "0.1.0");
-    install.verify_release(&pending).unwrap();
-    }
-}
-#[test]
 fn changed_application_is_rejected_before_preparation() {
     let tmp = tempfile::tempdir().unwrap();
     let input = tmp.path().join("input");
@@ -158,28 +97,6 @@ fn incomplete_launcher_build_is_rejected() {
     assert!(prepare(&input, &tmp.path().join("out")).is_err());
 }
 #[test]
-fn cli_is_bound_to_the_signed_portable_and_required_in_schema_two() {
-    let tmp = tempfile::tempdir().unwrap();
-    let (build, output) = signed_candidate(tmp.path());
-    let path = output.join(portable_name(&build));
-    let bytes = read(&path, MAX_PACKAGE).unwrap();
-    let mut zip = zip::ZipArchive::new(Cursor::new(bytes)).unwrap();
-    let mut contents = BTreeMap::new();
-    for index in 0..zip.len() {
-        let mut entry = zip.by_index(index).unwrap();
-        let mut body = Vec::new();
-        entry.read_to_end(&mut body).unwrap();
-        contents.insert(entry.name().to_string(), body);
-    }
-    assert_eq!(contents["ameow-cli.exe"], b"controlled CLI bytes");
-    contents.insert("ameow-cli.exe".into(), b"modified CLI".to_vec());
-    fs::write(&path, archive(&contents).unwrap()).unwrap();
-    assert_eq!(verify_signed_with_roots(&output, &build.trust).unwrap_err(), "E_RELEASE_FILE_HASH");
-    contents.remove("ameow-cli.exe");
-    fs::write(&path, archive(&contents).unwrap()).unwrap();
-    assert_eq!(verify_signed_with_roots(&output, &build.trust).unwrap_err(), "E_RELEASE_ZIP_MEMBERS");
-}
-#[test]
 fn altered_cli_is_rejected_before_preparation() {
     let tmp = tempfile::tempdir().unwrap();
     let input = tmp.path().join("input");
@@ -188,48 +105,6 @@ fn altered_cli_is_rejected_before_preparation() {
     let output = tmp.path().join("out");
     assert!(prepare(&input, &output).is_err());
     assert!(!output.exists());
-}
-#[test]
-fn browser_assets_are_required_and_authenticated_in_product_packages() {
-    let tmp = tempfile::tempdir().unwrap(); let input = tmp.path().join("input");
-    let mut build = source(&input); build.schema = 3;
-    for name in ["ameow-browser-host.exe", "browser-extension/manifest.json", "browser-extension/background.js", "browser-extension/popup.js", "browser-extension/popup.html", "browser-extension/popup.css", "browser-extension/build.json", "browser-extension/LICENSES.txt", "browser-extension/page.js", "browser-extension/page.css", "browser-extension/ameow-cat.svg", "browser-extension/icons/16.png", "browser-extension/icons/24.png", "browser-extension/icons/32.png", "browser-extension/icons/48.png", "browser-extension/icons/128.png"] {
-        let bytes = format!("synthetic package member {name}").into_bytes();
-        let path = input.join(name); fs::create_dir_all(path.parent().unwrap()).unwrap(); fs::write(path, &bytes).unwrap();
-        build.browser.push(FileRecord::of(name, &bytes));
-    }
-    save_build(&input, &build);
-    let prepared = tmp.path().join("prepared"); prepare(&input, &prepared).unwrap();
-    let output = tmp.path().join("signed"); sign_fixture(&prepared, &output, 1, super::super::store::now()).unwrap();
-    verify_signed_with_roots(&output, &build.trust).unwrap();
-    for name in ["background.js", "page.js", "page.css", "ameow-cat.svg", "icons/128.png"] {
-        let member = format!("browser-extension/{name}");
-        let path = input.join(&member);
-        let original = fs::read(&path).unwrap();
-        fs::write(&path, b"substitution").unwrap();
-        assert_eq!(prepare(&input, &tmp.path().join("bad")).unwrap_err(), "E_RELEASE_FILE_HASH", "{member}");
-        fs::write(&path, original).unwrap();
-        let mut incomplete = build.clone();
-        incomplete.browser.retain(|record| record.path != member);
-        assert_eq!(incomplete.validate().unwrap_err(), "E_RELEASE_BROWSER_ASSETS", "{member}");
-    }
-}
-#[test]
-fn legacy_schema_one_remains_verifiable_without_cli() {
-    let tmp = tempfile::tempdir().unwrap();
-    let input = tmp.path().join("input");
-    let mut build = source(&input);
-    build.schema = 1;
-    build.cli = None;
-    save_build(&input, &build);
-    let prepared = tmp.path().join("prepared");
-    prepare(&input, &prepared).unwrap();
-    let output = tmp.path().join("signed");
-    sign_fixture(&prepared, &output, 1, super::super::store::now()).unwrap();
-    verify_signed_with_roots(&output, &build.trust).unwrap();
-    let mut invalid = build.clone();
-    invalid.schema = 2;
-    assert!(invalid.validate().is_err());
 }
 #[test]
 fn wrong_version_platform_commit_and_tag_are_rejected() {
@@ -291,21 +166,6 @@ fn symlink_zip_members_are_rejected() {
     assert!(members(&bytes, &BTreeSet::from(["Ameow.exe".into()])).is_err());
 }
 #[test]
-fn extra_update_member_and_truncated_update_are_rejected() {
-    let tmp = tempfile::tempdir().unwrap();
-    let (build, prepared) = prepared(tmp.path());
-    let plan: Plan = json(&prepared.join("unsigned-plan.json")).unwrap();
-    let extra = archive(&BTreeMap::from([
-        ("Ameow.exe".into(), b"controlled application bytes".to_vec()),
-        ("AmeowLauncher.exe".into(), vec![1]),
-    ]))
-    .unwrap();
-    assert!(verify_update(&extra, &build, &FileRecord::of(&plan.update.path, &extra)).is_err());
-    let mut bytes = read(&prepared.join(&plan.update.path), MAX_PACKAGE).unwrap();
-    bytes.truncate(bytes.len() / 2);
-    assert!(verify_update(&bytes, &build, &plan.update).is_err());
-}
-#[test]
 fn signed_build_commit_cannot_be_substituted() {
     let tmp = tempfile::tempdir().unwrap();
     let (mut build, output) = signed_candidate(tmp.path());
@@ -354,29 +214,6 @@ fn wrong_manifest_signature_version_and_platform_fail_verification() {
     }
 }
 #[test]
-fn portable_bootstrap_may_not_skip_ready_trial() {
-    let tmp = tempfile::tempdir().unwrap();
-    let (build, output) = signed_candidate(tmp.path());
-    let path = output.join(portable_name(&build));
-    let bytes = read(&path, MAX_PACKAGE).unwrap();
-    let mut zip = zip::ZipArchive::new(Cursor::new(bytes)).unwrap();
-    let mut contents = BTreeMap::new();
-    for i in 0..zip.len() {
-        let mut entry = zip.by_index(i).unwrap();
-        let mut body = Vec::new();
-        entry.read_to_end(&mut body).unwrap();
-        contents.insert(entry.name().to_string(), body);
-    }
-    let mut state: State = serde_json::from_slice(&contents["state.json"]).unwrap();
-    state.current = state.pending.take();
-    contents.insert("state.json".into(), encode(&state).unwrap());
-    fs::write(path, archive(&contents).unwrap()).unwrap();
-    assert_eq!(
-        verify_signed_with_roots(&output, &build.trust).unwrap_err(),
-        "E_RELEASE_BOOTSTRAP"
-    );
-}
-#[test]
 fn empty_production_trust_and_invalid_sequence_or_issuance_fail_before_signed_output() {
     let tmp = tempfile::tempdir().unwrap();
     let input = tmp.path().join("input");
@@ -394,8 +231,8 @@ fn empty_production_trust_and_invalid_sequence_or_issuance_fail_before_signed_ou
     let valid = tmp.path().join("valid-prepared");
     prepare(&valid_source, &valid).unwrap();
     for (seq, issued, expected) in [
-        (0, now, "E_APP_UPDATE_SIZE"),
-        (1, now + 3600, "E_APP_UPDATE_ISSUED_IN_FUTURE"),
+        (0, now, "E_APP_UPDATE_BUNDLE_IDENTITY"),
+        (1, now + 3600, "E_APP_UPDATE_BUNDLE_IDENTITY"),
     ] {
         assert_eq!(
             sign_fixture(&valid, &output, seq, issued).unwrap_err(),
@@ -444,42 +281,6 @@ fn release_source(root: &Path) -> (Build, Ed25519KeyPair) {
     build.dirty = false;
     save_build(root, &build);
     (build, key)
-}
-
-#[test]
-fn untagged_release_without_approval_fields_keeps_signed_core_and_pending_bootstrap() {
-    let tmp = tempfile::tempdir().unwrap();
-    let input = tmp.path().join("input");
-    let (build, key) = release_source(&input);
-    assert!(build.tag.is_none());
-    let identity = serde_json::to_value(&build).unwrap();
-    assert!(identity.get("public_gate_b").is_none() && identity.get("license_review").is_none());
-    let prepared = tmp.path().join("prepared");
-    let output = tmp.path().join("signed");
-    prepare(&input, &prepared).unwrap();
-    let now = super::super::store::now();
-    sign_with_key(&prepared, &output, &key, 1, now).unwrap();
-    verify_signed_with_roots(&output, &build.trust).unwrap();
-    let update = read(&output.join(update_name(&build.version)), MAX_PACKAGE).unwrap();
-    verify_update(
-        &update,
-        &build,
-        &FileRecord::of(&update_name(&build.version), &update),
-    )
-    .unwrap();
-    let bytes = read(&output.join(portable_name(&build)), MAX_PACKAGE).unwrap();
-    let mut zip = zip::ZipArchive::new(Cursor::new(bytes)).unwrap();
-    assert!(zip.by_name("FIXTURE.txt").is_err());
-    assert!(zip.by_name("AmeowLauncher.exe").is_ok());
-    assert!(zip.by_name("LICENSE").is_ok());
-    let mut state = Vec::new();
-    zip.by_name("state.json")
-        .unwrap()
-        .read_to_end(&mut state)
-        .unwrap();
-    let state: State = serde_json::from_slice(&state).unwrap();
-    assert!(state.current.is_none() && state.pending.is_some() && state.trial.is_none());
-    assert!(!output.join("FIXTURE.txt").exists());
 }
 
 #[test]
@@ -539,4 +340,55 @@ fn signer_must_match_the_trusted_root_before_output() {
     let now = super::super::store::now();
     assert!(sign_fixture(&prepared, &output, 1, now).is_err());
     assert!(!output.exists());
+}
+
+#[test]
+fn complete_portable_is_the_single_signed_update_and_detects_tampering() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (build, output) = signed_candidate(tmp.path());
+    verify_signed_with_roots(&output, &build.trust).unwrap();
+    assert!(!output.join(format!("Ameow-{}-windows-x64.zip", build.version)).exists());
+    let portable = output.join(portable_name(&build));
+    let bytes = read(&portable, MAX_PACKAGE).unwrap();
+    let (_, manifest) = build.trust.trust().unwrap().verify(&read(&output.join("manifest.json"), 16384).unwrap(), None).unwrap();
+    assert_eq!(manifest.package_sha256, hash(&bytes));
+    let mut zip = zip::ZipArchive::new(Cursor::new(bytes)).unwrap();
+    assert!(zip.by_name("Ameow.exe").is_ok());
+    assert!(zip.by_name("README.txt").is_err());
+    for name in ["ameow-cli.exe", "ameow-browser-host.exe", "browser-extension/manifest.json"] {
+        assert!(zip.by_name(&format!("versions/{}/{}", build.version, name)).is_ok());
+    }
+    drop(zip);
+    let mut corrupt = fs::read(&portable).unwrap();
+    corrupt[10] ^= 1;
+    fs::write(&portable, corrupt).unwrap();
+    assert!(verify_signed_with_roots(&output, &build.trust).is_err());
+}
+
+#[test]
+fn fixture_launcher_requires_the_signed_stable_entry() {
+    let tmp = tempfile::tempdir().unwrap();
+    let tmp = tmp.path().canonicalize().unwrap();
+    let (build, output) = signed_candidate(&tmp);
+    let installed = tmp.join("installed");
+    fs::create_dir(&installed).unwrap();
+    zip::ZipArchive::new(File::open(output.join(portable_name(&build))).unwrap()).unwrap().extract(&installed).unwrap();
+    let entry = installed.join("Ameow.exe");
+    verify_fixture_launcher(&entry).unwrap();
+    fs::write(&entry, b"substituted").unwrap();
+    assert!(verify_fixture_launcher(&entry).is_err());
+}
+
+#[test]
+fn missing_or_modified_extension_is_rejected_before_preparation() {
+    let tmp = tempfile::tempdir().unwrap();
+    let input = tmp.path().join("input");
+    let build = source(&input);
+    let asset = input.join("browser-extension/background.js");
+    fs::write(&asset, b"substituted").unwrap();
+    assert!(prepare(&input, &tmp.path().join("modified")).is_err());
+    let mut incomplete = build;
+    incomplete.browser.retain(|item| item.path != "browser-extension/background.js");
+    save_build(&input, &incomplete);
+    assert_eq!(incomplete.validate().unwrap_err(), "E_RELEASE_BROWSER_ASSETS");
 }

@@ -720,6 +720,7 @@ mod tests {
             url: "https://github.com/Wutpeach/Ameow/releases/download/v1.0.0/Ameow-1.0.0-macos-arm64.zip".into(),
             package_bytes: bytes.len() as u64, package_sha256: hash(&bytes),
             exe_bytes: b"main executable".len() as u64, exe_sha256: hash(b"main executable"),
+            bundle_sha256: None,
         };
         (manifest, bytes)
     }

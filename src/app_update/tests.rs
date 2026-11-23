@@ -1,7 +1,7 @@
 use super::*;
 use std::{
     fs,
-    io::{self, Cursor, Read, Write},
+    io::{self, Cursor, Read},
 };
 
 pub(super) fn fixture(
@@ -17,33 +17,7 @@ pub(super) fn fixture_issued(
     members: &[(&str, &[u8])],
     issued: u64,
 ) -> (Manifest, Vec<u8>, Vec<u8>) {
-    let mut writer = zip::ZipWriter::new(Cursor::new(Vec::new()));
-    for (name, bytes) in members {
-        writer
-            .start_file(*name, zip::write::SimpleFileOptions::default())
-            .unwrap();
-        writer.write_all(bytes).unwrap();
-    }
-    let package = writer.finish().unwrap().into_inner();
-    let exe = members.first().map_or(&b"exe"[..], |(_, b)| *b);
-    let m = Manifest {
-        schema: 1,
-        product: "Ameow".into(),
-        channel: "stable".into(),
-        target: package::WINDOWS_TARGET.into(),
-        version: version.into(),
-        sequence,
-        issued,
-        url: format!(
-            "https://github.com/Wutpeach/Ameow/releases/download/v{version}/Ameow-{version}-windows-x64.zip"
-        ),
-        package_bytes: package.len() as u64,
-        package_sha256: hash(&package),
-        exe_bytes: exe.len() as u64,
-        exe_sha256: hash(exe),
-    };
-    let envelope = fixture_envelope(&m);
-    (m, package, envelope)
+    package::fixture_windows_package(version, sequence, issued, members)
 }
 pub(super) fn prepare(install: &Install, version: &str, sequence: u64) -> Vec<u8> {
     let (_, bytes, envelope) = fixture(
@@ -175,6 +149,39 @@ fn full_package_is_verified_before_pending_and_launch_rechecks_executable() {
     assert!(install.verify_release(&release).is_err());
 }
 #[test]
+fn every_paired_component_is_required_and_reverified() {
+    let root = tempfile::tempdir().unwrap();
+    let install = Install::fixture(root.path().join("install")).unwrap();
+    prepare(&install, "0.1.0", 1);
+    let release = install.state().unwrap().pending.unwrap();
+    for member in ["ameow-cli.exe", "ameow-browser-host.exe", "browser-extension/build.json", "browser-extension/page.js"] {
+        let path = install.root.join("versions/0.1.0").join(member);
+        let original = fs::read(&path).unwrap();
+        fs::write(&path, b"mismatched component").unwrap();
+        assert!(install.verify_release(&release).is_err(), "{member}");
+        fs::remove_file(&path).unwrap();
+        assert!(install.verify_release(&release).is_err(), "{member}");
+        fs::write(&path, original).unwrap();
+    }
+    fs::write(install.root.join("versions/0.1.0/unlisted.dll"), b"unexpected").unwrap();
+    assert!(install.verify_release(&release).is_err());
+}
+#[cfg(windows)]
+#[test]
+fn forwarding_keeps_the_actual_cli_and_host_files_locked_against_replacement() {
+    let root = tempfile::tempdir().unwrap();
+    let install = Install::fixture(root.path().join("install")).unwrap();
+    prepare(&install, "0.1.0", 1);
+    let release = install.state().unwrap().pending.unwrap();
+    for name in ["ameow-cli.exe", "ameow-browser-host.exe"] {
+        let path = install.root.join("versions/0.1.0").join(name);
+        let guard = install.verify_component(&release, name).unwrap();
+        assert!(fs::write(&path, b"replacement").is_err());
+        assert!(fs::remove_file(&path).is_err());
+        drop(guard);
+    }
+}
+#[test]
 fn interrupted_or_truncated_download_never_becomes_switchable_and_can_retry_exact_manifest() {
     struct Broken;
     impl Read for Broken {
@@ -302,10 +309,10 @@ fn program_switch_does_not_touch_settings_cache_outputs_or_old_identity() {
     }
     let exe = install.root.join("versions/0.1.1/Ameow.exe");
     assert!(startup_entry_for(&exe).is_err());
-    fs::write(install.root.join("AmeowLauncher.exe"), b"launcher").unwrap();
+    fs::write(install.root.join("Ameow.exe"), b"launcher").unwrap();
     assert_eq!(
         startup_entry_for(&exe).unwrap(),
-        install.root.join("AmeowLauncher.exe")
+        install.root.join("Ameow.exe")
     );
 }
 #[test]
@@ -325,11 +332,20 @@ fn identity_uses_new_data_root_without_inspecting_the_old_tree() {
 }
 
 fn installed_files(install: &Install, version: &str, sequence: u64) {
-    let (_, _, envelope) = fixture(version, sequence, &[("Ameow.exe", b"installed fixture")]);
-    let dir = install.root.join("versions").join(version);
-    fs::create_dir_all(&dir).unwrap();
-    fs::write(dir.join("Ameow.exe"), b"installed fixture").unwrap();
-    fs::write(dir.join("manifest.json"), envelope).unwrap();
+    installed_files_issued(install, version, sequence, store::now());
+}
+fn installed_files_issued(install: &Install, version: &str, sequence: u64, issued: u64) {
+    let (_, package, _) = fixture_issued(version, sequence, &[("Ameow.exe", b"installed fixture")], issued);
+    let mut zip = zip::ZipArchive::new(Cursor::new(package)).unwrap();
+    // Installer copies immutable version members; it must preserve existing state.
+    for i in 0..zip.len() {
+        let mut member = zip.by_index(i).unwrap();
+        if !member.name().starts_with("versions/") { continue; }
+        let dest = install.root.join(member.name());
+        fs::create_dir_all(dest.parent().unwrap()).unwrap();
+        let mut out = fs::File::create(dest).unwrap();
+        io::copy(&mut member, &mut out).unwrap();
+    }
 }
 
 // Separate temporary directories still share the Windows production instance mutex.
@@ -341,14 +357,7 @@ fn old_signed_installers_register_and_reinstall_without_a_time_limit() {
     for days in [8, 30, 365 * 5] {
         let root = tempfile::tempdir().unwrap();
         let install = Install::fixture(root.path().into()).unwrap();
-        let (_, _, envelope) = fixture_issued(
-            "0.5.0", 1, &[("Ameow.exe", b"installed fixture")],
-            store::now() - days * 86400,
-        );
-        let dir = root.path().join("versions/0.5.0");
-        fs::create_dir_all(&dir).unwrap();
-        fs::write(dir.join("Ameow.exe"), b"installed fixture").unwrap();
-        fs::write(dir.join("manifest.json"), envelope).unwrap();
+        installed_files_issued(&install, "0.5.0", 1, store::now() - days * 86400);
         install.register_installed_version("0.5.0").unwrap();
         let state = install.state().unwrap();
         assert!(state.current.is_none() && state.trial.is_none());

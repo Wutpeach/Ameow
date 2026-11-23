@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+#Requires -Version 7.0
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$SignedDirectory,
@@ -33,7 +33,7 @@ $checks += $(if (@($production.keys).Count -eq 0) { 'empty-production-root-rejec
 $broken = Join-Path $EvidenceDirectory 'tampered-source'
 New-Item -ItemType Directory -Path $broken | Out-Null
 foreach ($file in Get-ChildItem -LiteralPath $SignedDirectory -File) { Copy-Item -LiteralPath $file.FullName -Destination (Join-Path $broken $file.Name) }
-$portable = @(Get-ChildItem -LiteralPath $broken -Filter '*portable-FIXTURE-NOT-FOR-DISTRIBUTION.zip')[0]
+$portable = @(Get-ChildItem -LiteralPath $broken -Filter '*portable.zip')[0]
 Add-Type -AssemblyName System.IO.Compression
 $version = (Get-Content -LiteralPath (Join-Path $broken 'release-build.json') -Raw | ConvertFrom-Json).version
 $zip = [IO.Compression.ZipArchive]::new([IO.File]::Open($portable.FullName, [IO.FileMode]::Open), [IO.Compression.ZipArchiveMode]::Update)
@@ -49,7 +49,7 @@ $valid = Join-Path $EvidenceDirectory 'valid'
 & $package @common -OutputDirectory $valid -Fixture
 $delivery = Get-Content -LiteralPath (Join-Path $valid 'delivery.json') -Raw | ConvertFrom-Json
 if ($delivery.mode -cne 'FIXTURE-NOT-FOR-DISTRIBUTION' -or -not $delivery.fixture -or $delivery.installer.bytes -le 0) { throw 'Missing controlled installer identity.' }
-if (@($delivery.assets).Count -ne 4 -or $delivery.manifest.path -cne 'ameow-update-windows-x64.json') { throw 'Missing one of the four release assets.' }
+if (@($delivery.assets).Count -ne 3 -or $delivery.manifest.path -cne 'ameow-update-windows-x64.json') { throw 'Missing one of the three Windows release assets.' }
 foreach ($resource in $delivery.installerResources) {
     $source = Join-Path $PSScriptRoot ('../' + $resource.path)
     if ((Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash -ine $resource.sha256) { throw "Installer resource changed: $($resource.path)" }
@@ -59,16 +59,17 @@ foreach ($asset in $delivery.assets) {
     $file = Join-Path $valid $asset.path
     if ((Get-Item -LiteralPath $file).Length -ne $asset.bytes -or (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash -ine $asset.sha256) { throw "Release asset changed: $($asset.path)" }
 }
-if ((Get-FileHash -LiteralPath (Join-Path $SignedDirectory 'manifest.json') -Algorithm SHA256).Hash -ine $delivery.manifest.sha256 -or @(Get-Content -LiteralPath (Join-Path $valid 'SHA256SUMS.txt')).Count -ne 4) { throw 'Signed manifest or checksum list changed.' }
+if ((Get-FileHash -LiteralPath (Join-Path $SignedDirectory 'manifest.json') -Algorithm SHA256).Hash -ine $delivery.manifest.sha256 -or @(Get-Content -LiteralPath (Join-Path $valid 'SHA256SUMS.txt')).Count -ne 3) { throw 'Signed manifest or checksum list changed.' }
 $envelope = Get-Content -LiteralPath (Join-Path $valid $delivery.manifest.path) -Raw | ConvertFrom-Json
 $manifest = $envelope.payload | ConvertFrom-Json
 if ($manifest.PSObject.Properties.Name -contains 'expires' -or $manifest.version -cne $delivery.build.version) { throw 'Release manifest must have no expiry and match the delivery version.' }
 Add-Type -AssemblyName System.IO.Compression
 $zip = [IO.Compression.ZipArchive]::new([IO.File]::OpenRead((Join-Path $valid $delivery.update.path)), [IO.Compression.ZipArchiveMode]::Read)
 try {
-    if ($zip.Entries.Count -ne 1 -or $zip.Entries[0].FullName -cne 'Ameow.exe') { throw 'Application update is not a single-EXE ZIP.' }
+    if ($delivery.update.path -cne $delivery.portable.path -or $manifest.package_sha256 -cne $delivery.portable.sha256 -or $manifest.package_bytes -ne $delivery.portable.bytes) { throw 'Signed update does not identify the complete portable ZIP.' }
+    if ($null -eq $zip.GetEntry('Ameow.exe') -or $null -eq $zip.GetEntry("versions/$version/Ameow.exe")) { throw 'Portable ZIP lacks the stable launcher or versioned app.' }
 } finally { $zip.Dispose() }
-$checks += @('installer-compiled-from-verified-portable','shared-core-and-notice-hashes','single-exe-update-preserved')
+$checks += @('installer-compiled-from-verified-portable','shared-core-and-notice-hashes','portable-is-signed-update')
 $result = @{result='PASS';checks=$checks;count=$checks.Count;nativeInstallerExecution=$false;productionPrivateKeyCreated=$false;delivery='valid/delivery.json'}
 $result | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $EvidenceDirectory 'result.json') -Encoding utf8
 $result | ConvertTo-Json -Depth 5

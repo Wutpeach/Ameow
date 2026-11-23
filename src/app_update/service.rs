@@ -344,7 +344,7 @@ impl Handle {
                                     .trust()
                                     .verify(&envelope, Some(now()))?;
                                 let state=coordinator.install().state()?;
-                                let digest=super::hash(signed.payload.as_bytes());
+                                let digest=m.bundle_sha256.clone().unwrap_or_else(|| super::hash(signed.payload.as_bytes()));
                                 if state.failed.contains(&digest) {
                                     coordinator.set_state(Phase::RolledBack,state.current.map(|r|r.version),state.last_error);available=None;return Ok(());
                                 }

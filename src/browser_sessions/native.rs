@@ -103,10 +103,6 @@ pub fn companion() -> Result<PathBuf> {
     } else {
         "ameow-browser-host"
     };
-    let sibling = directory.join(name);
-    if sibling.is_file() {
-        return Ok(sibling);
-    }
     // Windows application updates keep the bridge beside the stable launcher/CLI.
     if directory
         .parent()
@@ -119,7 +115,7 @@ pub fn companion() -> Result<PathBuf> {
             .ok_or_else(storage)?
             .join(name));
     }
-    Ok(sibling)
+    Ok(directory.join(name))
 }
 pub fn install(host: &Path) -> Result<PathBuf> {
     let contents = installation_manifest(host)?;

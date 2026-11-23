@@ -487,12 +487,17 @@ impl Session {
             if read_json::<Request>(control)
                 .is_ok_and(|v| v.version == BUILD_VERSION && v.action == "restart")
             {
+                // A debug request is one-shot, including when the candidate rolls back.
+                std::fs::remove_file(control).map_err(|e| e.to_string())?;
                 self.request_restart();
             }
-            atomic_json(
+            if let Err(error) = atomic_json(
                 &control.with_extension("state.json"),
                 &self.coordinator.snapshot(),
-            )?;
+            ) {
+                // Optional fixture observations do not change the real update transaction.
+                super::launcher::audit(&self.ticket.install, &format!("fixture-observation-write-failed: {error}"), BUILD_VERSION, Some(std::process::id()))?;
+            }
         }
         #[cfg(target_os = "macos")]
         if self.restart.load(Ordering::Acquire) && let Some(bundle) = &self.ticket.bundle {
@@ -531,6 +536,46 @@ impl Session {
     pub(crate) fn requires_authorized_recovery(&self) -> bool {
         self.recovery_required || self.ticket.bundle.as_ref().is_some_and(|bundle|
             super::macos_privileged::recovery_marker(&self.ticket.install, bundle).is_ok_and(|value| value.is_some()))
+    }
+}
+
+#[cfg(all(test, feature = "app-update-fixture", debug_assertions))]
+mod fixture_tests {
+    use super::*;
+    #[test]
+    fn optional_observation_failure_does_not_replace_a_ready_candidate() {
+        let root = tempfile::tempdir().unwrap();
+        let install = Install::fixture(root.path().join("install")).unwrap();
+        let mut session = Session::for_test(install);
+        std::fs::create_dir(&session.root).unwrap();
+        let control = root.path().join("control.json");
+        std::fs::create_dir(control.with_extension("state.json")).unwrap();
+        session.control = Some(control);
+        session.coordinator.set_state(super::super::Phase::Ready, Some("9.0.1".into()), None);
+        let queue = DownloadCoordinator::update_test_queue(root.path());
+        session.poll(&queue).unwrap();
+        let snapshot = session.coordinator.snapshot();
+        assert_eq!(snapshot.phase, super::super::Phase::Ready);
+        assert!(snapshot.error.is_none());
+        assert!(std::fs::read_to_string(session.ticket.install.join("launcher.jsonl")).unwrap().contains("fixture-observation-write-failed"));
+    }
+    #[test]
+    fn restart_request_is_consumed_before_a_fallback_can_read_it_again() {
+        let root = tempfile::tempdir().unwrap();
+        let install = Install::fixture(root.path().join("install")).unwrap();
+        super::super::tests::prepare(&install, "9.0.1", 1);
+        let mut session = Session::for_test(install);
+        std::fs::create_dir(&session.root).unwrap();
+        let control = root.path().join("control.json");
+        atomic_json(&control, &serde_json::json!({"version":BUILD_VERSION,"action":"restart"})).unwrap();
+        session.control = Some(control.clone());
+        let queue = DownloadCoordinator::update_test_queue(root.path());
+        session.poll(&queue).unwrap();
+        assert!(!control.exists());
+        assert!(session.restart.load(Ordering::Acquire));
+        session.restart.store(false, Ordering::Release);
+        session.poll(&queue).unwrap();
+        assert!(!session.restart.load(Ordering::Acquire));
     }
 }
 
