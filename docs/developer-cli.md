@@ -173,6 +173,7 @@ stdout 只有一条 JSON（不要求 --json）；stderr 为即时人读提示。
 | Ameow Docs Sync 专用同步、测试与调度检查脚本 | 已退役并移除 | 文档随获授权任务维护，统一走 [Ameow 专属 Skill](../.agents/skills/ameow-release-prep/SKILL.md)；旧审阅状态保留历史事实，不恢复 PR53 |
 
 上述三个 example 的历史参数不再兼容；替代命令统一使用完整根，避免继续提供默认生产 runtime 或任意 output 的工程入口。
+`runtime_update` 支持 `--downloader yt-dlp|gallery-dl`（默认 yt-dlp），配合 `--query`，或显式 `--runtime-root`、`--output` 与 `--action upgrade|restore|verify`；升级另需 `--version`。它使用正式队列的同一组件切换门，获取、恢复和停止均须实际结算。
 不删除忽略的证据/缓存、交接、真实失败材料、旧工作树或已拒绝清理的任何路径。
 
 ## 回归

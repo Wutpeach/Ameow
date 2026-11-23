@@ -1,12 +1,17 @@
 //! Explicit local Windows evidence helper; uses the real queue and runtime owners.
-use ameow_next::download::{composition, preparation::PreparationPhase, queue::{CommandReply, QueueCommand}, request::Quality, runtime_update::RuntimeUpdatePhase, settings::Settings, upstream};
+use ameow_next::download::{composition, contract::Downloader, preparation::PreparationPhase, queue::{CommandReply, QueueCommand}, request::Quality, runtime_update::RuntimeUpdatePhase, settings::Settings, upstream};
 use std::{path::PathBuf, time::{Duration, Instant}};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<_> = std::env::args().collect();
     let value = |key: &str| args.iter().position(|a| a == key).and_then(|i| args.get(i + 1)).cloned();
+    let downloader = match value("--downloader").as_deref().unwrap_or("yt-dlp") {
+        "yt-dlp" => Downloader::YtDlp,
+        "gallery-dl" => Downloader::GalleryDl,
+        _ => return Err("Unknown --downloader".into()),
+    };
     if args.iter().any(|arg| arg == "--query") {
-        println!("{}", serde_json::json!({"event":"pypi","result":format!("{:?}", upstream::query_latest())}));
+        println!("{}", serde_json::json!({"event":"pypi","downloader":downloader,"result":format!("{:?}", upstream::query_release(downloader))}));
         return Ok(());
     }
     let root = PathBuf::from(value("--runtime-root").ok_or("--runtime-root required")?);
@@ -20,17 +25,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut failure = false;
     loop {
         let view = backend.snapshot();
-        let key = (view.preparation.phase, view.runtime_update.clone(), view.active_slots, view.stopped);
+        let update = view.component_update(downloader);
+        let key = (view.preparation.phase, update.clone(), view.active_slots, view.stopped);
         if last.as_ref() != Some(&key) {
-            println!("{}", serde_json::json!({"elapsed_ms":started.elapsed().as_millis(),"preparation":view.preparation,"update":view.runtime_update,"versions":view.verified_runtime_versions,"active_slots":view.active_slots,"stopped":view.stopped}));
+            println!("{}", serde_json::json!({"elapsed_ms":started.elapsed().as_millis(),"preparation":view.preparation,"update":update,"versions":view.verified_runtime_versions,"active_slots":view.active_slots,"stopped":view.stopped}));
             last = Some(key);
         }
         let settled = !view.preparing && view.preparation.phase == PreparationPhase::Ready;
-        if !admitted && !stopping && (settled || view.runtime_update.phase == RuntimeUpdatePhase::RecoveryRequired) {
+        if !admitted && !stopping && (settled || update.phase == RuntimeUpdatePhase::RecoveryRequired) {
             admitted = true;
             let command = match action.as_str() {
-                "upgrade" => Some(QueueCommand::UpgradeEngine {version:value("--version").ok_or("--version required")?}),
-                "restore" => Some(QueueCommand::RestoreRecommended),
+                "upgrade" => Some(QueueCommand::UpgradeDownloader {downloader, version:value("--version").ok_or("--version required")?}),
+                "restore" => Some(QueueCommand::RestoreRecommendedDownloader {downloader}),
                 "verify" => None,
                 _ => return Err("Unknown --action".into()),
             };
@@ -40,12 +46,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if !matches!(reply, CommandReply::Applied(true)) {failure=true; backend.stop(); stopping=true;}
                 else {continue;} // Observe this command's state before considering a prior Activated snapshot.
             } else {
-                failure = view.runtime_update.phase == RuntimeUpdatePhase::RecoveryRequired;
+                failure = update.phase == RuntimeUpdatePhase::RecoveryRequired;
                 backend.stop(); stopping=true;
             }
         }
-        if admitted && !stopping && matches!(view.runtime_update.phase, RuntimeUpdatePhase::Activated | RuntimeUpdatePhase::Failed | RuntimeUpdatePhase::RolledBack | RuntimeUpdatePhase::RecoveryRequired) {
-            failure = view.runtime_update.phase != RuntimeUpdatePhase::Activated;
+        if admitted && !stopping && matches!(update.phase, RuntimeUpdatePhase::Activated | RuntimeUpdatePhase::Failed | RuntimeUpdatePhase::RolledBack | RuntimeUpdatePhase::RecoveryRequired) {
+            failure = update.phase != RuntimeUpdatePhase::Activated;
             backend.stop(); stopping=true;
         }
         if !admitted && !view.preparing && view.preparation.phase == PreparationPhase::Failed {failure=true; backend.stop(); stopping=true;}
