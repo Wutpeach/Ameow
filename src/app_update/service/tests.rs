@@ -28,8 +28,8 @@ fn scheduler_delays_start_limits_manual_checks_and_backs_off_without_busy_retrie
 #[test]
 fn first_defaults_persist_restore_and_save_failures_keep_the_effective_preferences(){
     let root=tempfile::tempdir().unwrap();let (h,_)=owner(root.path(),None);
-    assert_eq!(h.snapshot().preferences,Preferences{auto_check:true,auto_download:true,idle_restart:false});
-    let prefs=Preferences{auto_check:false,auto_download:false,idle_restart:true};
+    assert_eq!(h.snapshot().preferences,Preferences{auto_update:true,notify_updates:true});
+    let prefs=Preferences{auto_update:false,notify_updates:false};
     assert!(h.send(Action::Save(prefs.clone())));wait(||h.snapshot().saved);
     assert_eq!(h.snapshot().preferences,prefs);drop(h);
     let (h,_)=owner(root.path(),None);wait(||h.snapshot().preferences==prefs);drop(h);
@@ -39,10 +39,10 @@ fn first_defaults_persist_restore_and_save_failures_keep_the_effective_preferenc
     assert!(h.snapshot().save_error.is_some());assert_eq!(h.snapshot().preferences,Preferences::default());assert!(!h.snapshot().saved);
 }
 #[test]
-fn manual_check_and_download_work_with_automatic_checks_disabled(){
+fn manual_check_and_download_work_with_automatic_updates_disabled(){
     let root=tempfile::tempdir().unwrap();let source=source(root.path(),b"verified fixture");
     let (h,install)=owner(root.path(),Some(source));
-    assert!(h.send(Action::Save(Preferences{auto_check:false,auto_download:true,idle_restart:false})));wait(||h.snapshot().saved);
+    assert!(h.send(Action::Save(Preferences{auto_update:false,..Default::default()})));wait(||h.snapshot().saved);
     assert!(h.send(Action::Check));wait(||h.snapshot().update.phase==Phase::Available);assert!(install.state().unwrap().pending.is_none());
     assert!(h.send(Action::Download));wait(||h.snapshot().update.phase==Phase::Ready);
     let pending=install.state().unwrap().pending.unwrap();assert_eq!(pending.version,"9.0.1");assert!(install.verify_release(&pending).is_ok());
@@ -59,7 +59,7 @@ fn old_signed_latest_is_available_and_prepares_after_years_without_resigning(){
         fs::write(source.join("manifest.json"),&envelope).unwrap();
         fs::write(source.join("package.zip"),package).unwrap();
         let(h,install)=owner(root.path(),Some(source));
-        h.send(Action::Save(Preferences{auto_check:false,auto_download:false,idle_restart:false}));
+        h.send(Action::Save(Preferences{auto_update:false,..Default::default()}));
         wait(||h.snapshot().saved);
         h.send(Action::Check);wait(||h.snapshot().update.phase==Phase::Available);
         assert!(install.state().unwrap().pending.is_none());
@@ -72,7 +72,7 @@ fn old_signed_latest_is_available_and_prepares_after_years_without_resigning(){
 #[test]
 fn reenabling_background_download_prepares_the_already_discovered_signed_version(){
     let root=tempfile::tempdir().unwrap();let source=source(root.path(),b"verified fixture");let(h,install)=owner(root.path(),Some(source));
-    assert!(h.send(Action::Save(Preferences{auto_download:false,..Default::default()})));wait(||h.snapshot().saved);
+    assert!(h.send(Action::Save(Preferences{auto_update:false,..Default::default()})));wait(||h.snapshot().saved);
     h.send(Action::Check);wait(||h.snapshot().update.phase==Phase::Available);assert!(install.state().unwrap().pending.is_none());
     h.send(Action::Save(Preferences::default()));wait(||h.snapshot().update.phase==Phase::Ready);
     assert!(install.state().unwrap().pending.is_some());
@@ -83,7 +83,7 @@ fn disabling_automatic_download_cancels_inflight_work_and_does_not_publish_pendi
     let mut data=vec![0;8_000_000];let mut n=123u64;for byte in &mut data{n^=n<<13;n^=n>>7;n^=n<<17;*byte=n as u8;}
     let source=source(root.path(),&data);let(h,install)=owner(root.path(),Some(source));
     h.send(Action::Check);wait(||h.snapshot().update.phase==Phase::Downloading&&h.snapshot().update.downloaded>0);
-    h.send(Action::Save(Preferences{auto_download:false,..Default::default()}));wait(||h.snapshot().saved);
+    h.send(Action::Save(Preferences{auto_update:false,..Default::default()}));wait(||h.snapshot().saved);
     assert_eq!(h.snapshot().update.phase,Phase::Available);assert!(install.state().unwrap().pending.is_none());
     assert_eq!(fs::read_dir(install.root.join("staging")).unwrap().count(),0);
 }
@@ -104,9 +104,11 @@ fn unconfigured_source_is_closed_before_fixture_or_network_and_source_failure_is
 fn restart_fixture(root:&Path)->(Handle,Session,DownloadCoordinator){
     let install=Install::fixture(root.join("install")).unwrap();super::super::tests::prepare(&install,"9.0.1",1);
     let session=Session::for_test(install);
-    let h=Handle::inert(View{launcher:true,preferences:Preferences{idle_restart:true,..Default::default()},..Default::default()});
+    let h=Handle::inert(View{launcher:true,..Default::default()});
     *h.shared.coordinator.lock().unwrap()=Some(session.coordinator.clone());
-    (h,session,DownloadCoordinator::update_test_queue(root))
+    let queue=DownloadCoordinator::update_test_queue(root);
+    allow_automatic_restart(&h,&queue);
+    (h,session,queue)
 }
 #[cfg(target_os = "macos")]
 #[test]
@@ -166,7 +168,7 @@ fn macos_failed_authorization_persists_error_and_requires_manual_retry() {
 #[test]
 fn manual_restart_with_tasks_schedules_one_drain_without_a_second_choice(){
     let root=tempfile::tempdir().unwrap();let(h,s,q)=restart_fixture(root.path());
-    h.shared.view.lock().unwrap().preferences.idle_restart=false;
+    h.shared.view.lock().unwrap().preferences.auto_update=false;
     q.submit("https://youtu.be/00000000001".into()).unwrap();
     q.submit("https://youtu.be/00000000002".into()).unwrap();
     assert!(h.send(Action::Restart));assert!(h.clone().send(Action::Restart));
@@ -179,17 +181,20 @@ fn manual_restart_with_tasks_schedules_one_drain_without_a_second_choice(){
     assert_eq!(h.snapshot().update.phase,Phase::Ready);assert!(q.submit("https://youtu.be/00000000003".into()).is_ok());assert!(!s.quit.load(Ordering::Acquire));
 }
 #[test]
-fn automatic_restart_starts_on_the_first_safe_poll_without_a_quiet_period(){
+fn automatic_restart_waits_for_a_continuous_quiet_period(){
     let root=tempfile::tempdir().unwrap();let(h,s,q)=restart_fixture(root.path());
+    h.user_interaction();
+    h.poll(&q,Some(&s));assert!(!q.snapshot().stopping);
+    allow_automatic_restart(&h,&q);
     h.poll(&q,Some(&s));assert!(q.snapshot().stopping);
     s.poll(&q).unwrap();assert!(!s.quit.load(Ordering::Acquire));assert!(!q.snapshot().stopped);
 }
 #[test]
 fn automatic_restart_requires_ready_and_enabled_and_keeps_accepted_tasks_running(){
     let root=tempfile::tempdir().unwrap();let(h,s,q)=restart_fixture(root.path());
-    h.shared.view.lock().unwrap().preferences.idle_restart=false;
+    h.shared.view.lock().unwrap().preferences.auto_update=false;
     h.poll(&q,Some(&s));assert!(!q.snapshot().stopping);
-    h.shared.view.lock().unwrap().preferences.idle_restart=true;
+    h.shared.view.lock().unwrap().preferences.auto_update=true;
     s.coordinator.set_state(Phase::Downloading,Some("9.0.1".into()),None);
     h.poll(&q,Some(&s));assert!(!q.snapshot().stopping);
     s.coordinator.set_state(Phase::Ready,Some("9.0.1".into()),None);
@@ -215,7 +220,268 @@ fn new_task_and_automatic_restart_share_atomic_admission(){
 fn settings_write_blocks_idle_restart_and_final_idle_barrier_does_not_fake_resource_release(){
     let root=tempfile::tempdir().unwrap();let(h,s,q)=restart_fixture(root.path());
     h.shared.view.lock().unwrap().saving=true;h.poll(&q,Some(&s));assert!(!q.snapshot().stopping);
-    h.shared.view.lock().unwrap().saving=false;h.poll(&q,Some(&s));assert!(q.snapshot().stopping);
+    h.shared.view.lock().unwrap().saving=false;
+    h.poll(&q,Some(&s));assert!(!q.snapshot().stopping);
+    allow_automatic_restart(&h,&q);h.poll(&q,Some(&s));assert!(q.snapshot().stopping);
     s.poll(&q).unwrap();assert!(!s.quit.load(Ordering::Acquire));assert!(!q.snapshot().stopped);
     assert!(q.submit("https://youtu.be/00000000001".into()).is_err());
+}
+fn allow_automatic_restart(handle:&Handle, queue:&DownloadCoordinator) {
+    let before = Instant::now() - INSTALL_QUIET_PERIOD;
+    *handle.shared.idle.lock().unwrap() = IdleWindow { since: Some(before), interaction: before, revision:Some(queue.snapshot().revision) };
+}
+#[test]
+fn legacy_preferences_keep_every_explicit_disable_and_new_values_round_trip() {
+    assert_eq!(serde_json::from_str::<Preferences>("{}").unwrap(), Preferences::default());
+    for auto_check in [false, true] {
+        for auto_download in [false, true] {
+            for idle_restart in [false, true] {
+                let old = serde_json::json!({"auto_check":auto_check,"auto_download":auto_download,"idle_restart":idle_restart});
+                let prefs:Preferences = serde_json::from_value(old).unwrap();
+                assert_eq!(prefs.auto_update, auto_check && auto_download && idle_restart);
+                assert!(prefs.notify_updates);
+            }
+        }
+    }
+    for auto_update in [false, true] {
+        for notify_updates in [false, true] {
+            let prefs = Preferences {auto_update, notify_updates};
+            let json = serde_json::to_value(&prefs).unwrap();
+            assert_eq!(json.as_object().unwrap().len(), 2);
+            assert_eq!(serde_json::from_value::<Preferences>(json).unwrap(), prefs);
+        }
+    }
+    assert!(!serde_json::from_str::<Preferences>(r#"{"auto_download":false}"#).unwrap().auto_update);
+    assert!(serde_json::from_str::<Preferences>(r#"{"auto_update":true,"idle_restart":false}"#).unwrap().auto_update);
+    assert!(serde_json::from_str::<Preferences>(r#"{"auto_update":"yes"}"#).is_err());
+    assert!(serde_json::from_str::<Preferences>(r#"{"unknown":false}"#).is_err());
+}
+#[test]
+fn idle_window_resets_for_resources_or_interaction_and_requires_the_entire_interval() {
+    let start = Instant::now();
+    let mut idle = IdleWindow {since:None, interaction:start, revision:None};
+    assert!(!idle.ready(start, true, 1));
+    assert!(!idle.ready(start + INSTALL_QUIET_PERIOD - Duration::from_millis(1), true, 1));
+    assert!(idle.ready(start + INSTALL_QUIET_PERIOD, true, 1));
+    assert!(!idle.ready(start + INSTALL_QUIET_PERIOD, false, 1));
+    assert!(!idle.ready(start + INSTALL_QUIET_PERIOD, true, 1));
+    idle.interaction = start + INSTALL_QUIET_PERIOD + Duration::from_secs(1);
+    assert!(!idle.ready(start + INSTALL_QUIET_PERIOD * 2, true, 1));
+    assert!(idle.ready(start + INSTALL_QUIET_PERIOD * 2 + Duration::from_secs(1), true, 1));
+    assert!(!idle.ready(start + INSTALL_QUIET_PERIOD * 2 + Duration::from_secs(1), true, 3));
+    assert!(!idle.ready(start + INSTALL_QUIET_PERIOD * 3, true, 3));
+    assert!(idle.ready(start + INSTALL_QUIET_PERIOD * 3 + Duration::from_secs(1), true, 3));
+}
+#[test]
+fn short_queue_activity_between_polls_restarts_the_quiet_period() {
+    let root=tempfile::tempdir().unwrap();let(handle,session,queue)=restart_fixture(root.path());
+    let job=queue.submit("https://youtu.be/00000000001".into()).unwrap();
+    assert!(queue.cancel(job));
+    assert!(queue.app_update_idle());
+    handle.poll(&queue,Some(&session));
+    assert!(!queue.snapshot().stopping);
+    assert!(!handle.shared.closing.load(Ordering::Acquire));
+    allow_automatic_restart(&handle,&queue);
+    handle.poll(&queue,Some(&session));
+    assert!(queue.snapshot().stopping);
+}
+#[test]
+fn reminders_do_not_cancel_or_start_downloads_when_automatic_updates_are_off() {
+    let root=tempfile::tempdir().unwrap();
+    let (handle,install)=owner(root.path(),Some(source(root.path(),b"manual fixture")));
+    handle.send(Action::Save(Preferences{auto_update:false,..Default::default()}));
+    wait(||handle.snapshot().saved);
+    handle.send(Action::Check);wait(||handle.snapshot().update.phase==Phase::Available);
+    for notify_updates in [false,true] {
+        handle.send(Action::Save(Preferences{auto_update:false,notify_updates}));
+        assert!(!handle.shared.cancel.load(Ordering::Acquire));
+        wait(||handle.snapshot().saved);
+        assert_eq!(handle.snapshot().update.phase,Phase::Available);
+        assert_eq!(handle.snapshot().full_attention(),notify_updates);
+        assert!(install.state().unwrap().pending.is_none());
+    }
+    handle.send(Action::Download);wait(||handle.snapshot().update.phase==Phase::Ready);
+}
+#[test]
+fn all_four_combinations_keep_background_checks_and_only_auto_download_when_enabled() {
+    let cases = [false,true].into_iter().flat_map(|auto_update| [false,true].map(move |notify_updates| {
+        let root=tempfile::tempdir().unwrap();
+        let (handle,install)=owner(root.path(),Some(source(root.path(),b"four combinations")));
+        handle.send(Action::Save(Preferences{auto_update,notify_updates}));
+        wait(||handle.snapshot().saved);
+        (root,handle,install,auto_update,notify_updates)
+    })).collect::<Vec<_>>();
+    let deadline=Instant::now()+Duration::from_millis(STARTUP_MS+10_000);
+    loop {
+        if cases.iter().all(|(_,handle,_,automatic,_)| handle.snapshot().update.phase == if *automatic {Phase::Ready} else {Phase::Available}) {break;}
+        assert!(Instant::now()<deadline,"automatic checking did not settle in all four combinations");
+        thread::sleep(Duration::from_millis(10));
+    }
+    for (_,handle,install,automatic,notify) in &cases {
+        assert_eq!(handle.snapshot().full_attention(),*notify);
+        assert_eq!(install.state().unwrap().pending.is_some(),*automatic);
+    }
+}
+#[test]
+fn ready_updates_allow_real_checks_without_reacquiring_or_losing_a_valid_candidate() {
+    for missing_manifest in [false,true] {
+        let root=tempfile::tempdir().unwrap();let(handle,install,source)=ready_owner(root.path());
+        let before=serde_json::to_value(install.state().unwrap()).unwrap();
+        if missing_manifest { fs::remove_file(source.join("manifest.json")).unwrap(); }
+        assert!(handle.send(Action::Check));
+        wait(||handle.snapshot().check_retry_secs>0 && handle.snapshot().update.phase==Phase::Ready
+            && (!missing_manifest || handle.snapshot().check_error.is_some()));
+        assert_eq!(serde_json::to_value(install.state().unwrap()).unwrap(),before);
+        if missing_manifest {
+            assert_eq!(handle.snapshot().check_error.as_deref(),Some("E_APP_UPDATE_CHECK_FAILED"));
+        } else { assert!(handle.snapshot().check_error.is_none()); }
+        assert!(handle.snapshot().update.error.is_none());
+        assert!(handle.send(Action::Restart));
+    }
+}
+fn ready_owner(root:&Path)->(Handle,Install,PathBuf) {
+    let source=source(root,b"ready candidate");
+    let install=Install::fixture(root.join("install")).unwrap();
+    let envelope=fs::read(source.join("manifest.json")).unwrap();
+    install.prepare_observed(&envelope,&AtomicBool::new(false),|_,_,_,_|{},Some(&source),&Mutex::new(())).unwrap();
+    let(handle,install)=owner(root,Some(source.clone()));
+    wait(||handle.snapshot().update.phase==Phase::Ready);
+    (handle,install,source)
+}
+#[test]
+fn rechecking_never_removes_the_existing_manual_install_barrier() {
+    for error in ["E_APP_UPDATE_AUTHORIZATION_CANCELLED","E_APP_UPDATE_AUTHORIZATION_WORKER: unavailable"] {
+        for missing_manifest in [false,true] {
+            let root=tempfile::tempdir().unwrap();let(handle,install,source)=ready_owner(root.path());
+            handle.shared.coordinator.lock().unwrap().as_ref().unwrap()
+                .set_state(Phase::Ready,Some("9.0.1".into()),Some(error.into()));
+            if missing_manifest { fs::remove_file(source.join("manifest.json")).unwrap(); }
+            assert!(handle.send(Action::Check));
+            wait(||handle.snapshot().check_retry_secs>0 && handle.snapshot().update.phase==Phase::Ready);
+            assert_eq!(handle.snapshot().update.error.as_deref(),Some(error));
+            assert_eq!(handle.snapshot().check_error.is_some(),missing_manifest);
+            let session=Session::for_test(install);
+            let queue=DownloadCoordinator::update_test_queue(root.path());
+            allow_automatic_restart(&handle,&queue);
+            handle.poll(&queue,Some(&session));
+            assert!(!queue.snapshot().stopping);
+            assert!(!handle.shared.closing.load(Ordering::Acquire));
+            assert!(handle.send(Action::Restart));
+        }
+    }
+}
+#[test]
+fn rechecking_a_newer_version_retains_install_barriers_and_reports_failed_acquisition() {
+    for error in [None,Some("E_APP_UPDATE_AUTHORIZATION_CANCELLED"),Some("E_APP_UPDATE_AUTHORIZATION_WORKER: unavailable")] {
+        for missing_package in [false,true] {
+            let root=tempfile::tempdir().unwrap();let(handle,install,source)=ready_owner(root.path());
+            handle.shared.coordinator.lock().unwrap().as_ref().unwrap()
+                .set_state(Phase::Ready,Some("9.0.1".into()),error.map(str::to_owned));
+            let(_,package,envelope)=super::super::tests::fixture("9.0.2",2,&[("Ameow.exe",b"newer candidate")]);
+            fs::write(source.join("manifest.json"),envelope).unwrap();
+            if missing_package { fs::remove_file(source.join("package.zip")).unwrap(); }
+            else { fs::write(source.join("package.zip"),package).unwrap(); }
+            assert!(handle.send(Action::Check));
+            wait(||handle.snapshot().check_retry_secs>0 && handle.snapshot().update.phase==Phase::Ready);
+            let expected=if missing_package { "9.0.1" } else { "9.0.2" };
+            assert_eq!(handle.snapshot().update.version.as_deref(),Some(expected));
+            assert_eq!(install.state().unwrap().pending.unwrap().version,expected);
+            assert_eq!(handle.snapshot().update.error.as_deref(),error);
+            assert_eq!(handle.snapshot().check_error.is_some(),missing_package);
+            if error.is_some() {
+                let session=Session::for_test(install);
+                let queue=DownloadCoordinator::update_test_queue(root.path());
+                allow_automatic_restart(&handle,&queue);
+                handle.poll(&queue,Some(&session));
+                assert!(!queue.snapshot().stopping);
+            }
+            assert!(handle.send(Action::Restart));
+        }
+    }
+}
+#[test]
+fn manual_newer_checks_keep_install_barriers_through_download_or_enabling_automatic_updates() {
+    for error in ["E_APP_UPDATE_AUTHORIZATION_CANCELLED","E_APP_UPDATE_AUTHORIZATION_WORKER: unavailable"] {
+        for enable_automatic in [false,true] {
+            let root=tempfile::tempdir().unwrap();let(handle,install,source)=ready_owner(root.path());
+            assert!(handle.send(Action::Save(Preferences{auto_update:false,..Default::default()})));
+            wait(||handle.snapshot().saved);
+            handle.shared.coordinator.lock().unwrap().as_ref().unwrap()
+                .set_state(Phase::Ready,Some("9.0.1".into()),Some(error.into()));
+            let before=serde_json::to_value(install.state().unwrap()).unwrap();
+            let(_,package,envelope)=super::super::tests::fixture("9.0.2",2,&[("Ameow.exe",b"deferred newer candidate")]);
+            fs::write(source.join("manifest.json"),envelope).unwrap();
+            fs::write(source.join("package.zip"),package).unwrap();
+            assert!(handle.send(Action::Check));
+            wait(||handle.snapshot().update.phase==Phase::Available);
+            assert_eq!(handle.snapshot().update.version.as_deref(),Some("9.0.2"));
+            assert_eq!(handle.snapshot().update.error.as_deref(),Some(error));
+            assert!(handle.snapshot().check_error.is_none());
+            assert_eq!(serde_json::to_value(install.state().unwrap()).unwrap(),before);
+            let pending=install.state().unwrap().pending.unwrap();
+            assert_eq!(pending.version,"9.0.1");
+            install.verify_release(&pending).unwrap();
+            if enable_automatic {
+                assert!(handle.send(Action::Save(Preferences::default())));
+            } else {
+                assert!(handle.send(Action::Download));
+            }
+            wait(||handle.snapshot().update.phase==Phase::Ready);
+            assert_eq!(handle.snapshot().update.version.as_deref(),Some("9.0.2"));
+            assert_eq!(handle.snapshot().update.error.as_deref(),Some(error));
+            assert_eq!(handle.snapshot().preferences.auto_update,enable_automatic);
+            let pending=install.state().unwrap().pending.unwrap();
+            assert_eq!(pending.version,"9.0.2");
+            install.verify_release(&pending).unwrap();
+            let session=Session::for_test(install);
+            session.coordinator.prepare_restart().unwrap();
+            let queue=DownloadCoordinator::update_test_queue(root.path());
+            allow_automatic_restart(&handle,&queue);
+            handle.poll(&queue,Some(&session));
+            assert!(!queue.snapshot().stopping);
+            assert!(!handle.shared.closing.load(Ordering::Acquire));
+            assert!(handle.send(Action::Restart));
+            handle.poll(&queue,Some(&session));
+            assert!(handle.shared.closing.load(Ordering::Acquire));
+        }
+    }
+}
+#[cfg(target_os="macos")]
+#[test]
+fn disabling_automatic_updates_during_a_slow_recheck_keeps_the_valid_ready_candidate() {
+    use std::os::unix::ffi::OsStrExt;
+    let root=tempfile::tempdir().unwrap();let(handle,install,source)=ready_owner(root.path());
+    let manifest=source.join("manifest.json");fs::remove_file(&manifest).unwrap();
+    let fifo=std::ffi::CString::new(manifest.as_os_str().as_bytes()).unwrap();
+    assert_eq!(unsafe{libc::mkfifo(fifo.as_ptr(),0o600)},0);
+    assert!(handle.send(Action::Check));
+    let writer=fs::OpenOptions::new().write(true).open(manifest).unwrap();
+    assert!(handle.send(Action::Save(Preferences{auto_update:false,..Default::default()})));
+    drop(writer);
+    wait(||handle.snapshot().saved);
+    assert_eq!(handle.snapshot().update.phase,Phase::Ready);
+    assert_eq!(handle.snapshot().update.version.as_deref(),Some("9.0.1"));
+    assert!(install.state().unwrap().pending.is_some());
+    assert_eq!(handle.snapshot().check_error.as_deref(),Some("E_APP_UPDATE_CANCELLED"));
+    assert!(handle.send(Action::Restart));
+}
+#[test]
+fn old_view_snapshots_without_check_errors_still_deserialize() {
+    let mut stored=serde_json::to_value(View::default()).unwrap();
+    stored.as_object_mut().unwrap().remove("check_error");
+    let view:View=serde_json::from_value(stored).unwrap();
+    assert!(view.check_error.is_none());
+}
+#[test]
+fn queued_ready_check_blocks_duplicate_checks_and_restart_until_the_owner_handles_it() {
+    let root=tempfile::tempdir().unwrap();let(mut handle,session,queue)=restart_fixture(root.path());
+    let(sender,receiver)=mpsc::sync_channel(8);handle.sender=sender;
+    assert!(handle.send(Action::Check));
+    assert_eq!(handle.snapshot().update.phase,Phase::Checking);
+    assert!(!handle.send(Action::Check));
+    assert!(!handle.send(Action::Restart));
+    handle.poll(&queue,Some(&session));
+    assert!(!queue.snapshot().stopping);
+    assert!(matches!(receiver.try_recv(),Ok(Action::Check)));
+    assert!(receiver.try_recv().is_err());
 }

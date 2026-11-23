@@ -1390,28 +1390,30 @@ impl SettingsWindow {
         }
         cx.notify();
     }
+    fn update_interaction(&self, cx: &mut Context<Self>) {
+        let _ = self.main.update(cx, |main, _| {
+            if let Some(ui) = &main.downloads { ui.updates.user_interaction(); }
+        });
+    }
     fn update_switch(&self, index: usize, cx: &mut Context<Self>) -> AnyElement {
         use ameow_next::app_update::service::Action;
         let v = &self.projection.app_update;
         let l = self.projection.language;
         let p = Palette::new(self.projection.night);
         let on = match index {
-            0 => v.preferences.auto_check,
-            1 => v.preferences.auto_download,
-            _ => v.preferences.idle_restart,
+            0 => v.preferences.auto_update,
+            _ => v.preferences.notify_updates,
         };
-        let enabled = !v.saving && (index != 1 || v.preferences.auto_check) && !self.passive.get();
+        let enabled = !v.saving && !self.passive.get();
         let thumb = self.motion.value(format!("switch:update:{index}"), if on { 1. } else { 0. });
         let id = match index {
-            0 => "update-auto-check",
-            1 => "update-auto-download",
-            _ => "update-idle-restart",
+            0 => "update-automatic",
+            _ => "update-notifications",
         };
         let mut prefs = v.preferences.clone();
         match index {
-            0 => prefs.auto_check = !on,
-            1 => prefs.auto_download = !on,
-            _ => prefs.idle_restart = !on,
+            0 => prefs.auto_update = !on,
+            _ => prefs.notify_updates = !on,
         };
         let keyboard = prefs.clone();
         let switch = self
@@ -1446,14 +1448,16 @@ impl SettingsWindow {
                     }))
             });
         let label = match index {
-            0 => l.text("自动检查更新", "Automatically check for updates"),
-            1 => l.text("后台下载更新", "Download updates in background"),
-            _ => l.text("空闲时自动重启更新", "Restart to update when idle"),
+            0 => l.text("自动更新", "Automatic updates"),
+            _ => l.text("更新提醒", "Update notifications"),
         };
         let (help_id, help_label, help) = match index {
-            0 => ("update-auto-check-help", l.text("自动检查更新说明", "Automatic update check help"), l.text("关闭后仍可手动检查更新。", "You can still check for updates manually when this is off.")),
-            1 => ("update-auto-download-help", l.text("后台下载更新说明", "Background update download help"), l.text("关闭自动检查时，后台下载也会暂停。", "Background downloads pause when automatic checks are off.")),
-            _ => ("update-idle-restart-help", l.text("空闲时自动重启更新说明", "Idle restart help"), l.text("所有下载任务结束并释放资源后，自动重启应用以安装更新。", "Restarts the app to install an update after all downloads finish and release their resources.")),
+            0 => ("update-automatic-help", l.text("自动更新说明", "Automatic update help"), if on {
+                l.text("自动检查、后台下载，任务结束且资源释放后，在合适的空闲时机重启安装。", "Automatically checks and downloads in the background, then restarts to install at a suitable idle time after tasks finish and release their resources.")
+            } else {
+                l.text("继续检查并提醒有新版本，由用户决定下载和安装。", "Continues checking for new versions and notifying you. You choose when to download and install.")
+            }),
+            _ => ("update-notifications-help", l.text("更新提醒说明", "Update notification help"), l.text("只控制 Full 左下角的应用更新提醒，不改变自动更新或其他提醒。", "Only controls application update notifications in Full. Automatic updates and other notifications are unchanged.")),
         };
         div()
             .min_h(px(tokens::SETTINGS_ROW_HEIGHT))
@@ -1502,18 +1506,16 @@ impl SettingsWindow {
                 l.text("任务完成后会自动更新，当前下载会继续。",
                     "The app will update automatically when tasks finish. Current downloads will continue.").into(), cx))));
         }
-        if !busy && v.update.phase != Phase::Ready {
-            actions = actions.child(self.icon_button(
+        actions = actions.child(self.icon_button(
                 "update-check",
                 "icons/refresh-cw.svg",
                 if v.check_retry_secs > 0 {
                     format!("{} ({}s)", l.text("检查更新", "Check for updates"), v.check_retry_secs)
                 } else { l.text("检查更新", "Check for updates").to_string() },
-                v.check_retry_secs == 0,
+                !busy && v.check_retry_secs == 0,
                 cx,
                 |t, _, cx| t.update_action(Action::Check, cx),
             ));
-        }
         let detail = crate::app_update_ui::detail(v, l);
         div().flex_none().pt(px(8.)).flex().flex_col()
             .child(div().text_size(px(15.)).font_weight(FontWeight::MEDIUM).child(l.text("应用更新","Application updates")))
@@ -1523,12 +1525,11 @@ impl SettingsWindow {
                 .child(actions.flex_none()))
             .child(self.notice_bar("app-update-error", (!detail.is_empty() && (matches!(v.update.phase, Phase::Failed | Phase::RolledBack) || v.update.error.is_some()))
                 .then(|| (detail.clone(), true))))
+            .child(self.notice_bar("app-update-check-error", crate::app_update_ui::check_feedback(v,l).map(|message| (message.into(),true))))
             .when(!detail.is_empty() && !matches!(v.update.phase, Phase::Failed | Phase::RolledBack) && v.update.error.is_none(), |s|
                 s.child(div().mt(px(6.)).text_size(px(12.)).line_height(px(18.)).text_color(p.neutral).child(detail)))
-            .child(self.notice_bar("app-update-launcher", (v.update.phase == Phase::Ready && !v.launcher)
-                .then(|| (l.text("请通过 Ameow 启动入口重新打开后更新。", "Open Ameow through its launcher to install the update.").into(), false))))
             .child(div().mt(px(20.)).border_t_1().border_color(p.border).pt(px(8.))
-                .child(self.update_switch(0,cx)).child(self.update_switch(1,cx)).child(self.update_switch(2,cx)))
+                .child(self.update_switch(0,cx)).child(self.update_switch(1,cx)))
             .child(self.notice_bar("update-preferences", (v.saving || v.save_error.is_some()).then(|| (
                 if v.save_error.is_some() { l.text("保存失败，请重试", "Could not save. Try again") } else { l.text("正在保存…", "Saving…") }.into(),
                 v.save_error.is_some()))))
@@ -1660,13 +1661,17 @@ impl Render for SettingsWindow {
             .font(tokens::desktop_ui_font())
             .text_size(px(13.))
             .line_height(px(20.))
+            .on_mouse_move(cx.listener(|this, _, _, cx| this.update_interaction(cx)))
+            .on_scroll(cx.listener(|this, _, _, cx| this.update_interaction(cx)))
             .capture_any_mouse_down(cx.listener(|this, _, _, cx| {
+                this.update_interaction(cx);
                 if this.keyboard_focus {
                     this.keyboard_focus = false;
                     cx.notify();
                 }
             }))
             .capture_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
+                this.update_interaction(cx);
                 if this.shortcut_key(event, window, cx) { cx.stop_propagation(); return; }
                 if !this.keyboard_focus {
                     this.keyboard_focus = true;
@@ -2240,7 +2245,7 @@ impl Prototype {
                 if view.browser_ui.guide > 0 { view.browser_ui.preview_path(); }
                 view.open_pending = scene.state == "folder-opening";
                 view.help_open = match scene.state.as_str() {
-                    "app-help" => Some("update-auto-check-help"),
+                    "app-help" => Some("update-automatic-help"),
                     "app-update-feedback" => Some("update-restart-notice"),
                     _ => None,
                 };

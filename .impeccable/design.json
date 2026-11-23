@@ -509,6 +509,11 @@
         "section": "components"
       },
       {
+        "name": "Application Update Controls",
+        "body": "关于页应用更新仅保留自动更新、更新提醒两个默认开启的策略开关；检查更新图标始终可见，处理中禁用。自动更新标题旁info按开关显示用户确认的两句说明。Full仅由提醒开关控制应用更新分类，组件故障及扩展提醒独立；现有浮窗整行直接执行下载、重启或重试，悬停不启动业务。下载、验证、已安排等待和切换阶段显示真实状态并禁用重复操作，详情复用锚定提示与必要进度，不增加新框架或常驻底部说明。",
+        "section": "components"
+      },
+      {
         "name": "The Native Mac Tray Menu Rule",
         "body": "macOS 只有菜单栏（系统托盘）使用真实 AppKit NSMenu，不显示应用状态摘要，保留打开、设置、退出和条件更新。Full 右键继续 GPUI 自绘画质分段、规格提示、设置、隐藏、退出和原关闭/菜单锁交互；画质按 owner 已确认值呈现，保存待确认时禁用。两个设置入口共用原 owner，主线程激活所属窗口并支持原生关闭后重开。Windows 行为与获批 template 图标不变。",
         "section": "components"
