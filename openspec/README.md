@@ -14,7 +14,7 @@ OpenSpec 是本仓库正式行为要求的记录与更新体系。当前工程�
 | [desktop-control](specs/desktop-control/spec.md) | CLI 共用队列、本机访问、实例身份、机器结果与等待边界 |
 | [page-video-tools](specs/page-video-tools/spec.md) | 作品绑定、片段草稿、Peek/Marker 与真实受理反馈 |
 | [developer-execution](specs/developer-execution/spec.md) | 开发构建的隔离有限执行、场景性质、证据和退出边界 |
-| [release-integrity](specs/release-integrity/spec.md) | 当前构建/签名/四资产、明确发行授权、身份兼容与证据保全 |
+| [release-integrity](specs/release-integrity/spec.md) | 当前构建/签名/五资产、明确发行授权、身份兼容与证据保全 |
 | [macos-native](specs/macos-native/spec.md) | Apple Silicon 原生窗口、菜单栏、组件与应用更新适配 |
 
 按改动读取相关能力。GitHub Issue/PR 记录目标、决定与交付，OpenSpec changes 记录正式行为变更；已归档 change 保留需求与设计沿革。
