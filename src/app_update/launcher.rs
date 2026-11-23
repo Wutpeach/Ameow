@@ -45,7 +45,7 @@ pub(crate) fn audit(
         .map_err(|e| e.to_string())?;
     writeln!(log, "{}", serde_json::json!({"time": super::store::now(), "event": event, "version":version, "pid":pid})).and_then(|_| log.sync_all()).map_err(|e| e.to_string())
 }
-fn rollback(install: &Install) -> Result<(), String> {
+fn rollback(install: &Install, reason: Option<&str>) -> Result<(), String> {
     let _lock = install.lock()?;
     let mut state = install.load()?;
     if let Some(trial) = state.trial.take() {
@@ -58,8 +58,8 @@ fn rollback(install: &Install) -> Result<(), String> {
         }
         state.pending = None;
         state.last_error = Some(format!(
-            "E_APP_UPDATE_ROLLED_BACK: {} did not become Ready",
-            trial.version
+            "E_APP_UPDATE_ROLLED_BACK: {}: {}",
+            trial.version, reason.unwrap_or("candidate did not become Ready")
         ));
         install.save(&state)?;
         audit(&install.root, "rolled-back", &trial.version, None)?;
@@ -117,6 +117,7 @@ fn commit_ready(install: &Install, release: &Release, trial: bool) -> Result<(),
     if state.trial.as_ref().map(|r| &r.manifest_hash) != Some(&release.manifest_hash) {
         return Err("E_APP_UPDATE_TRIAL_CHANGED".into());
     }
+    install.publish_extension(release)?;
     state.previous = state.current.take();
     state.current = Some(release.clone());
     state.trial = None;
@@ -161,7 +162,7 @@ pub fn run(install: Install, args: &[String], ready_timeout: Duration) -> Result
         crate::login_startup::InstanceAcquire::Primary(guard) => drop(guard),
     }
     // An interrupted launcher never retries an unconfirmed candidate automatically.
-    rollback(&install)?;
+    rollback(&install, None)?;
     loop {
         let (release, trial) = select(&install)?;
         let _exe_guard: File = match install.verify_release(&release) {
@@ -169,7 +170,7 @@ pub fn run(install: Install, args: &[String], ready_timeout: Duration) -> Result
             Err(error) => {
                 audit(&install.root, "executable-rejected", &release.version, None)?;
                 if trial {
-                    rollback(&install)?;
+                    rollback(&install, None)?;
                     if install.state()?.current.is_some() {
                         continue;
                     }
@@ -179,6 +180,7 @@ pub fn run(install: Install, args: &[String], ready_timeout: Duration) -> Result
                 return Err(error);
             }
         };
+        if !trial { install.publish_extension(&release)?; }
         let mut random = [0; 32];
         ring::rand::SecureRandom::fill(&ring::rand::SystemRandom::new(), &mut random)
             .map_err(|_| "E_APP_UPDATE_RANDOM")?;
@@ -202,7 +204,7 @@ pub fn run(install: Install, args: &[String], ready_timeout: Duration) -> Result
             Err(error) => {
                 audit(&install.root, "spawn-failed", &release.version, None)?;
                 if trial {
-                    rollback(&install)?;
+                    rollback(&install, None)?;
                     continue;
                 }
                 if recover_current(&install, &release)? {
@@ -216,6 +218,7 @@ pub fn run(install: Install, args: &[String], ready_timeout: Duration) -> Result
         let mut ready = false;
         let mut abort = false;
         let mut first_ready = None;
+        let mut commit_error = None;
         let status = loop {
             if let Some(status) = child.try_wait().map_err(|e| e.to_string())? {
                 break status;
@@ -232,7 +235,13 @@ pub fn run(install: Install, args: &[String], ready_timeout: Duration) -> Result
                     }
                     // Recheck liveness before committing the durable current pointer.
                     if child.try_wait().map_err(|e| e.to_string())?.is_none() {
-                        commit_ready(&install, &release, trial)?;
+                        if let Err(error) = commit_ready(&install, &release, trial) {
+                            audit(&install.root, &format!("commit-rejected: {error}"), &release.version, Some(child.id()))?;
+                            commit_error = Some(error);
+                            abort = true;
+                            atomic_json(&boot.path().join("abort.json"), &ticket.nonce)?;
+                            continue;
+                        }
                         atomic_json(&boot.path().join("accepted.json"), &ticket.nonce)?;
                         ready = true;
                         audit(&install.root, "ready", &release.version, Some(child.id()))?;
@@ -264,7 +273,7 @@ pub fn run(install: Install, args: &[String], ready_timeout: Duration) -> Result
         )?;
         if !ready {
             if trial {
-                rollback(&install)?;
+                rollback(&install, commit_error.as_deref())?;
                 if install.state()?.current.is_some() {
                     continue;
                 }
@@ -291,6 +300,79 @@ pub fn run(install: Install, args: &[String], ready_timeout: Duration) -> Result
 mod tests {
     use super::*;
     use crate::app_update::{Coordinator, Phase, tests::prepare};
+    #[cfg(windows)]
+    #[test]
+    fn companions_verify_bootstrap_pending_trial_ready_and_never_select_an_upgrade_trial() {
+        let root = tempfile::tempdir().unwrap();
+        let install = Install::fixture(root.path().join("install")).unwrap();
+        let selected = || install.component_release().map(|(release, _guard)| release.version);
+        prepare(&install, "0.1.0", 1);
+        assert_eq!(selected().unwrap(), "0.1.0"); // Before the first GUI.
+        let (baseline, _) = select(&install).unwrap();
+        assert!(install.state().unwrap().current.is_none());
+        assert_eq!(selected().unwrap(), "0.1.0"); // First trial, with pending consumed.
+        let host = install.root.join("versions/0.1.0/ameow-browser-host.exe");
+        let bytes = std::fs::read(&host).unwrap();
+        std::fs::write(&host, b"unverified bootstrap host").unwrap();
+        assert!(selected().is_err());
+        std::fs::write(&host, bytes).unwrap();
+        commit_ready(&install, &baseline, true).unwrap();
+        assert_eq!(selected().unwrap(), "0.1.0"); // Accepted Ready.
+        prepare(&install, "0.2.0", 2);
+        assert_eq!(selected().unwrap(), "0.1.0");
+        select(&install).unwrap();
+        assert_eq!(selected().unwrap(), "0.1.0"); // Upgrade trial never takes companions.
+        rollback(&install, None).unwrap();
+        assert_eq!(selected().unwrap(), "0.1.0");
+        let failed = Install::fixture(root.path().join("first-failure")).unwrap();
+        prepare(&failed, "0.1.0", 1);
+        let (candidate, _) = select(&failed).unwrap();
+        let mut state = failed.state().unwrap();
+        state.failed.push(candidate.manifest_hash);
+        failed.save(&state).unwrap();
+        assert!(failed.component_release().err().unwrap().contains("FAILED_TRIAL"));
+        rollback(&failed, None).unwrap();
+        assert!(failed.component_release().err().unwrap().contains("NO_CURRENT_VERSION"));
+    }
+    #[test]
+    fn extension_publication_matches_current_and_repairs_interrupted_or_extra_files() {
+        let root = tempfile::tempdir().unwrap();
+        let install = Install::fixture(root.path().join("install")).unwrap();
+        prepare(&install, "0.1.0", 1);
+        let mut state = install.state().unwrap();
+        state.current = state.pending.take();
+        install.save(&state).unwrap();
+        let baseline = state.current.clone().unwrap();
+        install.publish_extension(&baseline).unwrap();
+        let live = install.root.join("browser-extension");
+        let original = std::fs::read(live.join("build.json")).unwrap();
+        std::fs::write(live.join("extra.js"), b"stale script").unwrap();
+        install.publish_extension(&baseline).unwrap();
+        assert!(!live.join("extra.js").exists());
+        std::fs::rename(&live, install.root.join("browser-extension.previous")).unwrap();
+        install.publish_extension(&baseline).unwrap();
+        assert_eq!(std::fs::read(live.join("build.json")).unwrap(), original);
+        prepare(&install, "0.2.0", 2);
+        let (candidate, trial) = select(&install).unwrap();
+        assert!(trial);
+        #[cfg(windows)]
+        {
+            use std::os::windows::fs::OpenOptionsExt;
+            let held = std::fs::OpenOptions::new().read(true).share_mode(1)
+                .custom_flags(0x02000000).open(&live).unwrap();
+            assert!(commit_ready(&install, &candidate, true).is_err());
+            assert_eq!(install.state().unwrap().current.unwrap().version, "0.1.0");
+            assert_eq!(std::fs::read(live.join("build.json")).unwrap(), original);
+            drop(held);
+        }
+        commit_ready(&install, &candidate, true).unwrap();
+        assert_eq!(install.state().unwrap().current.unwrap().version, "0.2.0");
+        assert_ne!(std::fs::read(live.join("build.json")).unwrap(), original);
+        recover_current(&install, &candidate).unwrap();
+        install.publish_extension(&baseline).unwrap();
+        assert_eq!(install.state().unwrap().current.unwrap().version, "0.1.0");
+        assert_eq!(std::fs::read(live.join("build.json")).unwrap(), original);
+    }
     #[cfg(all(windows, not(feature = "app-update-fixture")))]
     #[test]
     fn ordinary_launcher_rejects_isolation_before_acquiring_install_lease() {
@@ -321,8 +403,8 @@ mod tests {
         prepare(&install, "0.1.1", 2);
         let (candidate, _) = select(&install).unwrap();
         // Durable trial survives launcher/process failure before Ready.
-        rollback(&install).unwrap();
-        rollback(&install).unwrap();
+        rollback(&install, None).unwrap();
+        rollback(&install, None).unwrap();
         let state = install.state().unwrap();
         assert_eq!(state.current.unwrap().version, "0.1.0");
         assert_eq!(state.failed, vec![candidate.manifest_hash]);

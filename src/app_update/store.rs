@@ -80,7 +80,7 @@ pub(crate) fn atomic_json(path: &Path, value: &impl Serialize) -> Result<(), Str
     serde_json::to_writer(file.as_file_mut(), value).map_err(|e| e.to_string())?;
     file.as_file().sync_all().map_err(|e| e.to_string())?;
     file.persist(path)
-        .map_err(|e| format!("E_APP_UPDATE_STATE_WRITE: {e}"))?;
+        .map_err(|e| format!("E_APP_UPDATE_STATE_WRITE: {}: {e}", path.display()))?;
     Ok(())
 }
 pub(crate) fn exclusive(path: &Path) -> Result<File, String> {
@@ -107,31 +107,91 @@ pub(crate) fn exclusive(path: &Path) -> Result<File, String> {
     }
     Ok(file)
 }
+fn tree_files(root: &Path) -> Result<std::collections::BTreeSet<String>, String> {
+    fn visit(root: &Path, dir: &Path, files: &mut std::collections::BTreeSet<String>) -> Result<(), String> {
+        plain(dir)?;
+        for entry in fs::read_dir(dir).map_err(|e| e.to_string())? {
+            let path = entry.map_err(|e| e.to_string())?.path();
+            plain(&path)?;
+            let metadata = fs::symlink_metadata(&path).map_err(|e| e.to_string())?;
+            if metadata.is_dir() { visit(root, &path, files)?; }
+            else if metadata.is_file() { files.insert(path.strip_prefix(root).map_err(|e| e.to_string())?.to_string_lossy().replace('\\', "/")); }
+            else { return Err("E_APP_UPDATE_REPARSE".into()); }
+        }
+        Ok(())
+    }
+    let mut files = std::collections::BTreeSet::new();
+    if root.exists() { visit(root, root, &mut files)?; }
+    Ok(files)
+}
 
-fn extract_windows(mut file: File, archive: &Path, stage: &Path, manifest: &Manifest) -> Result<(), String> {
+fn extract_windows(mut file: File, archive: &Path, stage: &Path, manifest: &Manifest, trust: &Trust) -> Result<(), String> {
+    use std::collections::BTreeSet;
     file.seek(SeekFrom::Start(0)).map_err(|e| e.to_string())?;
     let mut zip = zip::ZipArchive::new(file).map_err(|_| "E_APP_UPDATE_ZIP")?;
-    if zip.len() != 1 { return Err("E_APP_UPDATE_ZIP_MEMBERS".into()); }
-    let mut member = zip.by_index(0).map_err(|_| "E_APP_UPDATE_ZIP")?;
-    if member.name() != "Ameow.exe" || member.is_dir()
-        || member.unix_mode().is_some_and(|mode| mode & 0o170000 == 0o120000)
-        || member.size() != manifest.exe_bytes {
-        return Err("E_APP_UPDATE_ZIP_MEMBER".into());
+    if zip.len() > 600 { return Err("E_APP_UPDATE_ZIP_MEMBERS".into()); }
+    let prefix = format!("versions/{}/", manifest.version);
+    let receipt_path = format!("{prefix}bundle.json");
+    let receipt = {
+        let member = zip.by_name(&receipt_path).map_err(|_| "E_APP_UPDATE_BUNDLE")?;
+        let mut bytes = Vec::new();
+        member.take(65537).read_to_end(&mut bytes).map_err(|e| e.to_string())?;
+        bytes
+    };
+    let (signed, bundle) = trust.verify_bundle(&receipt, Some(now()))?;
+    if bundle.version != manifest.version || bundle.sequence != manifest.sequence
+        || manifest.bundle_sha256.as_deref() != Some(hash(signed.payload.as_bytes()).as_str())
+        || !bundle.files.iter().any(|f| f.path == "Ameow.exe" && f.bytes == manifest.exe_bytes && f.sha256 == manifest.exe_sha256) {
+        return Err("E_APP_UPDATE_BUNDLE_IDENTITY".into());
     }
-    let exe = stage.join("Ameow.exe");
-    let mut output = OpenOptions::new().read(true).write(true).create_new(true).open(&exe)
-        .map_err(|e| e.to_string())?;
-    if std::io::copy(&mut member.by_ref().take(manifest.exe_bytes + 1), &mut output)
-        .map_err(|e| e.to_string())? != manifest.exe_bytes {
-        return Err("E_APP_UPDATE_EXECUTABLE_SIZE".into());
+    let mut required: BTreeSet<String> = bundle.files.iter().map(|f| format!("{prefix}{}", f.path)).collect();
+    required.insert(receipt_path.clone());
+    required.insert("Ameow.exe".into());
+    required.insert("entry.json".into());
+    required.insert("state.json".into());
+    for f in &bundle.files { if f.path != "Ameow.exe" { required.insert(f.path.clone()); } }
+    let mut seen = BTreeSet::new();
+    let mut total = 0u64;
+    for i in 0..zip.len() {
+        let mut member = zip.by_index(i).map_err(|_| "E_APP_UPDATE_ZIP")?;
+        let name = member.name().to_string();
+        if member.is_dir() {
+            if member.enclosed_name().is_none() || member.name().contains('\\') { return Err("E_APP_UPDATE_ZIP_MEMBER".into()); }
+            continue;
+        }
+        if !seen.insert(name.to_ascii_lowercase()) || member.enclosed_name().is_none()
+            || member.unix_mode().is_some_and(|m| m & 0o170000 == 0o120000) { return Err("E_APP_UPDATE_ZIP_MEMBER".into()); }
+        total = total.checked_add(member.size()).ok_or("E_APP_UPDATE_SIZE")?;
+        if total > super::package::MAX_PACKAGE * 3 { return Err("E_APP_UPDATE_SIZE".into()); }
+        if name == receipt_path { continue; }
+        if name == "entry.json" {
+            let mut bytes = Vec::new(); member.take(65537).read_to_end(&mut bytes).map_err(|e| e.to_string())?;
+            if bytes != receipt { return Err("E_APP_UPDATE_BUNDLE_IDENTITY".into()); }
+            continue;
+        }
+        if name == "state.json" { if member.size() > 65536 { return Err("E_APP_UPDATE_STATE_SIZE".into()); } continue; }
+        if name == "FIXTURE.txt" && cfg!(any(test, all(feature="app-update-fixture", debug_assertions))) { continue; }
+        let (relative, extract) = match name.strip_prefix(&prefix) { Some(p) => (p, true), None => (name.as_str(), false) };
+        let record = if !extract && relative == "Ameow.exe" { &bundle.launcher } else {
+            bundle.files.iter().find(|f| f.path == relative).ok_or("E_APP_UPDATE_ZIP_MEMBER")?
+        };
+        if member.size() != record.bytes { return Err("E_APP_UPDATE_EXECUTABLE_SIZE".into()); }
+        if extract {
+            let dest = stage.join(relative);
+            fs::create_dir_all(dest.parent().ok_or("E_APP_UPDATE_PATH")?).map_err(|e| e.to_string())?;
+            let mut output = OpenOptions::new().read(true).write(true).create_new(true).open(&dest).map_err(|e| e.to_string())?;
+            std::io::copy(&mut member.by_ref().take(record.bytes + 1), &mut output).map_err(|e| e.to_string())?;
+            output.sync_all().map_err(|e| e.to_string())?;
+            output.seek(SeekFrom::Start(0)).map_err(|e| e.to_string())?;
+            let (bytes, digest) = hash_reader(&mut output)?;
+            if bytes != record.bytes || digest != record.sha256 { return Err("E_APP_UPDATE_EXECUTABLE_HASH".into()); }
+        } else {
+            let (bytes, digest) = hash_reader(&mut member)?;
+            if bytes != record.bytes || digest != record.sha256 { return Err("E_APP_UPDATE_EXECUTABLE_HASH".into()); }
+        }
     }
-    output.sync_all().map_err(|e| e.to_string())?;
-    output.seek(SeekFrom::Start(0)).map_err(|e| e.to_string())?;
-    if hash_reader(&mut output)?.1 != manifest.exe_sha256 {
-        return Err("E_APP_UPDATE_EXECUTABLE_HASH".into());
-    }
-    drop(output);
-    drop(member);
+    if !required.iter().all(|n| seen.contains(&n.to_ascii_lowercase())) { return Err("E_APP_UPDATE_ZIP_MEMBERS".into()); }
+    fs::write(stage.join("bundle.json"), receipt).map_err(|e| e.to_string())?;
     drop(zip);
     fs::remove_file(archive).map_err(|e| e.to_string())
 }
@@ -227,18 +287,28 @@ impl Install {
     }
     pub fn verify_release(&self, release: &Release) -> Result<File, String> {
         let dir = self.release_dir(&release.version)?;
-        let manifest = self.release_manifest(release)?;
         #[cfg(target_os = "macos")]
-        if manifest.target != super::package::WINDOWS_TARGET {
+        if self.trust.target() != super::package::WINDOWS_TARGET {
+            let manifest = self.release_manifest(release)?;
+            if manifest.target != super::package::WINDOWS_TARGET {
             let path = dir.join("package.zip");
             let mut archive = super::macos_fs::regular_file(&path)
                 .map_err(|e| format!("E_APP_UPDATE_PACKAGE: {e}"))?;
             super::macos::verify(&mut archive, &dir, &manifest)?;
             super::macos::verify_codesign(&dir.join("Ameow.app"), &manifest)?;
             return Ok(archive);
+            }
         }
-        let exe = dir.join("Ameow.exe");
-        plain(&exe)?;
+        let bundle = self.windows_bundle(release)?;
+        let expected: std::collections::BTreeSet<_> = bundle.files.iter().map(|f| f.path.clone())
+            .chain(["bundle.json".into(), "manifest.json".into()]).collect();
+        let actual = tree_files(&dir)?;
+        if actual.iter().any(|p| !expected.contains(p)) { return Err("E_APP_UPDATE_ZIP_MEMBERS".into()); }
+        let mut app = None;
+        for record in &bundle.files {
+        let path = dir.join(&record.path);
+        plain(&path)?;
+        if !fs::symlink_metadata(&path).map_err(|e| e.to_string())?.is_file() { return Err("E_APP_UPDATE_EXECUTABLE".into()); }
         let mut options = OpenOptions::new();
         options.read(true);
         #[cfg(windows)]
@@ -247,29 +317,97 @@ impl Install {
             options.share_mode(1);
         }
         let mut guard = options
-            .open(exe)
+            .open(path)
             .map_err(|e| format!("E_APP_UPDATE_EXECUTABLE: {e}"))?;
         let (bytes, digest) = hash_reader(&mut guard)?;
-        if bytes != manifest.exe_bytes || digest != manifest.exe_sha256 {
+        if bytes != record.bytes || digest != record.sha256 {
             return Err("E_APP_UPDATE_EXECUTABLE_HASH".into());
         }
-        Ok(guard)
+        if record.path == "Ameow.exe" { app = Some(guard); }
+        }
+        app.ok_or_else(|| "E_APP_UPDATE_BUNDLE_INCOMPLETE".into())
+    }
+    #[cfg(windows)]
+    pub(crate) fn component_release(&self) -> Result<(Release, File), String> {
+        let state = self.state()?;
+        // An accepted version always wins. Only a first install uses its bootstrap slot.
+        let release = state.current.or(state.trial).or(state.pending)
+            .ok_or("E_APP_UPDATE_NO_CURRENT_VERSION")?;
+        if state.failed.contains(&release.manifest_hash) { return Err("E_APP_UPDATE_FAILED_TRIAL".into()); }
+        let guard = self.verify_release(&release)?;
+        Ok((release, guard))
+    }
+    #[cfg(windows)]
+    pub(crate) fn verify_component(&self, release: &Release, name: &str) -> Result<File, String> {
+        let bundle = self.windows_bundle(release)?;
+        let record = bundle.files.iter().find(|f| f.path == name).ok_or("E_APP_UPDATE_BUNDLE_INCOMPLETE")?;
+        let path = self.release_dir(&release.version)?.join(name);
+        plain(&path)?;
+        use std::os::windows::fs::OpenOptionsExt;
+        let mut file = OpenOptions::new().read(true).share_mode(1).open(path).map_err(|e| e.to_string())?;
+        let (bytes, digest) = hash_reader(&mut file)?;
+        if bytes != record.bytes || digest != record.sha256 { return Err("E_APP_UPDATE_EXECUTABLE_HASH".into()); }
+        Ok(file)
+    }
+    pub(crate) fn windows_bundle(&self, release: &Release) -> Result<super::WindowsBundle, String> {
+        let signed: SignedManifest = read_json(&self.release_dir(&release.version)?.join("bundle.json"))?;
+        let (signed, bundle) = self.trust.verify_bundle(&serde_json::to_vec(&signed).map_err(|e| e.to_string())?, None)?;
+        if bundle.version != release.version || bundle.sequence != release.sequence
+            || hash(signed.payload.as_bytes()) != release.manifest_hash { return Err("E_APP_UPDATE_RELEASE_IDENTITY".into()); }
+        Ok(bundle)
+    }
+    /// The unpacked browser path stays stable; its contents derive from the confirmed slot.
+    pub(crate) fn publish_extension(&self, release: &Release) -> Result<(), String> {
+        let bundle = self.windows_bundle(release)?;
+        let live = self.root.join("browser-extension");
+        let backup = self.root.join("browser-extension.previous");
+        plain(&live)?; plain(&backup)?;
+        let records: Vec<_> = bundle.files.iter().filter(|f| f.path.starts_with("browser-extension/")).collect();
+        let expected: std::collections::BTreeSet<_> = records.iter().map(|f| f.path.strip_prefix("browser-extension/").unwrap().to_string()).collect();
+        let matches = tree_files(&live)? == expected && records.iter().all(|f| File::open(self.root.join(&f.path)).ok()
+            .and_then(|mut file| hash_reader(&mut file).ok()).is_some_and(|(n, hash)| n == f.bytes && hash == f.sha256));
+        if matches {
+            tree_files(&backup)?;
+            if backup.exists() { fs::remove_dir_all(&backup).map_err(|e| e.to_string())?; }
+            return Ok(());
+        }
+        let stage = tempfile::Builder::new().prefix("extension-").tempdir_in(self.root.join("staging")).map_err(|e| e.to_string())?;
+        let next = stage.path().join("browser-extension");
+        for record in records {
+            let path = stage.path().join(&record.path);
+            fs::create_dir_all(path.parent().ok_or("E_APP_UPDATE_PATH")?).map_err(|e| e.to_string())?;
+            let source = self.release_dir(&release.version)?.join(&record.path);
+            plain(&source)?;
+            fs::copy(source, &path).map_err(|e| e.to_string())?;
+            let (bytes, digest) = hash_reader(&mut File::open(&path).map_err(|e| e.to_string())?)?;
+            if bytes != record.bytes || digest != record.sha256 { return Err("E_APP_UPDATE_EXECUTABLE_HASH".into()); }
+        }
+        tree_files(&backup)?;
+        if backup.exists() { fs::remove_dir_all(&backup).map_err(|e| e.to_string())?; }
+        if live.exists() { fs::rename(&live, &backup).map_err(|e| format!("E_APP_UPDATE_EXTENSION: {e}"))?; }
+        if let Err(error) = fs::rename(&next, &live) {
+            if backup.exists() { let _ = fs::rename(&backup, &live); }
+            return Err(format!("E_APP_UPDATE_EXTENSION: {error}"));
+        }
+        if backup.exists() { fs::remove_dir_all(&backup).map_err(|e| e.to_string())?; }
+        Ok(())
     }
     /// An installer adds immutable files; the existing Launcher still owns trial/Ready/rollback.
     pub fn register_installed_version(&self, version: &str) -> Result<(), String> {
         let _running = exclusive(&self.root.join("running.lock"))?;
-        #[cfg(windows)]
+        #[cfg(all(windows, not(any(test, feature = "app-update-fixture"))))]
         let _instance = match crate::login_startup::InstanceGuard::acquire_with_restore(false)? {
             crate::login_startup::InstanceAcquire::Duplicate => return Err("E_APP_UPDATE_INSTALL_RUNNING".into()),
             crate::login_startup::InstanceAcquire::Primary(guard) => guard,
         };
         let _lock = self.lock()?;
-        let envelope: SignedManifest = read_json(&self.release_dir(version)?.join("manifest.json"))?;
+        let envelope: SignedManifest = read_json(&self.release_dir(version)?.join("bundle.json"))?;
         let bytes = serde_json::to_vec(&envelope).map_err(|e| e.to_string())?;
-        let (_, manifest) = self.trust.verify(&bytes, Some(now()))?;
+        let (_, bundle) = self.trust.verify_bundle(&bytes, Some(now()))?;
+        if bundle.version != version { return Err("E_APP_UPDATE_RELEASE_IDENTITY".into()); }
         let release = Release {
             version: version.into(),
-            sequence: manifest.sequence,
+            sequence: bundle.sequence,
             manifest_hash: hash(envelope.payload.as_bytes()),
         };
         let _exe = self.verify_release(&release)?;
@@ -280,8 +418,16 @@ impl Install {
         }) {
             return Ok(());
         }
-        self.authorize(&bytes)?;
         let mut state = self.load()?;
+        super::Version::parse(version)?;
+        if state.current.as_ref().is_some_and(|r| super::Version::parse(&r.version).is_ok_and(|v| v >= super::Version::parse(version).unwrap())) {
+            return Err("E_APP_UPDATE_DOWNGRADE".into());
+        }
+        if bundle.sequence < state.highest_sequence
+            || bundle.sequence == state.highest_sequence && state.highest_manifest != release.manifest_hash
+            || state.failed.contains(&release.manifest_hash) { return Err("E_APP_UPDATE_REPLAY".into()); }
+        state.highest_sequence = release.sequence;
+        state.highest_manifest = release.manifest_hash.clone();
         state.pending = Some(release);
         self.save(&state)
     }
@@ -290,7 +436,7 @@ impl Install {
         let mut state = self.load()?;
         let baseline = if manifest.target == super::package::WINDOWS_TARGET { "0.0.0" } else { super::BUILD_VERSION };
         manifest.newer_than(state.current.as_ref().map_or(baseline, |r| &r.version))?;
-        let digest = hash(signed.payload.as_bytes());
+        let digest = manifest.bundle_sha256.clone().unwrap_or_else(|| hash(signed.payload.as_bytes()));
         if state.trial.is_some() {
             return Err("E_APP_UPDATE_TRIAL_BUSY".into());
         }
@@ -446,15 +592,15 @@ impl Install {
             super::macos::verify_codesign(&stage.path().join("Ameow.app"), &manifest)?;
             drop(file);
         } else {
-            extract_windows(file, &archive, stage.path(), &manifest)?;
+            extract_windows(file, &archive, stage.path(), &manifest, &self.trust)?;
         }
         #[cfg(not(target_os = "macos"))]
-        extract_windows(file, &archive, stage.path(), &manifest)?;
+        extract_windows(file, &archive, stage.path(), &manifest, &self.trust)?;
         atomic_json(&stage.path().join("manifest.json"), &signed)?;
         let release = Release {
             version: manifest.version.clone(),
             sequence: manifest.sequence,
-            manifest_hash: hash(signed.payload.as_bytes()),
+            manifest_hash: manifest.bundle_sha256.clone().unwrap_or_else(|| hash(signed.payload.as_bytes())),
         };
         let destination = self.release_dir(&release.version)?;
         let _publish = cancel.map(|(_, gate)| gate.lock().unwrap());
@@ -526,6 +672,7 @@ mod macos_tests {
             url: "https://github.com/Wutpeach/Ameow/releases/download/v9.0.0/Ameow-9.0.0-macos-arm64.zip".into(),
             package_bytes: archive.len() as u64, package_sha256: hash(&archive),
             exe_bytes: 10, exe_sha256: hash(b"executable"),
+            bundle_sha256: None,
         };
         let error = install.prepare_fixture(&fixture_envelope(&manifest), &mut Cursor::new(archive)).unwrap_err();
         assert!(error.contains("BUNDLE_IDENTITY") || error.contains("CODESIGN"));
@@ -543,6 +690,7 @@ mod macos_tests {
             target: MACOS_ARM_TARGET.into(), version: super::super::BUILD_VERSION.into(), sequence: 1, issued: 1,
             url: format!("https://github.com/Wutpeach/Ameow/releases/download/v{0}/Ameow-{0}-macos-arm64.zip", super::super::BUILD_VERSION),
             package_bytes: 1, package_sha256: hash(b"a"), exe_bytes: 1, exe_sha256: hash(b"b"),
+            bundle_sha256: None,
         };
         assert_eq!(install.authorize(&fixture_envelope(&manifest)).unwrap_err(), "E_APP_UPDATE_DOWNGRADE");
         manifest.version = "9.0.0".into();

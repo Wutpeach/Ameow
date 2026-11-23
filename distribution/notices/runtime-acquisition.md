@@ -2,7 +2,7 @@
 
 Scope: pinned Windows x64 runtime acquisition and its versioned source references. This is not a license approval, a legal conclusion, or a claim that runtime notices/source obligations for redistribution are complete.
 
-The Launcher-based application portable ZIP and single-EXE update ZIP do not contain yt-dlp.exe, deno.exe, ffmpeg.exe, ffprobe.exe, or gallery-dl.exe. At first use, Ameow obtains the baseline Windows x64 publisher releases below directly from their listed HTTPS release URLs, verifies the pinned hashes in the embedded manifest, and prepares them in the current user's managed application cache. The executables are separate downloaded tools, not files embedded in the package. This describes the delivery mechanism, not an exemption from applicable license obligations.
+The complete application portable ZIP, also used as the Windows application-update payload from the unreleased 0.5.2 layout onward, does not contain yt-dlp.exe, deno.exe, ffmpeg.exe, ffprobe.exe, or gallery-dl.exe. At first use, Ameow obtains the baseline Windows x64 publisher releases below directly from their listed HTTPS release URLs, verifies the pinned hashes in the embedded manifest, and prepares them in the current user's managed application cache. The executables are separate downloaded tools, not files embedded in the package. This describes the delivery mechanism, not an exemption from applicable license obligations.
 
 | Component acquired after launch | Pinned identity and hash | Upstream license/source pointers |
 | --- | --- | --- |

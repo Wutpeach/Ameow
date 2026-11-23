@@ -1,5 +1,5 @@
 //! Offline release preparation. No publishing or production key activation.
-use super::package::{DOMAIN, MAX_PACKAGE, WINDOWS_TARGET as TARGET, hash, unhex};
+use super::package::{BUNDLE_DOMAIN, DOMAIN, MAX_PACKAGE, WINDOWS_TARGET as TARGET, BundleFile, WindowsBundle, hash, unhex};
 use super::store::plain;
 use super::{Manifest, Release, SignedManifest, State, Trust, Version};
 use ring::signature::{ED25519, Ed25519KeyPair, KeyPair, UnparsedPublicKey};
@@ -14,9 +14,6 @@ use std::{
 const IDENTITY_DOMAIN: &[u8] = b"Ameow controlled release identity v1\n";
 const FIXTURE_PUBLIC: &str = "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a";
 const MARKER: &[u8] = b"SYNTHETIC TEST FIXTURE - NOT FOR DISTRIBUTION\nSigned with the public RFC test key; never a production release.\n";
-const FIXTURE_GUIDE: &[u8] = b"Ameow synthetic test fixture\nNot for distribution. Start AmeowLauncher.exe; the real Ready handshake is required.\n";
-const PUBLIC_GUIDE: &[u8] = b"Ameow for Windows x64\nExtract the entire ZIP into a new writable directory, then start AmeowLauncher.exe. Keep the complete folder together; do not start versions/*/Ameow.exe directly.\nUser data stays in %LOCALAPPDATA%/Ameow. No administrator rights are required.\nThe first start verifies the signed application and confirms it only after successful startup.\nThird-party notices are in LICENSE, licenses/ and Settings > About. Runtime components are downloaded separately when needed.\n";
-const CLI_GUIDE: &[u8] = b"Ameow for Windows x64\nExtract the entire ZIP into a new writable directory, then start AmeowLauncher.exe. Keep the complete folder together; do not start versions/*/Ameow.exe directly.\nUser data stays in %LOCALAPPDATA%/Ameow. No administrator rights are required.\nThe first start verifies the signed application and confirms it only after successful startup.\nThe ameow-cli.exe in this folder controls the desktop app. App updates do not replace the CLI; update it using a complete installer or portable release.\nThird-party notices are in LICENSE, licenses/ and Settings > About. Runtime components are downloaded separately when needed.\n";
 type Result<T> = std::result::Result<T, String>;
 fn err(e: impl std::fmt::Display) -> String {
     e.to_string()
@@ -95,15 +92,6 @@ impl Build {
     fn is_fixture(&self) -> bool {
         self.trust.keys.iter().any(|key| key == FIXTURE_PUBLIC)
     }
-    fn guide(&self) -> &'static [u8] {
-        if self.is_fixture() {
-            FIXTURE_GUIDE
-        } else if self.cli.is_some() {
-            CLI_GUIDE
-        } else {
-            PUBLIC_GUIDE
-        }
-    }
     fn validate(&self) -> Result<()> {
         Version::parse(&self.version)?;
         if !cfg!(any(
@@ -118,6 +106,7 @@ impl Build {
             }
         }
         if !matches!((self.schema, &self.cli, self.browser.is_empty()), (1, None, true) | (2, Some(_), true) | (3, Some(_), false))
+            || (!self.is_fixture() && !cfg!(test) && self.schema != 3)
             || self.target != TARGET
             || self.toolchain != "1.98.1"
             || self.app.path != "Ameow.exe"
@@ -178,7 +167,6 @@ impl Build {
 #[serde(deny_unknown_fields)]
 struct Plan {
     build: Build,
-    update: FileRecord,
     fixture: bool,
 }
 #[derive(Serialize, Deserialize)]
@@ -294,12 +282,8 @@ fn members(bytes: &[u8], expected: &BTreeSet<String>) -> Result<BTreeMap<String,
     }
     Ok(result)
 }
-fn update_name(version: &str) -> String {
-    format!("Ameow-{version}-windows-x64.zip")
-}
 fn portable_name(build: &Build) -> String {
-    let suffix = if build.is_fixture() { "-FIXTURE-NOT-FOR-DISTRIBUTION" } else { "" };
-    format!("Ameow-{}-windows-x64-portable{suffix}.zip", build.version)
+    format!("Ameow-{}-windows-x64-portable.zip", build.version)
 }
 fn verify_material_inventory(build: &Build, bytes: &[u8]) -> Result<()> {
     let inventory: serde_json::Value = serde_json::from_slice(bytes).map_err(err)?;
@@ -353,23 +337,9 @@ fn load_build(root: &Path) -> Result<Build> {
     )?;
     Ok(build)
 }
-fn verify_update(bytes: &[u8], build: &Build, record: &FileRecord) -> Result<()> {
-    if record.path != update_name(&build.version) {
-        return Err("E_RELEASE_UPDATE_NAME".into());
-    }
-    record.check(bytes)?;
-    let contents = members(bytes, &BTreeSet::from(["Ameow.exe".into()]))?;
-    build.app.check(&contents["Ameow.exe"])
-}
 /// No signatures are invented. An unconfigured build can prepare only an unsigned plan.
 pub fn prepare(build_root: &Path, output: &Path) -> Result<()> {
     let build = load_build(build_root)?;
-    let update = archive(&BTreeMap::from([(
-        "Ameow.exe".into(),
-        read(&build_root.join("Ameow.exe"), MAX_PACKAGE)?,
-    )]))?;
-    let record = FileRecord::of(&update_name(&build.version), &update);
-    verify_update(&update, &build, &record)?;
     fresh(output)?;
     for item in std::iter::once(&build.app)
         .chain(std::iter::once(&build.launcher))
@@ -384,16 +354,11 @@ pub fn prepare(build_root: &Path, output: &Path) -> Result<()> {
         write_new(&dest, &bytes)?;
     }
     write_new(&output.join("release-build.json"), &encode(&build)?)?;
-    write_new(&output.join(&record.path), &update)?;
-    if build.is_fixture() {
-        write_new(&output.join("FIXTURE.txt"), MARKER)?;
-    }
     let fixture = build.is_fixture();
     write_new(
         &output.join("unsigned-plan.json"),
         &encode(&Plan {
             build,
-            update: record,
             fixture,
         })?,
     )?;
@@ -406,14 +371,6 @@ fn verify_prepared(root: &Path) -> Result<Plan> {
     {
         return Err("E_RELEASE_PLAN_IDENTITY".into());
     }
-    if plan.update.path != update_name(&plan.build.version) {
-        return Err("E_RELEASE_UPDATE_NAME".into());
-    }
-    verify_update(
-        &read(&root.join(&plan.update.path), MAX_PACKAGE)?,
-        &plan.build,
-        &plan.update,
-    )?;
     Ok(plan)
 }
 fn signed(value: &impl Serialize, domain: &[u8], key: &Ed25519KeyPair) -> Result<SignedManifest> {
@@ -438,91 +395,58 @@ fn sign_with_key(
     let plan = verify_prepared(root)?;
     let build = &plan.build;
     let trust = build.trust.trust()?;
-    if !trust.configured() {
-        return Err("E_APP_UPDATE_TRUST_NOT_CONFIGURED".into());
-    }
+    if !trust.configured() { return Err("E_APP_UPDATE_TRUST_NOT_CONFIGURED".into()); }
     build.validate_signed_source()?;
     let version = &build.version;
+    let records: Vec<&FileRecord> = std::iter::once(&build.app)
+        .chain(build.cli.iter()).chain(build.browser.iter()).chain(build.notices.iter()).collect();
+    let bundle = WindowsBundle {
+        schema: 1, product: "Ameow".into(), target: TARGET.into(), version: version.clone(),
+        sequence, issued,
+        launcher: BundleFile { path: "Ameow.exe".into(), bytes: build.launcher.bytes, sha256: build.launcher.sha256.clone() },
+        files: records.iter().map(|record| BundleFile { path: record.path.clone(), bytes: record.bytes, sha256: record.sha256.clone() }).collect(),
+    };
+    let receipt = signed(&bundle, BUNDLE_DOMAIN, key)?;
+    let receipt_bytes = encode(&receipt)?;
+    trust.verify_bundle(&receipt_bytes, Some(super::store::now()))?;
+    let receipt_hash = hash(receipt.payload.as_bytes());
+    let release = Release { version: version.clone(), sequence, manifest_hash: receipt_hash.clone() };
+    let state = State { pending: Some(release), highest_sequence: sequence,
+        highest_manifest: receipt_hash.clone(), ..Default::default() };
+    let mut files = BTreeMap::new();
+    files.insert("Ameow.exe".into(), read(&root.join(&build.launcher.path), MAX_PACKAGE)?);
+    for record in records {
+        let bytes = read(&root.join(&record.path), MAX_PACKAGE)?;
+        record.check(&bytes)?;
+        files.insert(format!("versions/{version}/{}", record.path), bytes.clone());
+        if record.path != "Ameow.exe" { files.insert(record.path.clone(), bytes); }
+    }
+    files.insert("entry.json".into(), receipt_bytes.clone());
+    files.insert(format!("versions/{version}/bundle.json"), receipt_bytes);
+    files.insert("state.json".into(), encode(&state)?);
+    if build.is_fixture() { files.insert("FIXTURE.txt".into(), MARKER.to_vec()); }
+    let portable = archive(&files)?;
+    let update = FileRecord::of(&portable_name(build), &portable);
     let manifest = Manifest {
-        schema: 1,
-        product: "Ameow".into(),
-        channel: "stable".into(),
-        target: TARGET.into(),
-        version: version.clone(),
-        sequence,
-        issued,
-        url: format!(
-            "https://github.com/Wutpeach/Ameow/releases/download/v{version}/Ameow-{version}-windows-x64.zip"
-        ),
-        package_bytes: plan.update.bytes,
-        package_sha256: plan.update.sha256.clone(),
-        exe_bytes: build.app.bytes,
-        exe_sha256: build.app.sha256.clone(),
+        schema: 2, product: "Ameow".into(), channel: "stable".into(), target: TARGET.into(),
+        version: version.clone(), sequence, issued,
+        url: format!("https://github.com/Wutpeach/Ameow/releases/download/v{version}/{}", update.path),
+        package_bytes: update.bytes, package_sha256: update.sha256.clone(),
+        exe_bytes: build.app.bytes, exe_sha256: build.app.sha256.clone(),
+        bundle_sha256: Some(receipt_hash),
     };
     manifest.validate(Some(super::store::now()))?;
     let envelope = signed(&manifest, DOMAIN, key)?;
     let manifest_bytes = encode(&envelope)?;
     trust.verify(&manifest_bytes, Some(super::store::now()))?;
-    let identity = Identity {
-        build: build.clone(),
-        update: plan.update.clone(),
-        manifest_sha256: hash(&manifest_bytes),
-        fixture: build.is_fixture(),
-    };
+    let identity = Identity { build: build.clone(), update, manifest_sha256: hash(&manifest_bytes), fixture: build.is_fixture() };
     let identity_bytes = encode(&signed(&identity, IDENTITY_DOMAIN, key)?)?;
-    let release = Release {
-        version: version.clone(),
-        sequence,
-        manifest_hash: hash(envelope.payload.as_bytes()),
-    };
-    let state = State {
-        pending: Some(release.clone()),
-        highest_sequence: sequence,
-        highest_manifest: release.manifest_hash,
-        ..Default::default()
-    };
-    let mut files = BTreeMap::from([
-        (
-            "AmeowLauncher.exe".into(),
-            read(&root.join("AmeowLauncher.exe"), MAX_PACKAGE)?,
-        ),
-        (
-            format!("versions/{version}/Ameow.exe"),
-            read(&root.join("Ameow.exe"), MAX_PACKAGE)?,
-        ),
-        (
-            format!("versions/{version}/manifest.json"),
-            manifest_bytes.clone(),
-        ),
-        ("state.json".into(), encode(&state)?),
-        ("release-identity.json".into(), identity_bytes.clone()),
-        ("README.txt".into(), build.guide().to_vec()),
-    ]);
-    if let Some(cli) = &build.cli {
-        files.insert(cli.path.clone(), read(&root.join(&cli.path), MAX_PACKAGE)?);
-    }
-    if build.is_fixture() {
-        files.insert("FIXTURE.txt".into(), MARKER.to_vec());
-    }
-    for notice in build.notices.iter().chain(build.browser.iter()) {
-        files.insert(
-            notice.path.clone(),
-            read(&root.join(&notice.path), MAX_PACKAGE)?,
-        );
-    }
-    let portable = archive(&files)?;
     fresh(output)?;
-    write_new(
-        &output.join(&plan.update.path),
-        &read(&root.join(&plan.update.path), MAX_PACKAGE)?,
-    )?;
+    write_new(&output.join(portable_name(build)), &portable)?;
     write_new(&output.join("manifest.json"), &manifest_bytes)?;
     write_new(&output.join("release-identity.json"), &identity_bytes)?;
     write_new(&output.join("release-build.json"), &encode(build)?)?;
-    write_new(&output.join(portable_name(build)), &portable)?;
-    if build.is_fixture() {
-        write_new(&output.join("FIXTURE.txt"), MARKER)?;
-    }
+    if build.is_fixture() { write_new(&output.join("FIXTURE.txt"), MARKER)?; }
     verify_signed_with_roots(output, &build.trust)
 }
 /// The private key stays outside every candidate directory and is never copied or logged.
@@ -568,120 +492,73 @@ pub fn verify_signed(root: &Path, public_roots: &Path) -> Result<()> {
 #[cfg(any(test, all(windows, feature = "app-update-fixture", debug_assertions)))]
 pub fn verify_fixture_launcher(launcher: &Path) -> Result<()> {
     let root = launcher.parent().ok_or("E_RELEASE_PATH")?;
-    let signed: SignedManifest = json(&root.join("release-identity.json"))?;
-    let signature = unhex(&signed.signature, 64)?;
-    UnparsedPublicKey::new(&ED25519, unhex(FIXTURE_PUBLIC, 32)?)
-        .verify(&[IDENTITY_DOMAIN, signed.payload.as_bytes()].concat(), &signature)
-        .map_err(|_| "E_RELEASE_IDENTITY_SIGNATURE")?;
-    let identity: Identity = serde_json::from_str(&signed.payload).map_err(err)?;
-    let build = identity.build;
-    build.validate()?;
-    if !identity.fixture || !build.is_fixture() || read(&root.join("FIXTURE.txt"), 1024)? != MARKER {
-        return Err("E_RELEASE_FIXTURE_REQUIRED".into());
-    }
-    build.launcher.check(&read(launcher, MAX_PACKAGE)?)?;
-    let cli = build.cli.ok_or("E_RELEASE_CLI_REQUIRED")?;
-    cli.check(&read(&root.join(&cli.path), MAX_PACKAGE)?)
+    if read(&root.join("FIXTURE.txt"), 1024)? != MARKER { return Err("E_RELEASE_FIXTURE_REQUIRED".into()); }
+    let receipt = read(&root.join("entry.json"), 65536)?;
+    let (_, bundle) = Trust::fixture().verify_bundle(&receipt, None)?;
+    let record = bundle.launcher;
+    FileRecord { path: record.path, bytes: record.bytes, sha256: record.sha256 }.check(&read(launcher, MAX_PACKAGE)?)
 }
 fn verify_signed_with_roots(root: &Path, roots: &PublicRoots) -> Result<()> {
     let build: Build = json(&root.join("release-build.json"))?;
     build.validate()?;
     build.validate_signed_source()?;
-    if encode(roots)? != encode(&build.trust)? {
-        return Err("E_RELEASE_TRUST_MISMATCH".into());
-    }
+    if encode(roots)? != encode(&build.trust)? { return Err("E_RELEASE_TRUST_MISMATCH".into()); }
     let trust = roots.trust()?;
-    if !trust.configured() {
-        return Err("E_APP_UPDATE_TRUST_NOT_CONFIGURED".into());
-    }
+    if !trust.configured() { return Err("E_APP_UPDATE_TRUST_NOT_CONFIGURED".into()); }
     let identity_bytes = read(&root.join("release-identity.json"), 1024 * 1024)?;
-    let envelope: SignedManifest = serde_json::from_slice(&identity_bytes).map_err(err)?;
-    let signature = unhex(&envelope.signature, 64)?;
-    let message = [IDENTITY_DOMAIN, envelope.payload.as_bytes()].concat();
-    if !roots.keys.iter().any(|key| {
-        unhex(key, 32).is_ok_and(|key| {
-            UnparsedPublicKey::new(&ED25519, key)
-                .verify(&message, &signature)
-                .is_ok()
-        })
-    }) {
+    let identity_envelope: SignedManifest = serde_json::from_slice(&identity_bytes).map_err(err)?;
+    let signature = unhex(&identity_envelope.signature, 64)?;
+    let message = [IDENTITY_DOMAIN, identity_envelope.payload.as_bytes()].concat();
+    if !roots.keys.iter().any(|key| unhex(key, 32).is_ok_and(|key|
+        UnparsedPublicKey::new(&ED25519, key).verify(&message, &signature).is_ok())) {
         return Err("E_RELEASE_IDENTITY_SIGNATURE".into());
     }
-    let identity: Identity = serde_json::from_str(&envelope.payload).map_err(err)?;
+    let identity: Identity = serde_json::from_str(&identity_envelope.payload).map_err(err)?;
     if identity.fixture != build.is_fixture() || encode(&identity.build)? != encode(&build)? {
         return Err("E_RELEASE_SOURCE_IDENTITY".into());
     }
     let signed_bytes = read(&root.join("manifest.json"), 16384)?;
-    let (signed, manifest) = trust.verify(&signed_bytes, Some(super::store::now()))?;
-    if hash(&signed_bytes) != identity.manifest_sha256
-        || manifest.version != build.version
-        || manifest.exe_sha256 != build.app.sha256
-        || manifest.exe_bytes != build.app.bytes
-        || manifest.package_bytes != identity.update.bytes
-        || manifest.package_sha256 != identity.update.sha256
-    {
-        return Err("E_RELEASE_MANIFEST_IDENTITY".into());
-    }
-    if identity.update.path != update_name(&build.version) {
-        return Err("E_RELEASE_UPDATE_NAME".into());
-    }
-    verify_update(
-        &read(&root.join(&identity.update.path), MAX_PACKAGE)?,
-        &build,
-        &identity.update,
-    )?;
+    let (_, manifest) = trust.verify(&signed_bytes, Some(super::store::now()))?;
+    if hash(&signed_bytes) != identity.manifest_sha256 || manifest.version != build.version
+        || manifest.exe_sha256 != build.app.sha256 || manifest.exe_bytes != build.app.bytes
+        || manifest.package_bytes != identity.update.bytes || manifest.package_sha256 != identity.update.sha256
+        || identity.update.path != portable_name(&build) { return Err("E_RELEASE_MANIFEST_IDENTITY".into()); }
+    let portable_bytes = read(&root.join(&identity.update.path), MAX_PACKAGE)?;
+    identity.update.check(&portable_bytes)?;
     let version = &build.version;
-    let mut expected = BTreeSet::from([
-        "AmeowLauncher.exe".into(),
-        format!("versions/{version}/Ameow.exe"),
-        format!("versions/{version}/manifest.json"),
-        "state.json".into(),
-        "release-identity.json".into(),
-        "README.txt".into(),
-    ]);
-    if let Some(cli) = &build.cli { expected.insert(cli.path.clone()); }
-    if build.is_fixture() {
-        expected.insert("FIXTURE.txt".into());
+    let records: Vec<&FileRecord> = std::iter::once(&build.app).chain(build.cli.iter())
+        .chain(build.browser.iter()).chain(build.notices.iter()).collect();
+    let mut expected = BTreeSet::from(["Ameow.exe".to_string(), "entry.json".to_string(), "state.json".to_string(), format!("versions/{version}/bundle.json")]);
+    for record in &records {
+        expected.insert(format!("versions/{version}/{}", record.path));
+        if record.path != "Ameow.exe" { expected.insert(record.path.clone()); }
     }
-    let expected = expected
-        .into_iter()
-        .chain(build.notices.iter().map(|n| n.path.clone()))
-        .chain(build.browser.iter().map(|n| n.path.clone()))
-        .collect();
-    let portable_path = portable_name(&build);
-    let portable_bytes = read(&root.join(&portable_path), MAX_PACKAGE)?;
+    if build.is_fixture() { expected.insert("FIXTURE.txt".into()); }
     let files = members(&portable_bytes, &expected)?;
-    build
-        .app
-        .check(&files[&format!("versions/{version}/Ameow.exe")])?;
-    build.launcher.check(&files["AmeowLauncher.exe"])?;
-    if let Some(cli) = &build.cli { cli.check(&files[&cli.path])?; }
-    for notice in build.notices.iter().chain(build.browser.iter()) {
-        notice.check(&files[&notice.path])?;
+    build.launcher.check(&files["Ameow.exe"])?;
+    for record in &records {
+        record.check(&files[&format!("versions/{version}/{}", record.path)])?;
+        if record.path != "Ameow.exe" { record.check(&files[&record.path])?; }
     }
     verify_material_inventory(&build, &files["licenses/license-inputs.json"])?;
+    if files["entry.json"] != files[&format!("versions/{version}/bundle.json")] { return Err("E_RELEASE_BOOTSTRAP".into()); }
+    let (receipt, bundle) = trust.verify_bundle(&files[&format!("versions/{version}/bundle.json")], Some(super::store::now()))?;
+    let digest = hash(receipt.payload.as_bytes());
+    let expected_bundle_files: BTreeMap<_, _> = records.iter().map(|r| (&r.path, (r.bytes, &r.sha256))).collect();
+    let signed_bundle_files: BTreeMap<_, _> = bundle.files.iter().map(|r| (&r.path, (r.bytes, &r.sha256))).collect();
+    if manifest.bundle_sha256.as_deref() != Some(digest.as_str()) || bundle.version != *version
+        || bundle.sequence != manifest.sequence || bundle.launcher.sha256 != build.launcher.sha256
+        || bundle.launcher.bytes != build.launcher.bytes || expected_bundle_files != signed_bundle_files {
+        return Err("E_RELEASE_BUNDLE_IDENTITY".into());
+    }
     let state: State = serde_json::from_slice(&files["state.json"]).map_err(err)?;
-    let expected_release = Release {
-        version: version.clone(),
-        sequence: manifest.sequence,
-        manifest_hash: hash(signed.payload.as_bytes()),
-    };
-    let expected_state = State {
-        pending: Some(expected_release.clone()),
-        highest_sequence: manifest.sequence,
-        highest_manifest: expected_release.manifest_hash,
-        ..Default::default()
-    };
-    if encode(&state)? != encode(&expected_state)?
-        || files[&format!("versions/{version}/manifest.json")] != signed_bytes
-        || files["release-identity.json"] != identity_bytes
-        || files["README.txt"] != build.guide()
-        || build.is_fixture() && files["FIXTURE.txt"] != MARKER
-    {
+    let expected_state = State { pending: Some(Release { version: version.clone(), sequence: manifest.sequence, manifest_hash: digest.clone() }),
+        highest_sequence: manifest.sequence, highest_manifest: digest, ..Default::default() };
+    if encode(&state)? != encode(&expected_state)? || build.is_fixture() && files["FIXTURE.txt"] != MARKER {
         return Err("E_RELEASE_BOOTSTRAP".into());
     }
-    let report = serde_json::json!({"schema":1,"fixture":build.is_fixture(),"build":build,"update":identity.update,"portable":FileRecord::of(&portable_path,&portable_bytes),"members":files.iter().map(|(n,b)|FileRecord::of(n,b)).collect::<Vec<_>>(),"firstStart":"pending trial; real Launcher Ready required"});
-    // Verification is read-only; the caller decides where to retain the public report.
+    let report = serde_json::json!({"schema":2,"fixture":build.is_fixture(),"build":build,"portable":identity.update,"update":identity.update,
+        "members":files.iter().map(|(n,b)|FileRecord::of(n,b)).collect::<Vec<_>>(),"firstStart":"pending trial; real launcher Ready required"});
     println!("{}", serde_json::to_string_pretty(&report).map_err(err)?);
     Ok(())
 }

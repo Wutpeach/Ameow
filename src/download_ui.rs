@@ -182,12 +182,12 @@ impl DownloadUi {
                 File::create(path).ok()
             });
             if let Some(file)=&mut evidence{let _=writeln!(file,"{}",serde_json::json!({"type":"application-start","pid":std::process::id(),"version":ameow_next::app_update::BUILD_VERSION}));}
-            let settings_path=value("--settings-path").map(PathBuf::from).unwrap_or_else(||RuntimeManager::default_root().unwrap().join("ui-settings.json"));
+            let settings_path=value("--instance-root").map(|root|PathBuf::from(root).join("settings.json")).or_else(||value("--settings-path").map(PathBuf::from)).unwrap_or_else(||RuntimeManager::default_root().unwrap().join("ui-settings.json"));
             #[cfg(all(feature="app-update-fixture",debug_assertions))]
             let update_fixture=value("--app-update-fixture-dir").map(PathBuf::from);
             #[cfg(not(all(feature="app-update-fixture",debug_assertions)))]
             let update_fixture=None;
-            let updates=if value("--instance-root").is_some() { ameow_next::app_update::service::Handle::default() } else { ameow_next::app_update::service::Handle::start(settings_path,worker_launch.clone(),update_fixture) };
+            let updates=if value("--instance-root").is_some() && (update_fixture.is_none() || worker_launch.is_none()) { ameow_next::app_update::service::Handle::default() } else { ameow_next::app_update::service::Handle::start(settings_path,worker_launch.clone(),update_fixture) };
             let _=sender.send(UiReply::AppUpdate(updates.clone()));
             let started = Instant::now();
             let control_root = ameow_next::control::root(value("--instance-root").map(PathBuf::from));

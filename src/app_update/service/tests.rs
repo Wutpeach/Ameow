@@ -66,7 +66,7 @@ fn old_signed_latest_is_available_and_prepares_after_years_without_resigning(){
         h.send(Action::Download);wait(||h.snapshot().update.phase==Phase::Ready);
         let pending=install.state().unwrap().pending.unwrap();
         assert_eq!(pending.version,"9.0.1");install.verify_release(&pending).unwrap();
-        assert_eq!(fs::read(install.root.join("versions/9.0.1/manifest.json")).unwrap(),envelope);
+        assert!(install.root.join("versions/9.0.1/bundle.json").is_file());
     }
 }
 #[test]

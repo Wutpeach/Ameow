@@ -76,7 +76,7 @@
       "obligation": "Record pinned official downloads after launch; tools are not ZIP members.",
       "source": "distribution/notices/runtime-acquisition.md",
       "destination": "licenses/runtime-acquisition.md",
-      "sha256": "F763E002FF75777A6A23705827713A547DD91F0043BB63CCFBC42D6A76E1D4AC"
+      "sha256": "D2B4BD51B9EA7278B8B107524E5313543F12A551E3E0035741C045BA7F36C8AC"
     },
     {
       "kind": "on-demand GPL context",

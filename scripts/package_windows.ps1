@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+#Requires -Version 7.0
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$SignedDirectory,
@@ -41,8 +41,8 @@ if ($Fixture -and ($report.build.commit -cne ('0' * 40) -or -not $report.build.d
 $version = $report.build.version
 $suffix = if ($Fixture) { 'FIXTURE-NOT-FOR-DISTRIBUTION' } else { 'PUBLIC' }
 $fileSuffix = if ($Fixture) { "-$suffix" } else { '' }
-$name = if ($Fixture) { 'Ameow C5 Validation' } else { 'Ameow' }
-$appId = if ($Fixture) { 'Ameow.C5.Validation' } else { 'Ameow.Rust' }
+$name = if ($Fixture) { 'Ameow B Full Update Validation' } else { 'Ameow' }
+$appId = if ($Fixture) { 'Ameow.B.FullUpdate.Validation' } else { 'Ameow.Rust' }
 New-Item -ItemType Directory -Path $OutputDirectory | Out-Null
 $output = [IO.Path]::GetFullPath($OutputDirectory)
 $payload = Join-Path $output 'payload'
@@ -66,10 +66,12 @@ function Installer-Source {
 }
 $portableSource = Join-Path $SignedDirectory $report.portable.path
 Check-Record $portableSource $report.portable
-$portableName = "Ameow_${version}_windows_x64_portable$fileSuffix.zip"
+$portableName = $report.portable.path
+if ([IO.Path]::GetFileName($portableName) -cne $portableName -or $report.update.bytes -ne $report.portable.bytes -or $report.update.sha256 -cne $report.portable.sha256) { throw 'E_RELEASE_PORTABLE_UPDATE_MISMATCH' }
 Copy-Item -LiteralPath $portableSource -Destination (Join-Path $output $portableName)
 $archive = [IO.Compression.ZipArchive]::new([IO.File]::OpenRead((Join-Path $output $portableName)), [IO.Compression.ZipArchiveMode]::Read)
 $lines = @('[Files]')
+$versionChecks = @()
 try {
     if ($archive.Entries.Count -ne @($report.members).Count) { throw 'ZIP member count changed.' }
     foreach ($member in $report.members) {
@@ -85,18 +87,27 @@ try {
         $parent = [IO.Path]::GetDirectoryName($relative).Replace('/', '\')
         $flags = if ($relative -ceq 'state.json') { 'onlyifdoesntexist uninsneveruninstall' } elseif ($relative.StartsWith('versions/')) { 'onlyifdoesntexist' } else { 'ignoreversion' }
         $lines += 'Source: "' + $destination + '"; DestDir: "{app}' + $(if ($parent) { '\' + $parent }) + '"; Flags: ' + $flags
+        $versionPath = $relative.Replace('/', '\')
+        $versionChecks += "  if not PlainDestination(ExpandConstant('{app}\$versionPath')) then exit;"
+        if ($relative.StartsWith("versions/$version/", [StringComparison]::Ordinal)) {
+            $versionChecks += "  if not ExistingFileMatches('$versionPath', '$($member.sha256)') then exit;"
+        }
     }
 } finally { $archive.Dispose() }
 $include = Join-Path $output 'payload.iss'
 [IO.File]::WriteAllLines($include, [string[]]$lines, $utf8)
-$appMember = @($report.members | Where-Object path -CEQ "versions/$version/Ameow.exe")[0]
-$manifestMember = @($report.members | Where-Object path -CEQ "versions/$version/manifest.json")[0]
+if (@($report.members | Where-Object path -CEQ "versions/$version/Ameow.exe").Count -ne 1) { throw 'Missing versioned application.' }
+$versionCheckInclude = Join-Path $output 'version-check.iss'
+[IO.File]::WriteAllLines($versionCheckInclude, [string[]](@('function VersionFilesMatch: Boolean;', 'begin', '  Result := False;') + $versionChecks + @('  Result := True;', 'end;')), $utf8)
+$manifestSource = Join-Path $SignedDirectory 'manifest.json'
+$manifestSourceRecord = Record $manifestSource 'manifest.json'
 $installerName = "Ameow_${version}_windows_x64_installer$fileSuffix"
-$defines = @("/DPayloadInclude=$include", "/DApplicationId=$appId", "/DApplicationName=$name", "/DApplicationVersion=$version", "/DDeliveryOutput=$output", "/DInstallerName=$installerName", "/DAppHash=$($appMember.sha256)", "/DManifestHash=$($manifestMember.sha256)")
+$defines = @("/DPayloadInclude=$include", "/DVersionCheckInclude=$versionCheckInclude", "/DApplicationId=$appId", "/DApplicationName=$name", "/DApplicationVersion=$version", "/DDeliveryOutput=$output", "/DInstallerName=$installerName")
 if ($Fixture) { $defines += '/DValidationBuild=1' }
 $definition = Record (Join-Path $repository 'distribution/ameow.iss') 'distribution/ameow.iss'
 $packaging = Record $PSCommandPath 'scripts/package_windows.ps1'
 $includeRecord = Record $include 'payload.iss'
+$versionCheckRecord = Record $versionCheckInclude 'version-check.iss'
 $installerResources = @('assets/brand/ameow.ico', 'distribution/ameow-wizard-large.png', 'distribution/languages/ChineseSimplified.isl', 'distribution/languages/ChineseTraditional.isl') | ForEach-Object { Record (Join-Path $repository $_) $_ }
 $compilerMessages = Record (Join-Path (Split-Path -Parent $Iscc) 'Default.isl') 'Default.isl'
 $installerSource = Installer-Source
@@ -105,24 +116,25 @@ if ($LASTEXITCODE -ne 0) { throw "Inno compilation failed; see $output/inno-buil
 Check-Record (Join-Path $repository $definition.path) $definition
 Check-Record $PSCommandPath $packaging
 Check-Record $include $includeRecord
+Check-Record $versionCheckInclude $versionCheckRecord
 foreach ($resource in $installerResources) { Check-Record (Join-Path $repository $resource.path) $resource }
 Check-Record (Join-Path (Split-Path -Parent $Iscc) 'Default.isl') $compilerMessages
 if ((Installer-Source | ConvertTo-Json -Compress) -cne ($installerSource | ConvertTo-Json -Compress)) { throw 'E_INSTALLER_SOURCE_CHANGED: source identity changed during compilation.' }
 # Recheck the immutable core and update archive after compilation, not just before staging.
 foreach ($member in $report.members) { Check-Record (Join-Path $payload $member.path) $member }
 Check-Record (Join-Path $output $portableName) $report.portable
-Check-Record (Join-Path $SignedDirectory $report.update.path) $report.update
-Copy-Item -LiteralPath (Join-Path $SignedDirectory $report.update.path) -Destination (Join-Path $output $report.update.path)
-Check-Record (Join-Path $SignedDirectory 'manifest.json') $manifestMember
+Check-Record $manifestSource $manifestSourceRecord
+$verificationAfter = & $ReleaseTool verify-signed $SignedDirectory $TrustedPublicRoots
+if ($LASTEXITCODE -ne 0 -or (($verificationAfter -join "`n") | ConvertFrom-Json | ConvertTo-Json -Depth 30 -Compress) -cne ($report | ConvertTo-Json -Depth 30 -Compress)) { throw 'SIGNED_DELIVERY_CHANGED: verification differs after installer compilation.' }
 $manifestName = 'ameow-update-windows-x64.json'
 Copy-Item -LiteralPath (Join-Path $SignedDirectory 'manifest.json') -Destination (Join-Path $output $manifestName)
 [IO.File]::WriteAllText((Join-Path $output 'verified-release.json'), ($report | ConvertTo-Json -Depth 30), $utf8)
 $installer = Record (Join-Path $output "$installerName.exe") "$installerName.exe"
 $portable = Record (Join-Path $output $portableName) $portableName
 $manifest = Record (Join-Path $output $manifestName) $manifestName
-$assets = @($installer, $portable, $report.update, $manifest)
+$assets = @($installer, $portable, $manifest)
 foreach ($asset in $assets) { Check-Record (Join-Path $output $asset.path) $asset }
 [IO.File]::WriteAllLines((Join-Path $output 'SHA256SUMS.txt'), [string[]]@($assets | ForEach-Object { "$($_.sha256)  $($_.path)" }), $utf8)
-$result = [ordered]@{schema=1;mode=$suffix;fixture=[bool]$Fixture;productionKeyCreated=$false;build=$report.build;installer=$installer;portable=$portable;update=$report.update;manifest=$manifest;assets=$assets;members=$report.members;installerSource=$installerSource;installerDefinition=$definition;installerResources=@($installerResources);compilerMessages=$compilerMessages;packaging=$packaging;compiler=(Record $Iscc 'ISCC.exe')}
+$result = [ordered]@{schema=1;mode=$suffix;fixture=[bool]$Fixture;productionKeyCreated=$false;build=$report.build;installer=$installer;portable=$portable;update=$portable;manifest=$manifest;assets=$assets;members=$report.members;installerSource=$installerSource;installerDefinition=$definition;installerResources=@($installerResources);compilerMessages=$compilerMessages;packaging=$packaging;compiler=(Record $Iscc 'ISCC.exe')}
 [IO.File]::WriteAllText((Join-Path $output 'delivery.json'), ($result | ConvertTo-Json -Depth 30), $utf8)
 Write-Output "Windows delivery: $output/delivery.json ($suffix; nothing uploaded)"

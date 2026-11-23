@@ -10,7 +10,7 @@
 
 复用 `scripts/package_portable.ps1`、`scripts/package_windows.ps1`、`scripts/package_macos.sh`、ameow-release 和现有 CI。它们负责构建、离线签名、包成员校验；不重复实现或生成新密钥。遵守既有密钥/sequence、独立可信根、新输出目录和本地温和构建要求。`test_release_preparation.ps1` 仅有三项工具测试，不证明发行就绪。
 
-按 [acceptance.md](acceptance.md) 完成本版两平台最小回归及受影响流程。源码手验与发行包自检分别记录来源、实际 exe/哈希与覆盖；不能声称尚未制作的资产已齐。证据格式、六项资产和只读检查见 [evidence.md](evidence.md)。
+按 [acceptance.md](acceptance.md) 完成本版两平台最小回归及受影响流程。源码手验与发行包自检分别记录来源、实际 exe/哈希与覆盖；不能声称尚未制作的资产已齐。证据格式、五项资产（0.5.2 起）和只读检查见 [evidence.md](evidence.md)。
 
 ## 完整验证的时机
 
