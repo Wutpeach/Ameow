@@ -338,6 +338,7 @@ impl DownloadUi {
             crate::app_update_ui::preview_view(&scene.state),
         );
         self.named_preview = Some(scene.clone());
+        self.preparation_hovered = scene.surface == "full" && scene.name.ends_with("-popover");
         self.snapshot = Some(Arc::new(crate::preview::snapshot(scene)));
         self.presentation = Default::default();
         self.selected_presentation = None;
@@ -2533,29 +2534,32 @@ impl Prototype {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let p = Palette::new(self.night);
-        let restart = crate::app_update_ui::popup_restart_available(update);
-        let label = crate::app_update_ui::popup_label(update, language);
+        let enabled = crate::app_update_ui::popup_action(update).is_some();
+        let label = crate::app_update_ui::full_label(update, language);
+        let headline = crate::app_update_ui::headline(update, language);
+        let detail = crate::app_update_ui::detail(update, language);
+        let tooltip = if detail.is_empty() { headline.clone() } else { format!("{headline}\n{detail}") };
         gpui_base::Button::new("application-update")
-            .accessibility_label(format!("{}，{label}", crate::app_update_ui::headline(update, language)))
+            .accessibility_label(format!("{headline}，{label}"))
+            .disabled(!enabled)
             .w_full().min_h(px(36.)).h_auto().px(px(10.)).py(px(8.))
-            .flex().items_center().gap(px(5.))
+            .flex().flex_col().items_start().gap(px(4.))
             .rounded(px(8.)).border_1().border_color(transparent_black())
             .text_color(p.primary_text()).text_size(px(10.)).line_height(px(14.))
-            .cursor_pointer().hover(move |s| s.bg(p.badge)).active(move |s| s.bg(p.border))
+            .when(enabled, |button| button.cursor_pointer().hover(move |s| s.bg(p.badge)).active(move |s| s.bg(p.border)))
             .focus(move |s| s.border_color(p.neutral))
-            .child(svg().path(crate::app_update_ui::popup_icon(update)).size(px(12.)).flex_none().text_color(p.neutral))
-            .when(restart, |button| button.child(
-                div().flex_1().min_w(px(0.)).text_color(p.neutral).truncate()
-                    .child(update.update.version.clone().unwrap_or_else(|| language.text("新版本", "New version").into()))))
-            .child(div().when(restart, |s| s.flex_none()).when(!restart, |s| s.flex_1().min_w(px(0.)))
-                .font_weight(FontWeight::MEDIUM).child(label))
-            .when(!restart, |button| button.child(
-                svg().path("icons/chevron-right.svg").size(px(10.)).flex_none().text_color(p.neutral)))
+            .tooltip_above(&self.tooltips, move |_, cx| cx.new(|_| crate::settings_window::HelpTooltip {
+                text: tooltip.clone(), night: p.night,
+            }).into())
+            .child(div().w_full().flex().items_center().gap(px(5.))
+                .child(svg().path(crate::app_update_ui::popup_icon(update)).size(px(12.)).flex_none().text_color(p.neutral))
+                .child(div().flex_1().min_w(px(0.)).text_color(p.neutral).truncate()
+                    .child(update.update.version.clone().unwrap_or_default()))
+                .child(div().flex_none().font_weight(FontWeight::MEDIUM).child(label)))
+            .when(update.update.phase == ameow_next::app_update::Phase::Downloading, |button|
+                button.child(div().pl(px(17.)).text_color(p.neutral).child(detail)))
             .on_mouse_down(MouseButton::Left, cx.listener(|_, _, _, cx| cx.stop_propagation()))
-            .on_click(cx.listener(move |this, _, _, cx| {
-                if restart { this.app_update_action(ameow_next::app_update::service::Action::Restart, cx); }
-                this.open_update_settings(cx);
-            }))
+            .on_click(cx.listener(|this, _, _, cx| this.full_update_action(cx)))
             .into_any_element()
     }
     pub(super) fn preparation_indicator_visible(&self) -> bool {
@@ -2572,7 +2576,7 @@ impl Prototype {
                         || self
                             .downloads
                             .as_ref()
-                            .is_some_and(|ui| ui.updates.snapshot().attention())
+                            .is_some_and(|ui| ui.updates.snapshot().full_attention())
                 })
     }
     pub(super) fn preparation_animation_delay(&self) -> Option<u64> {
@@ -2599,7 +2603,7 @@ impl Prototype {
         };
         let preparation = &snapshot.preparation;
         let update = ui.updates.snapshot();
-        let update_attention = update.attention();
+        let update_attention = update.full_attention();
         let p = Palette::new(self.night);
         let g = self.model.geometry();
         let failed = preparation.phase == PreparationPhase::Failed
@@ -2740,13 +2744,21 @@ impl Prototype {
             },
             )
             .child(
-                div()
+                gpui_base::Button::new("component-preparation-status")
+                    .accessibility_label(if update_only {
+                        format!("{}，{}", crate::app_update_ui::headline(&update, ui.language), crate::app_update_ui::full_label(&update, ui.language))
+                    } else { ui.language.text("组件状态", "Component status").into() })
+                    .disabled(!update_only || crate::app_update_ui::popup_action(&update).is_none())
                     .relative()
                     .size(px(crate::tokens::SMALL_ICON_BUTTON_SIZE))
                     .flex_none()
                     .rounded_full()
                     .bg(p.badge)
                     .hover(move |s| crate::tokens::icon_hover(s, p))
+                    .when(update_only && crate::app_update_ui::popup_action(&update).is_some(), |button| button.cursor_pointer())
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        if update_only { this.full_update_action(cx); }
+                    }))
                     .when(!update_only, |ring| ring.child(indicator::preparation_ring(
                         p,
                         fraction,
@@ -4094,6 +4106,18 @@ mod tests {
         assert!(preparation_popup_visible(&snapshot, 100, true));
         snapshot.stopping = true;
         assert!(!preparation_popup_visible(&snapshot, 100, true));
+    }
+    #[test]
+    fn hiding_app_updates_keeps_component_faults_and_recovery_visible() {
+        let mut update = crate::app_update_ui::preview_view("app-ready");
+        update.preferences.notify_updates = false;
+        assert!(!update.full_attention());
+        for state in ["app-conflict", "app-preparing"] {
+            let scene = crate::preview::find(&format!("full.{state}")).unwrap();
+            let snapshot = crate::preview::snapshot(&scene);
+            assert!(super::preparation_visible(&snapshot, 100));
+            assert!(super::preparation_popup_visible(&snapshot, 100, update.full_attention()));
+        }
     }
     #[test]
     fn preparation_popup_uses_plain_causes_for_each_component_and_http_failure() {

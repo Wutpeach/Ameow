@@ -1161,15 +1161,25 @@ impl Render for Prototype {
                 }
                 cx.notify();
             }))
-            .on_mouse_move(cx.listener(|this, event: &MouseMoveEvent, _, cx| {this.background_clicks.motion([event.position.x.into(),event.position.y.into()]);cx.notify();}))
+            .on_mouse_move(cx.listener(|this, event: &MouseMoveEvent, _, cx| {
+                if let Some(ui) = &this.downloads { ui.updates.user_interaction(); }
+                this.background_clicks.motion([event.position.x.into(),event.position.y.into()]);cx.notify();
+            }))
+            .on_scroll(cx.listener(|this, _, _, _| {
+                if let Some(ui) = &this.downloads { ui.updates.user_interaction(); }
+            }))
+            .capture_any_mouse_down(cx.listener(|this, _, _, _| {
+                if let Some(ui) = &this.downloads { ui.updates.user_interaction(); }
+            }))
             .capture_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
+                if let Some(ui) = &this.downloads { ui.updates.user_interaction(); }
                 #[cfg(any(test, all(feature = "app-update-fixture", debug_assertions)))]
                 if this.shortcut_allowed && this.instance.is_none() && let Some(ui) = &this.downloads {
                     ui.evidence(serde_json::json!({"type":"native-key-target", "key":event.keystroke.key,
                         "control":event.keystroke.modifiers.control,"alt":event.keystroke.modifiers.alt,
                         "platform":event.keystroke.modifiers.platform}));
                 }
-                if event.keystroke.key == "u" && this.downloads.as_ref().is_some_and(|ui| ui.updates.snapshot().attention()) {
+                if event.keystroke.key == "u" && this.downloads.as_ref().is_some_and(|ui| ui.updates.snapshot().full_attention()) {
                     this.open_update_settings(cx);
                     cx.stop_propagation();
                     return;
