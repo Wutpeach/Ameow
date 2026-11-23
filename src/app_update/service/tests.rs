@@ -399,6 +399,53 @@ fn rechecking_a_newer_version_retains_install_barriers_and_reports_failed_acquis
         }
     }
 }
+#[test]
+fn manual_newer_checks_keep_install_barriers_through_download_or_enabling_automatic_updates() {
+    for error in ["E_APP_UPDATE_AUTHORIZATION_CANCELLED","E_APP_UPDATE_AUTHORIZATION_WORKER: unavailable"] {
+        for enable_automatic in [false,true] {
+            let root=tempfile::tempdir().unwrap();let(handle,install,source)=ready_owner(root.path());
+            assert!(handle.send(Action::Save(Preferences{auto_update:false,..Default::default()})));
+            wait(||handle.snapshot().saved);
+            handle.shared.coordinator.lock().unwrap().as_ref().unwrap()
+                .set_state(Phase::Ready,Some("9.0.1".into()),Some(error.into()));
+            let before=serde_json::to_value(install.state().unwrap()).unwrap();
+            let(_,package,envelope)=super::super::tests::fixture("9.0.2",2,&[("Ameow.exe",b"deferred newer candidate")]);
+            fs::write(source.join("manifest.json"),envelope).unwrap();
+            fs::write(source.join("package.zip"),package).unwrap();
+            assert!(handle.send(Action::Check));
+            wait(||handle.snapshot().update.phase==Phase::Available);
+            assert_eq!(handle.snapshot().update.version.as_deref(),Some("9.0.2"));
+            assert_eq!(handle.snapshot().update.error.as_deref(),Some(error));
+            assert!(handle.snapshot().check_error.is_none());
+            assert_eq!(serde_json::to_value(install.state().unwrap()).unwrap(),before);
+            let pending=install.state().unwrap().pending.unwrap();
+            assert_eq!(pending.version,"9.0.1");
+            install.verify_release(&pending).unwrap();
+            if enable_automatic {
+                assert!(handle.send(Action::Save(Preferences::default())));
+            } else {
+                assert!(handle.send(Action::Download));
+            }
+            wait(||handle.snapshot().update.phase==Phase::Ready);
+            assert_eq!(handle.snapshot().update.version.as_deref(),Some("9.0.2"));
+            assert_eq!(handle.snapshot().update.error.as_deref(),Some(error));
+            assert_eq!(handle.snapshot().preferences.auto_update,enable_automatic);
+            let pending=install.state().unwrap().pending.unwrap();
+            assert_eq!(pending.version,"9.0.2");
+            install.verify_release(&pending).unwrap();
+            let session=Session::for_test(install);
+            session.coordinator.prepare_restart().unwrap();
+            let queue=DownloadCoordinator::update_test_queue(root.path());
+            allow_automatic_restart(&handle,&queue);
+            handle.poll(&queue,Some(&session));
+            assert!(!queue.snapshot().stopping);
+            assert!(!handle.shared.closing.load(Ordering::Acquire));
+            assert!(handle.send(Action::Restart));
+            handle.poll(&queue,Some(&session));
+            assert!(handle.shared.closing.load(Ordering::Acquire));
+        }
+    }
+}
 #[cfg(target_os="macos")]
 #[test]
 fn disabling_automatic_updates_during_a_slow_recheck_keeps_the_valid_ready_candidate() {

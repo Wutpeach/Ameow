@@ -92,9 +92,9 @@ pub fn detail(view: &View, l: Language) -> String {
             let bytes=view.update.downloaded as f64/1_000_000.;
             view.update.total.map_or_else(||format!("{bytes:.1} MB"),|n|format!("{bytes:.1} / {:.1} MB · {:.0}%",n as f64/1_000_000.,(view.update.downloaded as f64/n.max(1) as f64*100.).min(100.)))
         }
-        Phase::Ready if view.update.error.as_deref() == Some("E_APP_UPDATE_AUTHORIZATION_CANCELLED") =>
+        Phase::Ready | Phase::Available if view.update.error.as_deref() == Some("E_APP_UPDATE_AUTHORIZATION_CANCELLED") =>
             l.text("系统授权已取消，本次操作未继续。准备好后可重试。", "System authorization was cancelled and this request did not continue. Retry when you are ready.").into(),
-        Phase::Ready if view.update.error.is_some() =>
+        Phase::Ready | Phase::Available if view.update.error.is_some() =>
             l.text("安装或恢复尚未完成。重试会先检查当前状态，必要时请求系统授权。", "Installation or recovery has not finished. Retrying will check the current state and request system authorization if needed.").into(),
         Phase::Ready if !view.launcher =>
             l.text("请通过 Ameow 启动入口重新打开后更新。", "Open Ameow through its launcher to install the update.").into(),
@@ -176,6 +176,11 @@ mod update_feedback_tests {
             for view in [&retry, &cancelled] {
                 assert_eq!(restart_label(view, language), language.text("重试", "Retry"));
                 assert!(!detail(view, language).contains("E_APP_UPDATE"));
+                let mut available=view.clone();
+                available.update.phase=ameow_next::app_update::Phase::Available;
+                assert!(headline(&available,language).starts_with(language.text("发现新版本", "New version available")));
+                assert_eq!(detail(&available,language),detail(view,language));
+                assert!(matches!(super::popup_action(&available),Some(ameow_next::app_update::service::Action::Download)));
             }
         }
     }

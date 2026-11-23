@@ -249,7 +249,7 @@ impl Handle {
                     }
                     let started = Instant::now();
                     let mut schedule = Schedule::default();
-                    let mut available = None::<Vec<u8>>;
+                    let mut available = None::<(Vec<u8>, Option<String>)>;
                     loop {
                         let action = match receiver.recv_timeout(Duration::from_millis(200)) {
                             Ok(a) => Some(a),
@@ -300,6 +300,11 @@ impl Handle {
                         }
                         let previous = coordinator.snapshot();
                         let checking_ready = manual && previous.phase == Phase::Ready;
+                        let install_error = if previous.phase == Phase::Ready {
+                            previous.error.clone()
+                        } else {
+                            available.as_ref().and_then(|(_, error)| error.clone())
+                        };
                         if !checking_ready && matches!(
                             previous.phase,
                             Phase::Ready | Phase::WaitingForTasks | Phase::Switching
@@ -351,18 +356,15 @@ impl Handle {
                                 }
                                 if let Some(pending) = state.pending.as_ref().filter(|pending| pending.version == m.version) {
                                     coordinator.install().verify_release(pending)?;
-                                    available = Some(envelope);
-                                    let error = if checking_ready {
-                                        previous.error.clone()
-                                    } else { None };
-                                    coordinator.set_state(Phase::Ready, Some(m.version), error);
+                                    available = Some((envelope, install_error.clone()));
+                                    coordinator.set_state(Phase::Ready, Some(m.version), install_error.clone());
                                     return Ok(());
                                 }
-                                available = Some(envelope);
-                                coordinator.set_state(Phase::Available, Some(m.version), None);
+                                available = Some((envelope, install_error.clone()));
+                                coordinator.set_state(Phase::Available, Some(m.version), install_error.clone());
                             }
                             if download || prefs.auto_update && control.save_error.is_none() {
-                                let envelope =
+                                let (envelope, _) =
                                     available.as_ref().ok_or("E_APP_UPDATE_CHECK_FIRST")?;
                                 let result = coordinator.install().prepare_observed(
                                     envelope,
@@ -383,8 +385,7 @@ impl Handle {
                                     &shared.publish_gate,
                                 );
                                 result?;
-                                let error = if checking_ready { previous.error.clone() } else { None };
-                                coordinator.set_state(Phase::Ready,coordinator.snapshot().version,error);
+                                coordinator.set_state(Phase::Ready,coordinator.snapshot().version,install_error.clone());
                             }
                             Ok(())
                         })();
@@ -411,7 +412,7 @@ impl Handle {
                                         Phase::Unchecked
                                     },
                                     version,
-                                    None,
+                                    install_error,
                                 );
                                 schedule.finished(elapsed, false);
                             }
