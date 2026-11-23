@@ -2,7 +2,7 @@ use super::*;
 #[test]
 #[ignore = "Requires task-owned genuine runtime cache via AMEOW_RUNTIME_TEST_ROOT; no network or account"]
 fn native_safe_selection_preserves_separate_progress_without_private_metadata() -> Result<(), String> {
-    use crate::download::{composition, process_supervisor::{Control, ProcessSpec}, runtime::RuntimeManager};
+    use crate::download::{adapter::{ExecutionContext, ManagedCommand}, composition, process_supervisor::Control, runtime::RuntimeManager};
     use serde_json::json;
     let root = PathBuf::from(std::env::var("AMEOW_RUNTIME_TEST_ROOT").map_err(|e| e.to_string())?);
     let work = tempfile::tempdir_in(&root).map_err(|e| e.to_string())?;
@@ -26,14 +26,23 @@ fn native_safe_selection_preserves_separate_progress_without_private_metadata() 
         }
         let info = work.path().join("input.json");
         fs::write(&info, serde_json::to_vec(&metadata).unwrap()).map_err(|e| e.to_string())?;
-        let outcome = process_supervisor::run(ProcessSpec {
-            executable: lease.file("yt-dlp.exe")?,
+        let context = ExecutionContext {
+            media_observations: &Default::default(), authentication: None,
+            workspace: work.path(), lease: &lease, requirements: &requirements,
+            control: &control, observer: Arc::new(|_| {}),
+            admission: Arc::new(|_| Ok(())), events: Arc::new(|_| {}),
+        };
+        let command = ManagedCommand {
+            tool: "yt-dlp.exe",
             args: vec!["--ignore-config".into(),"--no-plugin-dirs".into(),"--simulate".into(),
                 "--load-info-json".into(),info.display().to_string(),"--output-na-placeholder".into(),"null".into(),
                 "--print".into(),SAFE_SELECTION.into()],
-            cwd: work.path().into(), env: requirements.environment(work.path())?,
             stdout_limit: 65536, stderr_limit: 65536, timeout: Some(std::time::Duration::from_secs(15)),
-        }, &control, Arc::new(|_| {}))?;
+        };
+        #[cfg(target_os = "macos")]
+        let outcome = context.run_ytdlp(command, InvocationPhase::Resolve, None, None)?;
+        #[cfg(not(target_os = "macos"))]
+        let outcome = context.run(command, None)?;
         validate_engine_outcome(&outcome, "selection-fixture")?;
         assert!(!String::from_utf8_lossy(&outcome.stdout).contains(secret));
         let record = work.path().join(SELECTION_FILE);
@@ -52,15 +61,18 @@ fn native_safe_selection_preserves_separate_progress_without_private_metadata() 
     Ok(())
 }
 #[test]
-fn only_one_complete_bounded_native_selection_can_attest_progress_or_final_result() {
+fn current_selection_and_one_native_recovery_are_complete_and_bounded() {
     let root = tempfile::tempdir().unwrap();
     let record = root.path().join(SELECTION_FILE);
     fs::write(&record, b"AMEOW_SELECTION={\"height\":480}\n").unwrap();
     assert_eq!(read_selection(&record).unwrap()["height"], 480);
+    fs::write(&record, b"AMEOW_SELECTION={\"height\":480}\nAMEOW_SELECTION={\"height\":240}\n").unwrap();
+    assert_eq!(read_selections(&record).unwrap().len(), 2);
+    assert_eq!(read_selection(&record).unwrap()["height"], 240);
     for bytes in [
         b"".as_slice(),
         b"AMEOW_SELECTION={}",
-        b"AMEOW_SELECTION={}\nAMEOW_SELECTION={}\n",
+        b"AMEOW_SELECTION={}\nAMEOW_SELECTION={}\nAMEOW_SELECTION={}\n",
         b"AMEOW_SELECTION={broken}\n",
         b"unmarked={}\n",
     ] {
