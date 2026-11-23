@@ -105,6 +105,27 @@ impl ErrorCategory {
         }
     }
 }
+
+/// Closed, path-free description of the operation that failed.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum PreparationOperation {
+    RootCreate, PrepareLock, CandidateInspect, CandidateLimit, FileOpen, FileRead, FileCopy,
+    FileCreate, FileWrite, FileSync, ArtifactCreate, ArtifactWrite, ArtifactSync,
+    MarkerCreate, MarkerWrite, MarkerSync, MarkerPublish, MarkerCheck, ProbeSpawn,
+    ProxyRoute, ProxyConfig, ProxySession, ProxyAuto, ProxyConfigure, HttpRequest,
+    ResponseRead, UrlParse, HttpsRequired, RedirectLocation, RedirectLimit, HttpStatus,
+    ArtifactLength, Acquire, AcquireCancel,
+}
+
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub enum RuntimeRootSource {
+    #[default]
+    Unknown,
+    DefaultLocalAppData,
+    DefaultApplicationSupport,
+    ExplicitRuntimeRoot,
+    IsolatedInstance,
+}
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PreparationFailure {
     pub component: RuntimeComponent,
@@ -113,6 +134,10 @@ pub struct PreparationFailure {
     pub message: String,
     pub suggestion: String,
     pub http_status: Option<u16>,
+    #[serde(default)]
+    pub operation: Option<PreparationOperation>,
+    #[serde(default)]
+    pub raw_os_error: Option<i32>,
 }
 impl PreparationFailure {
     pub(crate) fn new(
@@ -145,6 +170,8 @@ impl PreparationFailure {
             ),
             suggestion: suggestion.into(),
             http_status: None,
+            operation: None,
+            raw_os_error: None,
         }
     }
     pub(crate) fn io(
@@ -152,11 +179,27 @@ impl PreparationFailure {
         stage: PreparationStage,
         error: io::Error,
     ) -> Self {
-        Self::new(component, stage, ErrorCategory::io(&error))
+        let mut failure = Self::new(component, stage, ErrorCategory::io(&error));
+        failure.raw_os_error = error.raw_os_error();
+        failure
+    }
+    pub(crate) fn io_operation(
+        component: RuntimeComponent, stage: PreparationStage,
+        operation: PreparationOperation, error: io::Error,
+    ) -> Self {
+        let mut failure = Self::io(component, stage, error);
+        failure.operation = Some(operation);
+        failure
     }
     pub(crate) fn safe(&self) -> Self {
         let mut safe = Self::new(self.component, self.stage, self.category);
         safe.http_status = self.http_status.filter(|s| (100..=599).contains(s));
+        safe.operation = self.operation;
+        safe.raw_os_error = self.raw_os_error;
+        if self.operation == Some(PreparationOperation::CandidateLimit) {
+            safe.message = "Runtime: managed cache candidate limit reached".into();
+            safe.suggestion = "Copy preparation diagnostics; review managed cache before retry".into();
+        }
         safe
     }
 }
@@ -174,6 +217,12 @@ pub struct PreparationEvent {
     pub stage: PreparationStage,
     pub category: Option<ErrorCategory>,
     pub http_status: Option<u16>,
+    #[serde(default)]
+    pub operation: Option<PreparationOperation>,
+    #[serde(default)]
+    pub raw_os_error: Option<i32>,
+    #[serde(default)]
+    pub root_source: RuntimeRootSource,
     pub downloaded_bytes: u64,
     pub total_bytes: Option<u64>,
 }
@@ -188,6 +237,8 @@ pub struct PreparationSnapshot {
     pub updated_at_ms: u64,
     pub failure: Option<PreparationFailure>,
     pub history: Vec<PreparationEvent>,
+    #[serde(default)]
+    pub root_source: RuntimeRootSource,
 }
 pub(crate) fn now() -> u64 {
     SystemTime::now()
@@ -225,6 +276,9 @@ impl PreparationSnapshot {
                 stage,
                 category: self.failure.as_ref().map(|f| f.category),
                 http_status: self.failure.as_ref().and_then(|f| f.http_status),
+                operation: self.failure.as_ref().and_then(|f| f.operation),
+                raw_os_error: self.failure.as_ref().and_then(|f| f.raw_os_error),
+                root_source: self.root_source,
                 downloaded_bytes: downloaded,
                 total_bytes: total,
             });
@@ -241,8 +295,10 @@ impl PreparationSnapshot {
     }
     pub fn diagnostic(&self) -> String {
         let mut text = format!(
-            "Ameow {}\nPlatform: windows-x64\nPreparation attempt: {}\n",
+            "Ameow {}\nPlatform: {}\nRuntime root source: {:?}\nPreparation attempt: {}\n",
             env!("CARGO_PKG_VERSION"),
+            if cfg!(windows) { "windows-x64" } else if cfg!(target_os = "macos") { "macos" } else { "unknown" },
+            self.root_source,
             self.attempt
         );
         let mut summaries: Vec<_> = self
@@ -257,7 +313,7 @@ impl PreparationSnapshot {
         summaries.dedup_by(|left, right| std::ptr::eq(*left, *right));
         for event in summaries {
             text.push_str(&format!(
-                "Attempt {}: {:?} {} {} bytes={} total={:?} category={} http={:?}\n",
+                "Attempt {}: {:?} {} {} bytes={} total={:?} category={} http={:?} operation={:?} os={:?} root={:?}\n",
                 event.attempt,
                 event.phase,
                 event.component.unwrap_or(RuntimeComponent::Runtime).label(),
@@ -265,14 +321,14 @@ impl PreparationSnapshot {
                 event.downloaded_bytes,
                 event.total_bytes,
                 event.category.map(|c| c.label()).unwrap_or("none"),
-                event.http_status
+                event.http_status, event.operation, event.raw_os_error, event.root_source
             ));
         }
         if let Some(failure) = &self.failure {
             let safe = failure.safe();
             text.push_str(&format!(
-                "{}\nSuggestion: {}\n",
-                safe.message, safe.suggestion
+                "{}\nOperation: {:?}; OS: {:?}\nSuggestion: {}\n",
+                safe.message, safe.operation, safe.raw_os_error, safe.suggestion
             ));
         }
         text.truncate(4096);
@@ -299,6 +355,9 @@ mod tests {
                 .into();
         failure.suggestion = "proxy=user:secret@private.invalid".into();
         failure.http_status = Some(403);
+        failure.operation = Some(PreparationOperation::MarkerPublish);
+        failure.raw_os_error = Some(5);
+        state.root_source = RuntimeRootSource::DefaultLocalAppData;
         state.observe(
             PreparationPhase::Failed,
             Some(failure.component),
@@ -338,12 +397,26 @@ mod tests {
         assert!(text.is_ascii());
         assert!(text.len() <= 4096);
         assert!(text.contains("403"));
+        assert!(text.contains("MarkerPublish"));
+        assert!(text.contains("os=Some(5)"));
+        assert!(text.contains("DefaultLocalAppData"));
         for secret in ["secret", "private", "stderr", "https://", r"C:\"] {
             assert!(!text.contains(secret));
         }
         // The recent summary still includes prior failure evidence, even after many stage samples.
         let saved = serde_json::to_string(&state.history).unwrap();
         assert!(saved.contains("403"));
+        let restored: Vec<PreparationEvent> = serde_json::from_str(&saved).unwrap();
+        assert!(restored.iter().any(|event| event.operation == Some(PreparationOperation::MarkerPublish)
+            && event.raw_os_error == Some(5) && event.root_source == RuntimeRootSource::DefaultLocalAppData));
         assert!(!saved.contains("secret"));
+    }
+    #[test]
+    fn old_history_without_diagnostic_fields_is_readable() {
+        let old = r#"{"attempt":1,"timestamp_ms":0,"phase":"Failed","component":"Runtime","stage":"Publish","category":"Permission","http_status":null,"downloaded_bytes":0,"total_bytes":null}"#;
+        let event: PreparationEvent = serde_json::from_str(old).unwrap();
+        assert_eq!(event.operation, None);
+        assert_eq!(event.raw_os_error, None);
+        assert_eq!(event.root_source, RuntimeRootSource::Unknown);
     }
 }

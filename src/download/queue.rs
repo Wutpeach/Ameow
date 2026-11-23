@@ -3761,6 +3761,9 @@ fn observe_preparation(shared: &Shared, event: PreparationSnapshot) {
         if model.update_preparing && let Some(phase) = runtime_update_phase(event.phase) {
             model.runtime_update.phase = phase;
         }
+        model.preparation.root_source = if event.root_source == super::preparation::RuntimeRootSource::Unknown {
+            shared.manager.root_source
+        } else { event.root_source };
         let changed = model.preparation.observe(
             event.phase,
             event.component,
