@@ -283,10 +283,11 @@ mod tests {
         use crate::download::{
             adapter::{DownloaderAdapter, ExecutionContext},
             composition,
-            contract::ExecutionRequest,
+            contract::{Downloader, ExecutionRequest},
             process_supervisor::ProcessObservation,
             request::{Accepted, DownloadIntent, Quality},
             runtime::RuntimeManager,
+            runtime_update::Selection,
             runtime_update_trust,
         };
         use std::sync::Mutex;
@@ -301,8 +302,10 @@ mod tests {
         let recommended = RuntimeManager::new(cache.clone()).prepare(
             &requirements, &Control::default(), Arc::new(|_| {}), |_| {},
         ).unwrap();
-        let selected = runtime_update_trust::prepare_candidate(
-            cache, "2026.10.26", true, &requirements, &Control::default(), Arc::new(|_| {}), |_| {},
+        let mut selection = Selection::default();
+        selection.select(Downloader::YtDlp, Some("2026.10.26".into()));
+        let selected = runtime_update_trust::prepare_selected(
+            cache, &selection, true, &requirements, &Control::default(), Arc::new(|_| {}), |_| {},
         ).unwrap();
         assert_ne!(recommended.versions, selected.versions);
         assert_ne!(runtime::hash(File::open(recommended.file("yt-dlp").unwrap()).unwrap()).unwrap(),
