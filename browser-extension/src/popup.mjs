@@ -199,8 +199,10 @@ for (const action of ['authorize','sync','revoke']) $(action).addEventListener('
 for (const [id, zh, en] of [
   ['revoke','移除授权','Remove access'], ['session-title','登录态同步','Session sync'],
   ['diagnostics-title','诊断','Diagnostics'], ['retry-status','重试','Retry'],
-  ['tools-title','页面工具','Page tools']
+  ['tools-title','切片/下载 工具条','Clip/download toolbar']
 ]) $(id).textContent = t(zh,en);
+$('tools-info').setAttribute('aria-label',t('工具条说明','About the toolbar'));
+$('tools-help').textContent = t('在支持的视频页面显示下载与切片入口。','Show download and clip actions on supported video pages.');
 for(const mark of document.querySelectorAll('.icon')) {
   const name=[...mark.classList].find(value=>value.startsWith('icon-'))?.slice(5);
   if(icons[name])mark.replaceWith(makeIcon(name));
