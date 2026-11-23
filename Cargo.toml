@@ -1,5 +1,6 @@
 [package]
 name = "ameow"
+default-run = "ameow"
 version = "0.5.1"
 edition = "2024"
 license = "MIT"
