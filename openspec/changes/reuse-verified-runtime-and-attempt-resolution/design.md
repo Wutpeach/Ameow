@@ -18,4 +18,6 @@ A 的准备接口及 complete.pending→complete.json 无覆盖发布保持不�
 
 ## Risks and Boundaries
 
+E2 原始输入/观察只存在于 owned workspace。yt-dlp 及组合 Adapter 中对应的 yt-dlp root/primary 诊断清单均排除 resolved/selection/info-json、原始命令、stdout/stderr 和自由错误文本，只保留受控结算及类型化媒体事实；不改队列清理 API。组合清单属于跨 owner 的常量最小协同，需由整合者排写入顺序。
+
 Mac 身份检查仍有路径执行的既有检查至使用间隙；保留 guard 和进程结算，不声称防御同权限恶意进程的所有并发攻击。大量树路径的 stat 仍有成本，实际报告测量而不承诺固定加速。用户体验、Windows 同条件计时未由 Mac 检查替代。

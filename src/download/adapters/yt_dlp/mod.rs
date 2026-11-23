@@ -58,19 +58,9 @@ const SAFE_SELECTION: &str = r#"{"id":%(id)j,"extractor_key":%(extractor_key)j,"
 
 const METADATA_LIMIT: usize = process_supervisor::MAX_STDOUT_CAPTURE;
 const EVIDENCE: &[(&str, u64)] = &[
-    (RESOLVED_FILE, METADATA_LIMIT as u64),
-    (TRANSFER_INFO_FILE, METADATA_LIMIT as u64),
-    (SELECTION_FILE, METADATA_LIMIT as u64),
-    ("resolve-argv.json", 8 * 1024 * 1024),
-    ("resolve-stdout.log", METADATA_LIMIT as u64),
-    ("resolve-stderr.log", 1024 * 1024),
     ("resolve-settlement.txt", 65536),
-    ("transfer-argv.json", 8 * 1024 * 1024),
-    ("transfer-stdout.log", 4 * 1024 * 1024),
-    ("transfer-stderr.log", 1024 * 1024),
     ("transfer-settlement.txt", 65536),
     ("final-object.txt", 4096),
-    ("adapter-error.log", 65536),
     ("resolve-media.json", 65536),
     ("transfer-media.json", 65536),
 ];
@@ -251,14 +241,7 @@ impl DownloaderAdapter for YtDlpAdapter {
             let selections = read_selections(&working.join(SELECTION_FILE));
             let selections = if attempt_input.is_some() { Some(selections?) } else { selections.ok() };
             if let Some(selections) = &selections {
-                for selected in selections {
-                    check_generic_object(accepted, selected)?;
-                    let selected_proof = identity::proof(accepted, selected).map_err(|error| format!("E_IDENTITY: {error}"))?;
-                    if selected_proof.identity.canonical_key() != proof.identity.canonical_key()
-                        || !identity::consistent(&metadata, selected) {
-                        return Err("E_IDENTITY: native selection differs from admitted object".into());
-                    }
-                }
+                check_selection_identities(accepted, &metadata, selections)?;
             }
             let before = selections.as_ref().and_then(|rows| rows.last());
             let mut video = transfer_expectation(&actual, before, accepted.intent.quality)?;
@@ -417,6 +400,17 @@ fn transfer_expectation(actual: &Value, before: Option<&Value>, quality: crate::
         video.requires_audio |= observed.requires_audio;
     }
     Ok(video)
+}
+fn check_selection_identities(accepted: &Accepted, resolved: &Value, selections: &[Value]) -> Result<(), String> {
+    let expected = identity::proof(accepted, resolved).map_err(|error| format!("E_IDENTITY: {error}"))?.identity.canonical_key();
+    for selected in selections {
+        check_generic_object(accepted, selected)?;
+        let proof = identity::proof(accepted, selected).map_err(|error| format!("E_IDENTITY: {error}"))?;
+        if proof.identity.canonical_key() != expected || !identity::consistent(resolved, selected) {
+            return Err("E_IDENTITY: native selection differs from admitted object".into());
+        }
+    }
+    Ok(())
 }
 fn generic_args(args: &mut Vec<String>, accepted: &Accepted, resolving: bool) {
     if !matches!(accepted.object, Object::Generic { .. }) { return; }
@@ -745,17 +739,17 @@ use crate::download::{request::{self, Accepted, DownloadIntent}};
         );
         fs::write(working.join("resolve-stdout.log"), &bytes).map_err(|e| e.to_string())?;
         let archived = crate::download::preserve_diagnostics(root.path(), &working, 1, EVIDENCE, &Default::default())?;
-        assert_eq!(
-            fs::read(archived.join("resolve-stdout.log")).map_err(|e| e.to_string())?,
-            bytes
-        );
+        assert!(!archived.join("resolve-stdout.log").exists());
         let overflow = vec![b'x'; process_supervisor::MAX_STDOUT_CAPTURE + 1];
         let failure = parse_metadata(&overflow).unwrap_err();
         assert!(failure.starts_with("E_METADATA_TOO_LARGE:"));
         fs::write(working.join("resolve-stdout.log"), overflow).map_err(|e| e.to_string())?;
+        fs::write(working.join("resolve-settlement.txt"), vec![b'x'; 65537]).map_err(|e| e.to_string())?;
         fs::write(working.join("attempt-error.log"), &failure).map_err(|e| e.to_string())?;
         let archived = crate::download::preserve_diagnostics(root.path(), &working, 2, EVIDENCE, &Default::default())?;
-        assert!(archived.join("resolve-stdout.log.omitted.txt").is_file());
+        assert!(!archived.join("resolve-stdout.log").exists());
+        assert!(!archived.join("resolve-stdout.log.omitted.txt").exists());
+        assert!(archived.join("resolve-settlement.txt.omitted.txt").is_file());
         assert_eq!(
             fs::read_to_string(archived.join("attempt-error.log")).map_err(|e| e.to_string())?,
             failure

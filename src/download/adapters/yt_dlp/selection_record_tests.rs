@@ -1,5 +1,22 @@
 use super::*;
 #[test]
+fn a_later_matching_selection_cannot_hide_an_earlier_identity_change() {
+    use crate::download::request::{DownloadIntent, Quality};
+    use serde_json::json;
+    for (url, extractor, expected_id, other_id) in [
+        ("https://www.youtube.com/watch?v=jNQXAC9IVRw", "Youtube", "jNQXAC9IVRw", "BaW_jenozKc"),
+        ("https://example.com/video", "Generic", "same", "different"),
+    ] {
+        let accepted = Accepted::new(DownloadIntent { clip: None, url: url.into(), quality: Quality::Saver, output_dir: std::env::temp_dir() }).unwrap();
+        let resolved = json!({"extractor_key":extractor, "id":expected_id});
+        let changed = json!({"extractor_key":extractor, "id":other_id});
+        assert!(check_selection_identities(&accepted, &resolved, &[resolved.clone(), resolved.clone()]).is_ok());
+        for rows in [[changed.clone(), resolved.clone()], [resolved.clone(), changed]] {
+            assert!(check_selection_identities(&accepted, &resolved, &rows).unwrap_err().starts_with("E_IDENTITY:"));
+        }
+    }
+}
+#[test]
 #[ignore = "Requires task-owned genuine runtime cache via AMEOW_RUNTIME_TEST_ROOT; no network or account"]
 fn native_safe_selection_preserves_separate_progress_without_private_metadata() -> Result<(), String> {
     use crate::download::{adapter::{ExecutionContext, ManagedCommand}, composition, process_supervisor::Control, runtime::RuntimeManager};

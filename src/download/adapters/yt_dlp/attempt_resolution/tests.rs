@@ -75,3 +75,49 @@ fn input_rejects_same_length_edits_replacements_and_symlinks() {
 
 #[cfg(target_os = "macos")]
 mod native;
+
+#[test]
+fn settled_diagnostics_keep_typed_facts_and_drop_owned_native_input() {
+    use crate::download::{composition, media_observation::Observations, preserve_diagnostics};
+    let root = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let working = workspace.path().to_path_buf();
+    let secret = b"E2_SYNTHETIC_RAW_METADATA_SIGNED_URL_COOKIE";
+    let transient = [
+        "resolved.json", "media.info.json", "selection.txt", "resolve-argv.json",
+        "resolve-stdout.log", "resolve-stderr.log", "transfer-argv.json",
+        "transfer-stdout.log", "transfer-stderr.log", "adapter-error.log",
+    ];
+    let settlement = b"exit_code: 0\nresources_releasable: true\n";
+    for prefix in ["", "primary-"] {
+        for name in transient { fs::write(working.join(format!("{prefix}{name}")), secret).unwrap(); }
+        for name in ["resolve-settlement.txt", "transfer-settlement.txt"] {
+            fs::write(working.join(format!("{prefix}{name}")), settlement).unwrap();
+        }
+    }
+    let observations = Observations::default();
+    let media = br#"{"width":640,"height":480}"#;
+    for name in ["resolve-media.json", "transfer-media.json", "primary-resolve-media.json", "primary-transfer-media.json"] {
+        observations.save(&working, name, Some(media.to_vec()));
+    }
+    let input = AttemptResolution::open(&working.join("resolved.json"), secret).unwrap();
+    let services = composition::services(root.path().join("runtime"));
+    let archive = preserve_diagnostics(root.path(), &working, 7, services.adapter.evidence_files(), &observations).unwrap();
+    for entry in fs::read_dir(&archive).unwrap() {
+        let bytes = fs::read(entry.unwrap().path()).unwrap();
+        assert!(!bytes.windows(secret.len()).any(|part| part == secret));
+    }
+    for prefix in ["", "primary-"] {
+        for name in transient { assert!(!archive.join(format!("{prefix}{name}")).exists()); }
+        for name in ["resolve-media.json", "transfer-media.json"] {
+            assert_eq!(fs::read(archive.join(format!("{prefix}{name}"))).unwrap(), media);
+        }
+        for name in ["resolve-settlement.txt", "transfer-settlement.txt"] {
+            assert_eq!(fs::read(archive.join(format!("{prefix}{name}"))).unwrap(), settlement);
+        }
+    }
+    drop(input);
+    workspace.close().unwrap();
+    assert!(!working.exists());
+    assert!(archive.is_dir());
+}
