@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeMap,
     fs::{self, File, OpenOptions},
-    io::{Read, Write},
+    io::{Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
     sync::{Arc, Mutex, Weak},
     time::Duration,
@@ -499,6 +499,7 @@ fn execution_guards_use_current_lease_hashes_and_reject_changed_files() {
 
 pub struct RuntimeManager {
     pub root: PathBuf,
+    pub(crate) root_source: super::preparation::RuntimeRootSource,
     cache: Mutex<Weak<RuntimeLease>>,
     candidate: Option<Candidate>,
     #[cfg(test)]
@@ -519,6 +520,7 @@ impl RuntimeManager {
     pub fn new(root: PathBuf) -> Self {
         Self {
             root,
+            root_source: super::preparation::RuntimeRootSource::Unknown,
             cache: Mutex::new(Weak::new()),
             candidate: None,
             #[cfg(test)]
@@ -526,6 +528,10 @@ impl RuntimeManager {
             #[cfg(test)]
             test_acquirer: Mutex::new(None),
         }
+    }
+    pub fn with_root_source(mut self, source: super::preparation::RuntimeRootSource) -> Self {
+        self.root_source = source;
+        self
     }
     pub(crate) fn candidate(
         root: PathBuf,
@@ -587,9 +593,12 @@ impl RuntimeManager {
     ) -> Result<Arc<RuntimeLease>, super::preparation::PreparationFailure> {
         use super::preparation::{
             ErrorCategory as E, PreparationFailure as F, PreparationPhase as P,
-            PreparationSnapshot, PreparationStage as S, RuntimeComponent as C,
+            PreparationOperation as O, PreparationSnapshot, PreparationStage as S, RuntimeComponent as C,
         };
         let fail = |stage, category| F::new(C::Runtime, stage, category);
+        let mut state = PreparationSnapshot { root_source: self.root_source, ..Default::default() };
+        state.observe(P::Preparing, None, S::Cache, 0, None, None);
+        observed(state.clone());
         check_data_location(&self.root).map_err(|_| fail(S::Cache, E::Storage))?;
         requirements
             .validate()
@@ -600,9 +609,6 @@ impl RuntimeManager {
         let requirement_id = requirements
             .identity()
             .map_err(|_| fail(S::Cache, E::Unknown))?;
-        let mut state = PreparationSnapshot::default();
-        state.observe(P::Preparing, None, S::Cache, 0, None, None);
-        observed(state.clone());
         if requirements.empty {
             safe_dir(&self.root).map_err(|_| fail(S::Cache, E::Storage))?;
             return Ok(Arc::new(RuntimeLease {
@@ -666,23 +672,21 @@ impl RuntimeManager {
         }
         typed_safe_dir(&self.root, C::Runtime, S::Cache)?;
         let _exclusive = lock_preparation(&self.root)
-            .map_err(|e| F::io(C::Runtime, S::Cache, e))?;
+            .map_err(|e| F::io_operation(C::Runtime, S::Cache, O::PrepareLock, e))?;
         // Search only bounded application-owned immutable candidates; never mutate a rejected cache.
         let primary = self.root.join(format!("runtime-{digest}"));
+        let entries = fs::read_dir(&self.root)
+            .map_err(|e| F::io_operation(C::Runtime, S::Cache, O::CandidateInspect, e))?
+            .take(129)
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| F::io_operation(C::Runtime, S::Cache, O::CandidateInspect, e))?;
+        let at_capacity = entries.len() >= 128;
+        let reuse_candidates: Vec<_> = entries.iter().take(128)
+            .filter(|entry| entry.file_name().to_string_lossy().starts_with("runtime-"))
+            .map(|entry| entry.path()).collect();
         let mut candidates = vec![primary.clone()];
-        for entry in fs::read_dir(&self.root)
-            .map_err(|e| F::io(C::Runtime, S::Cache, e))?
-            .take(128)
-        {
-            let entry = entry.map_err(|e| F::io(C::Runtime, S::Cache, e))?;
-            if entry
-                .file_name()
-                .to_string_lossy()
-                .starts_with(&format!("runtime-{digest}-recovered-"))
-            {
-                candidates.push(entry.path());
-            }
-        }
+        candidates.extend(reuse_candidates.iter().filter(|path| path.file_name().is_some_and(|name|
+            name.to_string_lossy().starts_with(&format!("runtime-{digest}-recovered-")))).cloned());
         for target in candidates {
             if control.is_cancelled() {
                 return Err(fail(S::Cache, E::Cancelled));
@@ -747,10 +751,18 @@ impl RuntimeManager {
                 }
             }
         }
-        let stage = tempfile::Builder::new()
-            .prefix("runtime-stage-")
+        if at_capacity {
+            let mut failure = fail(S::Cache, E::Storage);
+            failure.operation = Some(O::CandidateLimit);
+            return Err(failure);
+        }
+        // Failed attempts remain discoverable. Files are only created in this new sibling.
+        let target = tempfile::Builder::new()
+            .prefix(&format!("runtime-{digest}-recovered-"))
             .tempdir_in(&self.root)
-            .map_err(|e| F::io(C::Runtime, S::Acquire, e))?;
+            .map_err(|e| F::io_operation(C::Runtime, S::Acquire, O::RootCreate, e))?
+            .keep();
+        let stage = target.as_path();
         for component in &manifest.components {
             let component_id = C::from_name(&component.name);
             if self
@@ -758,23 +770,32 @@ impl RuntimeManager {
                 .as_ref()
                 .is_none_or(|candidate| component.name != candidate.component)
             {
+                #[cfg(target_os = "macos")]
                 let mut reused = false;
-                for entry in fs::read_dir(&self.root)
-                    .map_err(|e| F::io(C::Runtime, S::Cache, e))?
-                    .take(128)
-                {
-                    let entry = entry.map_err(|e| F::io(C::Runtime, S::Cache, e))?;
-                    if !entry.file_name().to_string_lossy().starts_with("runtime-")
-                        || typed_safe_existing_dir(&entry.path()).is_err()
-                    {
-                        continue;
+                // Windows can salvage individual tools from an incomplete shared archive.
+                #[cfg(windows)]
+                let reused = {
+                    for file in &component.files {
+                        for previous in &reuse_candidates {
+                            if control.is_cancelled() { return Err(fail(S::Cache, E::Cancelled)); }
+                            if typed_safe_existing_dir(previous).is_err() { continue; }
+                            if let Ok(mut input) = typed_check_file(&previous.join(&file.name), &file.sha256, component_id, S::Cache) {
+                                copy_new(&mut input, &stage.join(&file.name), control, component_id)?;
+                                break;
+                            }
+                        }
                     }
+                    component.files.iter().all(|file| stage.join(&file.name).is_file())
+                };
+                #[cfg(target_os = "macos")]
+                for previous in &reuse_candidates {
+                    if typed_safe_existing_dir(previous).is_err() { continue; }
                     let guards: Result<Vec<_>, _> = component
                         .files
                         .iter()
                         .map(|f| {
                             typed_check_file(
-                                &entry.path().join(&f.name),
+                                &previous.join(&f.name),
                                 &f.sha256,
                                 component_id,
                                 S::Cache,
@@ -785,21 +806,21 @@ impl RuntimeManager {
                         #[cfg(target_os = "macos")]
                         if matches!(component.name.as_str(), "python" | "gallery-dl") {
                             let verified = if component.name == "python" {
-                                super::macos_gallery::verify_python(&entry.path())
+                                super::macos_gallery::verify_python(previous)
                             } else {
-                                super::macos_gallery::verify_gallery(&entry.path())
+                                super::macos_gallery::verify_gallery(previous)
                             };
                             if verified.is_err() { continue; }
                             let copied = if component.name == "python" {
-                                super::macos_gallery::copy_python(&entry.path(), stage.path())
+                                super::macos_gallery::copy_python(previous, stage)
                             } else {
-                                super::macos_gallery::copy_gallery(&entry.path(), stage.path())
+                                super::macos_gallery::copy_gallery(previous, stage)
                             };
                             copied.map_err(|_| F::new(component_id, S::Extract, E::Hash))?;
                             reused = true; break;
                         }
                         for file in &component.files {
-                            fs::copy(entry.path().join(&file.name), stage.path().join(&file.name))
+                            fs::copy(previous.join(&file.name), stage.join(&file.name))
                                 .map_err(|e| F::io(component_id, S::Extract, e))?;
                         }
                         reused = true;
@@ -810,57 +831,48 @@ impl RuntimeManager {
                     continue;
                 }
             }
-            let archive = stage.path().join(format!("{}.artifact", component.name));
+            if control.is_cancelled() { return Err(fail(S::Acquire, E::Cancelled)); }
+            let archive_name = format!("{}.artifact", component.name);
             let local_candidate = self.candidate.as_ref().is_some_and(|candidate| component.name == candidate.component);
-            if self.candidate.as_ref().is_some_and(|candidate| !candidate.allow_acquisition) && !local_candidate {
-                return Err(F::new(component_id, S::Cache, E::Hash));
-            }
-            state.observe(
-                if local_candidate { P::Preparing } else { P::Downloading },
-                Some(component_id),
-                if local_candidate { S::Cache } else { S::Acquire },
-                0,
-                Some(component.bytes),
-                None,
-            );
-            observed(state.clone());
-            self.acquire_component(component, &archive, control, |bytes, total| {
+            let reusable_archive = if local_candidate { None } else {
+                reuse_candidates.iter().filter(|previous| typed_safe_existing_dir(previous).is_ok())
+                    .find_map(|previous| {
+                        let path = previous.join(&archive_name);
+                        checked_artifact(&path, component).ok().map(|guard| (path, guard))
+                    })
+            };
+            let (archive, _archive_guard) = if let Some(cached) = reusable_archive { cached } else {
+                if self.candidate.as_ref().is_some_and(|candidate| !candidate.allow_acquisition) && !local_candidate {
+                    return Err(F::new(component_id, S::Cache, E::Hash));
+                }
+                let archive = stage.join(archive_name);
                 state.observe(
-                    P::Downloading,
-                    Some(component_id),
-                    S::Acquire,
-                    bytes,
-                    total,
-                    None,
+                    if local_candidate { P::Preparing } else { P::Downloading },
+                    Some(component_id), if local_candidate { S::Cache } else { S::Acquire },
+                    0, Some(component.bytes), None,
                 );
                 observed(state.clone());
-            })
-            .map_err(|error| {
-                let mut failure = F::new(component_id, S::Acquire, error.category);
-                failure.http_status = error.http_status;
-                failure
-            })?;
-            state.observe(
-                P::Verifying,
-                Some(component_id),
-                S::Verify,
-                component.bytes,
-                Some(component.bytes),
-                None,
-            );
-            observed(state.clone());
-            drop(typed_check_file(
-                &archive,
-                &component.sha256,
-                component_id,
-                S::Verify,
-            )?);
+                self.acquire_component(component, &archive, control, |bytes, total| {
+                    state.observe(P::Downloading, Some(component_id), S::Acquire, bytes, total, None);
+                    observed(state.clone());
+                }).map_err(|error| {
+                    let mut failure = F::new(component_id, S::Acquire, error.category);
+                    failure.http_status = error.http_status;
+                    failure.operation = Some(error.operation);
+                    failure.raw_os_error = error.raw_os_error;
+                    failure
+                })?;
+                state.observe(P::Verifying, Some(component_id), S::Verify, component.bytes, Some(component.bytes), None);
+                observed(state.clone());
+                let guard = checked_artifact(&archive, component)?;
+                (archive, guard)
+            };
             state.observe(P::Verifying, Some(component_id), S::Extract, 0, None, None);
             observed(state.clone());
             #[cfg(target_os = "macos")]
             let bundled_gallery = match component.name.as_str() {
-                "python" => { super::macos_gallery::extract_python(&archive, stage.path(), control)?; true }
-                "gallery-dl" => { super::macos_gallery::extract_gallery(&archive, stage.path(), control)?; true }
+                "python" => { super::macos_gallery::extract_python(&archive, stage, control)?; true }
+                "gallery-dl" => { super::macos_gallery::extract_gallery(&archive, stage, control)?; true }
                 _ => false,
             };
             #[cfg(not(target_os = "macos"))]
@@ -869,7 +881,7 @@ impl RuntimeManager {
             let tar_file = if !bundled_gallery && component.url.ends_with(".tgz") {
                 for file in &component.files {
                     let member = file.archive_path.as_deref().ok_or_else(|| F::new(component_id, S::Extract, E::Extract))?;
-                    super::macos_gallery::extract_tar_file(&archive, member, &stage.path().join(&file.name))
+                    super::macos_gallery::extract_tar_file(&archive, member, &stage.join(&file.name))
                         .map_err(|_| F::new(component_id, S::Extract, E::Extract))?;
                 }
                 true
@@ -878,14 +890,16 @@ impl RuntimeManager {
             let tar_file = false;
             if bundled_gallery || tar_file {
             } else if component.files.iter().all(|f| f.archive_path.is_none()) {
-                fs::copy(&archive, stage.path().join(&component.files[0].name))
-                    .map_err(|e| F::io(component_id, S::Extract, e))?;
+                let mut input = open_identity_file(&archive)
+                    .map_err(|e| F::io_operation(component_id, S::Extract, O::FileOpen, e))?;
+                copy_new(&mut input, &stage.join(&component.files[0].name), control, component_id)?;
             } else {
                 let mut zip = zip::ZipArchive::new(
-                    File::open(&archive).map_err(|e| F::io(component_id, S::Extract, e))?,
+                    File::open(&archive).map_err(|e| F::io_operation(component_id, S::Extract, O::FileOpen, e))?,
                 )
                 .map_err(|_| F::new(component_id, S::Extract, E::Extract))?;
                 for entry in &component.files {
+                    if stage.join(&entry.name).is_file() { continue; }
                     if control.is_cancelled() {
                         return Err(F::new(component_id, S::Extract, E::Cancelled));
                     }
@@ -897,32 +911,32 @@ impl RuntimeManager {
                                 .ok_or_else(|| F::new(component_id, S::Extract, E::Extract))?,
                         )
                         .map_err(|_| F::new(component_id, S::Extract, E::Extract))?;
-                    if item.is_dir() || item.size() > 512_000_000 {
+                    if item.is_dir() || item.size() > 512_000_000
+                        || item.unix_mode().is_some_and(|mode| mode & 0o170000 == 0o120000) {
                         return Err(F::new(component_id, S::Extract, E::Extract));
                     }
                     let mut out = OpenOptions::new()
                         .create_new(true)
                         .write(true)
-                        .open(stage.path().join(&entry.name))
-                        .map_err(|e| F::io(component_id, S::Extract, e))?;
-                    std::io::copy(&mut item, &mut out)
-                        .map_err(|e| F::io(component_id, S::Extract, e))?;
+                        .open(stage.join(&entry.name))
+                        .map_err(|e| F::io_operation(component_id, S::Extract, O::FileCreate, e))?;
+                    copy_cancelled(&mut item, &mut out, control, component_id)?;
                     out.sync_all()
-                        .map_err(|e| F::io(component_id, S::Extract, e))?;
+                        .map_err(|e| F::io_operation(component_id, S::Extract, O::FileSync, e))?;
                 }
             }
-            fs::remove_file(archive).map_err(|e| F::io(component_id, S::Extract, e))?;
+            // Keep the pinned artifact for an explicit retry if a later component or publish fails.
         }
         #[cfg(target_os = "macos")]
         for component in &manifest.components {
             for file in &component.files {
-                fs::set_permissions(stage.path().join(&file.name), fs::Permissions::from_mode(0o555))
+                fs::set_permissions(stage.join(&file.name), fs::Permissions::from_mode(0o555))
                     .map_err(|e| F::io(C::from_name(&component.name), S::Extract, e))?;
             }
         }
-        verify_bundles(stage.path(), &manifest, S::Verify)?;
+        verify_bundles(stage, &manifest, S::Verify)?;
         self.probe(
-            stage.path(),
+            stage,
             &manifest,
             requirements,
             control,
@@ -933,36 +947,7 @@ impl RuntimeManager {
         if control.is_cancelled() {
             return Err(fail(S::Publish, E::Cancelled));
         }
-        state.observe(P::Verifying, None, S::Publish, 0, None, None);
-        observed(state.clone());
-        let mut marker = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(stage.path().join("complete.json"))
-            .map_err(|e| F::io(C::Runtime, S::Publish, e))?;
-        marker
-            .write_all(&marker_content)
-            .map_err(|e| F::io(C::Runtime, S::Publish, e))?;
-        marker
-            .sync_all()
-            .map_err(|e| F::io(C::Runtime, S::Publish, e))?;
-        drop(marker);
-        // An invalid primary remains as evidence. Publish a fresh immutable sibling, no in-place repair.
-        let target = if primary.exists() {
-            self.root.join(format!(
-                "runtime-{digest}-recovered-{}",
-                stage.path().file_name().unwrap().to_string_lossy()
-            ))
-        } else {
-            primary
-        };
-        super::output::move_no_replace(stage.path(), &target)
-            .map_err(|e| F::io(C::Runtime, S::Publish, e))?;
-        let mut guards = vec![typed_marker_guard(
-            &target,
-            &digest,
-            marker_content.len() as u64,
-        )?];
+        let mut guards = Vec::new();
         for component in &manifest.components {
             for file in &component.files {
                 guards.push(typed_check_file(
@@ -973,6 +958,25 @@ impl RuntimeManager {
                 )?);
             }
         }
+        state.observe(P::Verifying, None, S::Publish, 0, None, None);
+        observed(state.clone());
+        if control.is_cancelled() { return Err(fail(S::Publish, E::Cancelled)); }
+        let mut marker = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(stage.join("complete.pending"))
+            .map_err(|e| F::io_operation(C::Runtime, S::Publish, O::MarkerCreate, e))?;
+        marker
+            .write_all(&marker_content)
+            .map_err(|e| F::io_operation(C::Runtime, S::Publish, O::MarkerWrite, e))?;
+        marker
+            .sync_all()
+            .map_err(|e| F::io_operation(C::Runtime, S::Publish, O::MarkerSync, e))?;
+        drop(marker);
+        if control.is_cancelled() { return Err(fail(S::Publish, E::Cancelled)); }
+        super::output::move_no_replace(&stage.join("complete.pending"), &stage.join("complete.json"))
+            .map_err(|e| F::io_operation(C::Runtime, S::Publish, O::MarkerPublish, e))?;
+        guards.push(typed_marker_guard(&target, &digest, marker_content.len() as u64)?);
         let lease = runtime_lease(
             target,
             requirement_id,
@@ -997,7 +1001,8 @@ impl RuntimeManager {
                     return Err(super::preparation::ErrorCategory::Cancelled.into());
                 }
                 fs::copy(&candidate.artifact, archive).map_err(|e| {
-                    network::AcquisitionError::from(super::preparation::ErrorCategory::io(&e))
+                    network::AcquisitionError { category: super::preparation::ErrorCategory::io(&e),
+                        http_status: None, operation: super::preparation::PreparationOperation::FileCopy, raw_os_error: e.raw_os_error() }
                 })?;
                 return Ok(());
             }
@@ -1126,6 +1131,44 @@ fn verify_bundles(
     Ok(())
 }
 
+fn checked_artifact(path: &Path, component: &Component) -> Result<File, super::preparation::PreparationFailure> {
+    use super::preparation::{ErrorCategory as E, PreparationFailure as F, PreparationOperation as O, PreparationStage as S, RuntimeComponent as C};
+    let component_id = C::from_name(&component.name);
+    let metadata = fs::symlink_metadata(path)
+        .map_err(|e| F::io_operation(component_id, S::Verify, O::FileOpen, e))?;
+    if !super::is_plain_file(&metadata) || metadata.len() != component.bytes {
+        let mut failure = F::new(component_id, S::Verify, E::Size);
+        failure.operation = Some(O::ArtifactLength);
+        return Err(failure);
+    }
+    typed_check_file(path, &component.sha256, component_id, S::Verify)
+}
+
+fn copy_cancelled(
+    input: &mut impl Read, out: &mut File, control: &Control,
+    component: super::preparation::RuntimeComponent,
+) -> Result<(), super::preparation::PreparationFailure> {
+    use super::preparation::{ErrorCategory as E, PreparationFailure as F, PreparationOperation as O, PreparationStage as S};
+    let mut buffer = [0u8; 65536];
+    loop {
+        if control.is_cancelled() { return Err(F::new(component, S::Extract, E::Cancelled)); }
+        let n = input.read(&mut buffer).map_err(|e| F::io_operation(component, S::Extract, O::FileRead, e))?;
+        if n == 0 { break; }
+        out.write_all(&buffer[..n]).map_err(|e| F::io_operation(component, S::Extract, O::FileWrite, e))?;
+    }
+    Ok(())
+}
+
+fn copy_new(input: &mut File, target: &Path, control: &Control, component: super::preparation::RuntimeComponent)
+    -> Result<(), super::preparation::PreparationFailure> {
+    use super::preparation::{PreparationFailure as F, PreparationOperation as O, PreparationStage as S};
+    input.seek(SeekFrom::Start(0)).map_err(|e| F::io_operation(component, S::Extract, O::FileRead, e))?;
+    let mut out = OpenOptions::new().write(true).create_new(true).open(target)
+        .map_err(|e| F::io_operation(component, S::Extract, O::FileCreate, e))?;
+    copy_cancelled(input, &mut out, control, component)?;
+    out.sync_all().map_err(|e| F::io_operation(component, S::Extract, O::FileSync, e))
+}
+
 fn runtime_lease(
     target: PathBuf,
     requirement_id: String,
@@ -1163,19 +1206,19 @@ pub(crate) fn typed_safe_existing_dir(
     path: &Path,
 ) -> Result<(), super::preparation::PreparationFailure> {
     use super::preparation::{
-        ErrorCategory as E, PreparationFailure as F, PreparationStage as S, RuntimeComponent as C,
+        ErrorCategory as E, PreparationFailure as F, PreparationOperation as O, PreparationStage as S, RuntimeComponent as C,
     };
-    let metadata = fs::symlink_metadata(path).map_err(|e| F::io(C::Runtime, S::Cache, e))?;
+    let metadata = fs::symlink_metadata(path).map_err(|e| F::io_operation(C::Runtime, S::Cache, O::CandidateInspect, e))?;
     if is_link(&metadata) || !metadata.is_dir() {
         return Err(F::new(C::Runtime, S::Cache, E::Storage));
     }
     #[cfg(target_os = "macos")]
-    let checked = path.canonicalize().map_err(|e| F::io(C::Runtime, S::Cache, e))?;
+    let checked = path.canonicalize().map_err(|e| F::io_operation(C::Runtime, S::Cache, O::CandidateInspect, e))?;
     #[cfg(not(target_os = "macos"))]
     let checked = path.to_path_buf();
     for ancestor in checked.ancestors() {
         let metadata =
-            fs::symlink_metadata(ancestor).map_err(|e| F::io(C::Runtime, S::Cache, e))?;
+            fs::symlink_metadata(ancestor).map_err(|e| F::io_operation(C::Runtime, S::Cache, O::CandidateInspect, e))?;
         if is_link(&metadata) || !metadata.is_dir() {
             return Err(F::new(C::Runtime, S::Cache, E::Storage));
         }
@@ -1191,7 +1234,7 @@ fn typed_safe_dir(
         typed_safe_existing_dir(existing)?;
     }
     fs::create_dir_all(path)
-        .map_err(|e| super::preparation::PreparationFailure::io(component, stage, e))?;
+        .map_err(|e| super::preparation::PreparationFailure::io_operation(component, stage, super::preparation::PreparationOperation::RootCreate, e))?;
     typed_safe_existing_dir(path)
 }
 fn typed_check_file(
@@ -1200,19 +1243,19 @@ fn typed_check_file(
     component: super::preparation::RuntimeComponent,
     stage: super::preparation::PreparationStage,
 ) -> Result<File, super::preparation::PreparationFailure> {
-    use super::preparation::{ErrorCategory as E, PreparationFailure as F};
-    let metadata = fs::symlink_metadata(path).map_err(|e| F::io(component, stage, e))?;
+    use super::preparation::{ErrorCategory as E, PreparationFailure as F, PreparationOperation as O};
+    let metadata = fs::symlink_metadata(path).map_err(|e| F::io_operation(component, stage, O::FileOpen, e))?;
     if !super::is_plain_file(&metadata) {
         return Err(F::new(component, stage, E::Hash));
     }
     let mut file = open_identity_file(path)
-        .map_err(|e| F::io(component, stage, e))?;
+        .map_err(|e| F::io_operation(component, stage, O::FileOpen, e))?;
     let mut hasher = Sha256::new();
     let mut buffer = [0u8; 65536];
     loop {
         let n = file
             .read(&mut buffer)
-            .map_err(|e| F::io(component, stage, e))?;
+            .map_err(|e| F::io_operation(component, stage, O::FileRead, e))?;
         if n == 0 {
             break;
         }
@@ -1229,13 +1272,15 @@ fn typed_marker_guard(
     bytes: u64,
 ) -> Result<File, super::preparation::PreparationFailure> {
     use super::preparation::{
-        ErrorCategory as E, PreparationFailure as F, PreparationStage as S, RuntimeComponent as C,
+        ErrorCategory as E, PreparationFailure as F, PreparationOperation as O, PreparationStage as S, RuntimeComponent as C,
     };
     let marker = path.join("complete.json");
-    let file = typed_check_file(&marker, digest, C::Runtime, S::Cache)?;
+    let file = typed_check_file(&marker, digest, C::Runtime, S::Cache).map_err(|mut failure| {
+        failure.operation = Some(O::MarkerCheck); failure
+    })?;
     if file
         .metadata()
-        .map_err(|e| F::io(C::Runtime, S::Cache, e))?
+        .map_err(|e| F::io_operation(C::Runtime, S::Cache, O::MarkerCheck, e))?
         .len()
         != bytes
     {
@@ -1436,6 +1481,184 @@ mod requirement_tests {
                 .prepare_observed(&requirements, &Control::default(), Arc::new(|_| {}), |_| {})
                 .is_ok()
         );
+    }
+    #[test]
+    #[cfg(windows)]
+    fn publish_marker_keeps_open_tool_identity_and_failed_publish_reuses_files() {
+        use super::super::preparation::{PreparationOperation as O, PreparationStage as S};
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let root = tempfile::tempdir().unwrap();
+        let (catalog, requirements, executable) = fixture_catalog(root.path());
+        let manager = RuntimeManager::new(root.path().into());
+        *manager.test_catalog.lock().unwrap() = Some(catalog);
+        let acquired = Arc::new(AtomicUsize::new(0));
+        let calls = acquired.clone();
+        *manager.test_acquirer.lock().unwrap() = Some(Arc::new(move |path, _| {
+            calls.fetch_add(1, Ordering::SeqCst); fs::copy(&executable, path).unwrap(); Ok(())
+        }));
+        let mut blocked = PathBuf::new();
+        let failure = manager.prepare_observed(&requirements, &Control::default(), Arc::new(|_| {}), |event| {
+            if event.stage == S::Publish {
+                blocked = fs::read_dir(root.path()).unwrap().filter_map(Result::ok)
+                    .find(|entry| entry.file_name().to_string_lossy().contains("-recovered-")).unwrap().path();
+                fs::write(blocked.join("complete.json"), b"existing-marker-do-not-overwrite").unwrap();
+            }
+        }).err().unwrap();
+        assert_eq!(failure.operation, Some(O::MarkerPublish));
+        assert!(failure.raw_os_error.is_some());
+        assert_eq!(fs::read(blocked.join("complete.json")).unwrap(), b"existing-marker-do-not-overwrite");
+        assert!(blocked.join("ffmpeg.artifact").is_file());
+        let mut open_tool = None;
+        let mut publishing = PathBuf::new();
+        let lease = manager.prepare_observed(&requirements, &Control::default(), Arc::new(|_| {}), |event| {
+            if event.stage == S::Publish {
+                publishing = fs::read_dir(root.path()).unwrap().filter_map(Result::ok)
+                    .find(|entry| entry.path() != blocked && entry.file_name().to_string_lossy().contains("-recovered-")).unwrap().path();
+                open_tool = Some(open_identity_file(&publishing.join("ffprobe.exe")).unwrap());
+                // This deliberately reproduces the old directory Move failure, without changing ACLs.
+                assert!(super::super::output::move_no_replace(&publishing, &root.path().join("must-not-move")).is_err());
+            }
+        }).unwrap();
+        assert_eq!(lease.directory, publishing);
+        assert!(open_tool.is_some());
+        assert_eq!(acquired.load(Ordering::SeqCst), 1);
+        assert!(fs::write(lease.file("ffprobe.exe").unwrap(), b"tamper").is_err());
+    }
+    #[test]
+    #[cfg(windows)]
+    fn cancellation_before_marker_preserves_trusted_inputs_and_never_completes() {
+        use super::super::preparation::{ErrorCategory as E, PreparationStage as S};
+        let root = tempfile::tempdir().unwrap();
+        let (catalog, requirements, executable) = fixture_catalog(root.path());
+        let manager = RuntimeManager::new(root.path().into());
+        *manager.test_catalog.lock().unwrap() = Some(catalog);
+        *manager.test_acquirer.lock().unwrap() = Some(Arc::new(move |path, _| { fs::copy(&executable, path).unwrap(); Ok(()) }));
+        let control = Control::default();
+        let failure = manager.prepare_observed(&requirements, &control, Arc::new(|_| {}), |event| {
+            if event.stage == S::Publish { control.cancel(); }
+        }).err().unwrap();
+        assert_eq!(failure.category, E::Cancelled);
+        let target = fs::read_dir(root.path()).unwrap().filter_map(Result::ok)
+            .find(|entry| entry.file_name().to_string_lossy().contains("-recovered-")).unwrap().path();
+        assert!(!target.join("complete.json").exists());
+        assert!(target.join("ffprobe.exe").is_file());
+        *manager.test_acquirer.lock().unwrap() = Some(Arc::new(|_, _| panic!("retry must reuse trusted inputs")));
+        assert!(manager.prepare_observed(&requirements, &Control::default(), Arc::new(|_| {}), |_| {}).is_ok());
+    }
+    #[test]
+    #[cfg(windows)]
+    fn shared_archive_reuses_trusted_file_and_only_extracts_missing_member() {
+        use zip::{write::SimpleFileOptions, ZipWriter};
+        use super::super::preparation::ErrorCategory as E;
+        let root = tempfile::tempdir().unwrap();
+        let (mut catalog, _, executable) = fixture_catalog(root.path());
+        let bytes = fs::read(&executable).unwrap();
+        let mut zip = ZipWriter::new(std::io::Cursor::new(Vec::new()));
+        for name in ["ffmpeg.exe", "ffprobe.exe"] {
+            zip.start_file(name, SimpleFileOptions::default()).unwrap();
+            zip.write_all(&bytes).unwrap();
+        }
+        let archive = zip.finish().unwrap().into_inner();
+        let component = &mut catalog.components[0];
+        let mut ffmpeg = component.files[0].clone(); ffmpeg.name = "ffmpeg.exe".into();
+        component.files.push(ffmpeg);
+        for file in &mut component.files { file.archive_path = Some(file.name.clone()); }
+        component.bytes = archive.len() as u64; component.sha256 = hash(archive.as_slice()).unwrap();
+        let marker = root.path().join("probed").display().to_string();
+        let requirements = TrustedRuntimeRequirements::compiled(
+            &[("ffmpeg.exe", &["echo", &marker, "fixture-ready"]), ("ffprobe.exe", &["echo", &marker, "fixture-ready"])], &[]);
+        let previous = root.path().join("runtime-incomplete"); fs::create_dir(&previous).unwrap();
+        fs::copy(&executable, previous.join("ffmpeg.exe")).unwrap();
+        fs::write(previous.join("ffmpeg.artifact"), b"bad-package").unwrap();
+        assert_eq!(checked_artifact(&previous.join("ffmpeg.artifact"), component).err().unwrap().category, E::Size);
+        fs::write(previous.join("ffmpeg.artifact"), vec![0; archive.len()]).unwrap();
+        assert_eq!(checked_artifact(&previous.join("ffmpeg.artifact"), component).err().unwrap().category, E::Hash);
+        let manager = RuntimeManager::new(root.path().into());
+        *manager.test_catalog.lock().unwrap() = Some(catalog.clone());
+        let bad_package = vec![0; archive.len()];
+        *manager.test_acquirer.lock().unwrap() = Some(Arc::new(move |path, _| { fs::write(path, &bad_package).unwrap(); Ok(()) }));
+        let failure = manager.prepare_observed(&requirements, &Control::default(), Arc::new(|_| {}), |_| {}).err().unwrap();
+        assert_eq!(failure.category, E::Hash);
+        for entry in fs::read_dir(root.path()).unwrap().filter_map(Result::ok) {
+            assert!(!entry.path().join("ffprobe.exe").exists());
+            assert!(!entry.path().join("complete.json").exists());
+        }
+        fs::write(previous.join("ffmpeg.artifact"), archive).unwrap();
+        *manager.test_catalog.lock().unwrap() = Some(catalog);
+        *manager.test_acquirer.lock().unwrap() = Some(Arc::new(|_, _| panic!("trusted artifact must avoid acquisition")));
+        let lease = manager.prepare_observed(&requirements, &Control::default(), Arc::new(|_| {}), |_| {}).unwrap();
+        assert_ne!(lease.directory, previous);
+        for name in ["ffmpeg.exe", "ffprobe.exe"] { assert!(lease.file(name).unwrap().is_file()); }
+        assert!(previous.join("ffmpeg.exe").is_file());
+        assert!(!previous.join("ffprobe.exe").exists());
+    }
+    #[test]
+    #[cfg(windows)]
+    fn failed_component_keeps_prior_component_and_retry_only_acquires_missing() {
+        use super::super::preparation::ErrorCategory as E;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let root = tempfile::tempdir().unwrap();
+        let (mut catalog, _, executable) = fixture_catalog(root.path());
+        let mut deno = catalog.components[0].clone(); deno.name = "deno".into(); deno.files[0].name = "deno.exe".into();
+        catalog.components.push(deno);
+        let marker = root.path().join("probed").display().to_string();
+        let requirements = TrustedRuntimeRequirements::compiled(
+            &[("ffprobe.exe", &["echo", &marker, "fixture-ready"]), ("deno.exe", &["echo", &marker, "fixture-ready"])], &[]);
+        let manager = RuntimeManager::new(root.path().into());
+        *manager.test_catalog.lock().unwrap() = Some(catalog);
+        let counts = Arc::new((AtomicUsize::new(0), AtomicUsize::new(0))); let calls = counts.clone();
+        *manager.test_acquirer.lock().unwrap() = Some(Arc::new(move |path, _| {
+            if path.file_stem().unwrap() == "deno" {
+                if calls.1.fetch_add(1, Ordering::SeqCst) == 0 { return Err(E::Connect.into()); }
+            } else { calls.0.fetch_add(1, Ordering::SeqCst); }
+            fs::copy(&executable, path).unwrap(); Ok(())
+        }));
+        assert_eq!(manager.prepare_observed(&requirements, &Control::default(), Arc::new(|_| {}), |_| {}).err().unwrap().category, E::Connect);
+        assert!(manager.prepare_observed(&requirements, &Control::default(), Arc::new(|_| {}), |_| {}).is_ok());
+        assert_eq!(counts.0.load(Ordering::SeqCst), 1);
+        assert_eq!(counts.1.load(Ordering::SeqCst), 2);
+    }
+    #[test]
+    #[cfg(windows)]
+    fn retained_candidate_bound_stops_new_acquisition_and_preserves_root_source() {
+        use super::super::preparation::{ErrorCategory as E, PreparationOperation as O, RuntimeRootSource};
+        let root = tempfile::tempdir().unwrap();
+        let (catalog, requirements, _) = fixture_catalog(root.path());
+        for index in 0..128 { fs::write(root.path().join(format!("evidence-{index}")), b"preserve").unwrap(); }
+        let manager = RuntimeManager::new(root.path().into()).with_root_source(RuntimeRootSource::ExplicitRuntimeRoot);
+        *manager.test_catalog.lock().unwrap() = Some(catalog);
+        *manager.test_acquirer.lock().unwrap() = Some(Arc::new(|_, _| panic!("candidate cap must precede acquisition")));
+        let mut source = RuntimeRootSource::Unknown;
+        let error = manager.prepare_observed(&requirements, &Control::default(), Arc::new(|_| {}), |state| source = state.root_source).err().unwrap();
+        assert_eq!(error.category, E::Storage); assert_eq!(error.operation, Some(O::CandidateLimit));
+        assert!(error.safe().message.contains("candidate limit"));
+        assert!(!error.safe().suggestion.contains("free space"));
+        assert_eq!(source, RuntimeRootSource::ExplicitRuntimeRoot);
+        assert!(fs::read_dir(root.path()).unwrap().all(|entry| !entry.unwrap().file_name().to_string_lossy().contains("-recovered-")));
+    }
+    #[test]
+    #[cfg(windows)]
+    #[ignore = "requires an existing pinned cache via AMEOW_RUNTIME_TEST_ROOT; never acquires assets"]
+    fn genuine_pinned_cache_probes_settle_and_same_process_reuses_lease_without_acquisition() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let root = PathBuf::from(std::env::var_os("AMEOW_RUNTIME_TEST_ROOT").expect("existing cache root"));
+        let manager = RuntimeManager::new(root).with_root_source(super::super::preparation::RuntimeRootSource::ExplicitRuntimeRoot);
+        *manager.test_acquirer.lock().unwrap() = Some(Arc::new(|_, _| panic!("real-cache check must never acquire")));
+        let settled = Arc::new(AtomicUsize::new(0)); let received = settled.clone();
+        let observer = Arc::new(move |event| if let ProcessObservation::Settled(facts) = event {
+            assert!(facts.resources_releasable()); received.fetch_add(1, Ordering::SeqCst);
+        });
+        let started = std::time::Instant::now();
+        let requirements = super::super::composition::requirements();
+        let lease = manager.prepare_observed(&requirements, &Control::default(), observer.clone(), |state| {
+            assert_ne!(state.phase, super::super::preparation::PreparationPhase::Downloading);
+        }).unwrap();
+        assert_eq!(settled.load(Ordering::SeqCst), 5);
+        let reused = manager.prepare_observed(&requirements, &Control::default(), observer, |_| {}).unwrap();
+        assert!(Arc::ptr_eq(&lease, &reused));
+        assert_eq!(settled.load(Ordering::SeqCst), 5);
+        println!("{}", serde_json::json!({"pid":std::process::id(),"settled_probes":5,"acquired":0,
+            "lease_reused":true,"files":lease.files.len(),"versions":lease.versions,"elapsed_ms":started.elapsed().as_millis()}));
     }
     #[test]
     fn full_catalog_keeps_exact_marker_and_subset_contains_only_declared_tools() {

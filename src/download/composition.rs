@@ -30,8 +30,11 @@ pub fn requirements() -> TrustedRuntimeRequirements {
     )
 }
 pub fn services(root: PathBuf) -> DownloadServices {
+    services_with_root_source(root, super::preparation::RuntimeRootSource::Unknown)
+}
+pub fn services_with_root_source(root: PathBuf, source: super::preparation::RuntimeRootSource) -> DownloadServices {
     DownloadServices {
-        runtime: Arc::new(RuntimeManager::new(root)),
+        runtime: Arc::new(RuntimeManager::new(root).with_root_source(source)),
         adapter: Arc::new(AutomaticAdapter::new(requirements())),
         verifiers: Arc::new(VerifierRegistry::video_and_images("ffprobe.exe")),
     }

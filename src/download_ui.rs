@@ -156,6 +156,11 @@ impl DownloadUi {
             let setup = (|| {
                 let isolated = ameow_next::control::isolated_root(&args).map_err(|e|e.to_string())?;
                 let root = match &isolated { Some(root) => root.join("runtime"), None => value("--runtime-root").map(PathBuf::from).map_or_else(RuntimeManager::default_root, Ok)? };
+                use ameow_next::download::preparation::RuntimeRootSource;
+                let root_source = if isolated.is_some() { RuntimeRootSource::IsolatedInstance }
+                    else if value("--runtime-root").is_some() { RuntimeRootSource::ExplicitRuntimeRoot }
+                    else if cfg!(windows) { RuntimeRootSource::DefaultLocalAppData }
+                    else { RuntimeRootSource::DefaultApplicationSupport };
                 let settings_path = match &isolated { Some(root) => root.join("settings.json"), None => value("--settings-path").map(PathBuf::from).unwrap_or_else(|| root.join("ui-settings.json")) };
                 let output_dir = match &isolated { Some(root) => root.join("output"), None => value("--output").map(PathBuf::from).map_or_else(crate::tray::downloads_directory, Ok)? };
                 let defaults = Settings { quality: Quality::Balanced, output_dir, theme: Default::default(), language: Default::default(), tray_icon: Default::default(), shortcut: Default::default() };
@@ -165,7 +170,8 @@ impl DownloadUi {
                     let services = ameow_next::download::cancel_fixture::services(root, &origin, &value("--cancel-fixture-mode").unwrap_or_else(|| "native".into()))?;
                     return ameow_next::download::queue::DownloadCoordinator::new(services, settings_path, defaults);
                 }
-                ameow_next::download::composition::download_coordinator(root, settings_path, defaults)
+                let services = ameow_next::download::composition::services_with_root_source(root, root_source);
+                ameow_next::download::queue::DownloadCoordinator::new(services, settings_path, defaults)
             })();
             let coordinator = match setup {
                 Ok(coordinator) => coordinator,
@@ -4098,7 +4104,7 @@ mod tests {
         snapshot.preparation.phase = PreparationPhase::Failed;
         snapshot.preparation.failure = Some(PreparationFailure {
             component: RuntimeComponent::Ffmpeg, stage: PreparationStage::Acquire,
-            category: ErrorCategory::Http, http_status: Some(404),
+            category: ErrorCategory::Http, http_status: Some(404), operation: None, raw_os_error: None,
             message: "raw HTTP 404 backend detail".into(), suggestion: "raw suggestion".into(),
         });
         for (component, label) in [(RuntimeComponent::Ffmpeg, "FFmpeg"),

@@ -175,7 +175,8 @@ pub fn snapshot(scene: &Scene) -> QueueSnapshot {
             attempt: if downloading { preparation.attempt } else { preparation.attempt - 1 },
             timestamp_ms: 0, phase: PreparationPhase::Downloading,
             component: Some(RuntimeComponent::YtDlp), stage: PreparationStage::Acquire,
-            category: None, http_status: None, downloaded_bytes: 25_000_000, total_bytes: Some(40_000_000),
+            category: None, http_status: None, operation: None, raw_os_error: None,
+            root_source: Default::default(), downloaded_bytes: 25_000_000, total_bytes: Some(40_000_000),
         });
     }
     if scene.surface == "settings" || scene.surface == "components" || scene.surface == "diagnostics" {

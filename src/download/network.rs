@@ -136,16 +136,44 @@ fn bypass(host: &str, patterns: &str) -> Result<bool, String> {
 }
 #[cfg(windows)]
 pub fn resolve(input: &str) -> Result<Route, String> {
+    resolve_windows(input).map_err(|error| error.message)
+}
+#[cfg(windows)]
+struct RouteError {
+    message: String,
+    operation: super::preparation::PreparationOperation,
+    raw_os_error: Option<i32>,
+}
+#[cfg(windows)]
+impl From<String> for RouteError {
+    fn from(message: String) -> Self {
+        Self {
+            message,
+            operation: super::preparation::PreparationOperation::ProxyRoute,
+            raw_os_error: None,
+        }
+    }
+}
+#[cfg(windows)]
+impl From<&str> for RouteError {
+    fn from(message: &str) -> Self {
+        message.to_owned().into()
+    }
+}
+#[cfg(windows)]
+fn resolve_windows(input: &str) -> Result<Route, RouteError> {
     let url = Url::parse(input).map_err(|e| format!("Network URL: {e}"))?;
     if !matches!(url.scheme(), "http" | "https") {
         return Err("Unsupported network scheme".into());
     }
     let mut config = WINHTTP_CURRENT_USER_IE_PROXY_CONFIG::default();
     if unsafe { WinHttpGetIEProxyConfigForCurrentUser(&mut config) } == 0 {
-        return Err(format!(
-            "Windows proxy config: {}",
-            std::io::Error::last_os_error()
-        ));
+        let error = std::io::Error::last_os_error();
+        return Err(RouteError {
+            message: format!("Windows proxy config: {error}"),
+            operation: super::preparation::PreparationOperation::ProxyConfig,
+            raw_os_error: error.raw_os_error(),
+        });
     }
     let auto = unsafe { take_wide(config.lpszAutoConfigUrl) };
     let proxy = unsafe { take_wide(config.lpszProxy) };
@@ -161,7 +189,12 @@ pub fn resolve(input: &str) -> Result<Route, String> {
             )
         };
         if session.is_null() {
-            return Err("WinHTTP route session failed".into());
+            let error = std::io::Error::last_os_error();
+            return Err(RouteError {
+                message: "WinHTTP route session failed".into(),
+                operation: super::preparation::PreparationOperation::ProxySession,
+                raw_os_error: error.raw_os_error(),
+            });
         }
         let auto_wide = auto.as_deref().map(wide);
         let mut options = WINHTTP_AUTOPROXY_OPTIONS {
@@ -189,9 +222,11 @@ pub fn resolve(input: &str) -> Result<Route, String> {
             WinHttpCloseHandle(session);
         }
         if succeeded == 0 {
-            return Err(format!(
-                "Windows automatic route unresolved: {error}; no direct fallback"
-            ));
+            return Err(RouteError {
+                message: format!("Windows automatic route unresolved: {error}; no direct fallback"),
+                operation: super::preparation::PreparationOperation::ProxyAuto,
+                raw_os_error: error.raw_os_error(),
+            });
         }
         if resolved_bypass
             .as_deref()
@@ -203,10 +238,10 @@ pub fn resolve(input: &str) -> Result<Route, String> {
         }
         return match info.dwAccessType {
             WINHTTP_ACCESS_TYPE_NO_PROXY => Ok(Route::Direct),
-            WINHTTP_ACCESS_TYPE_NAMED_PROXY => parse_proxy(
+            WINHTTP_ACCESS_TYPE_NAMED_PROXY => Ok(parse_proxy(
                 resolved.as_deref().ok_or("PAC returned no named route")?,
                 url.scheme(),
-            ),
+            )?),
             _ => Err("Unsupported Windows automatic route".into()),
         };
     }
@@ -220,7 +255,7 @@ pub fn resolve(input: &str) -> Result<Route, String> {
     }
     match proxy {
         None => Ok(Route::Direct),
-        Some(proxy) => parse_proxy(&proxy, url.scheme()),
+        Some(proxy) => Ok(parse_proxy(&proxy, url.scheme())?),
     }
 }
 /// The engine cannot delegate its opaque requests back to the OS resolver. Restrict it to a
@@ -1105,25 +1140,64 @@ pub fn acquire(
 pub(crate) struct AcquisitionError {
     pub category: super::preparation::ErrorCategory,
     pub http_status: Option<u16>,
+    pub operation: super::preparation::PreparationOperation,
+    pub raw_os_error: Option<i32>,
 }
 impl From<super::preparation::ErrorCategory> for AcquisitionError {
     fn from(category: super::preparation::ErrorCategory) -> Self {
         Self {
             category,
             http_status: None,
+            operation: super::preparation::PreparationOperation::Acquire,
+            raw_os_error: None,
+        }
+    }
+}
+impl AcquisitionError {
+    fn at(category: super::preparation::ErrorCategory, operation: super::preparation::PreparationOperation) -> Self {
+        Self {
+            category,
+            http_status: None,
+            operation,
+            raw_os_error: None,
+        }
+    }
+    fn io(operation: super::preparation::PreparationOperation, error: &std::io::Error) -> Self {
+        Self {
+            category: super::preparation::ErrorCategory::io(error),
+            http_status: None,
+            operation,
+            raw_os_error: error.raw_os_error(),
         }
     }
 }
 fn request_error(error: reqwest::Error) -> AcquisitionError {
     use super::preparation::ErrorCategory as E;
-    (if error.is_timeout() {
+    let category = if error.is_timeout() {
         E::Timeout
     } else if error.is_connect() {
         E::Connect
     } else {
         E::Unknown
-    })
-    .into()
+    };
+    AcquisitionError {
+        category,
+        http_status: None,
+        operation: super::preparation::PreparationOperation::HttpRequest,
+        raw_os_error: nested_os_error(&error),
+    }
+}
+fn nested_os_error(error: &(dyn std::error::Error + 'static)) -> Option<i32> {
+    let mut source = Some(error);
+    while let Some(cause) = source {
+        if let Some(io_error) = cause.downcast_ref::<std::io::Error>() {
+            if let Some(code) = io_error.raw_os_error() {
+                return Some(code);
+            }
+        }
+        source = cause.source();
+    }
+    None
 }
 pub(crate) fn acquire_observed(
     input: &str,
@@ -1134,15 +1208,24 @@ pub(crate) fn acquire_observed(
     progress: impl FnMut(u64, Option<u64>),
 ) -> Result<(), AcquisitionError> {
     use super::preparation::ErrorCategory as E;
-    let mut url = Url::parse(input).map_err(|_| E::Unknown)?;
+    let mut url = Url::parse(input).map_err(|_| AcquisitionError::at(E::Unknown, super::preparation::PreparationOperation::UrlParse))?;
     for _ in 0..8 {
         if cancel.load(Ordering::Acquire) {
-            return Err(E::Cancelled.into());
+            return Err(AcquisitionError::at(E::Cancelled, super::preparation::PreparationOperation::AcquireCancel));
         }
         if url.scheme() != "https" {
-            return Err(E::Http.into());
+            return Err(AcquisitionError::at(E::Http, super::preparation::PreparationOperation::HttpsRequired));
         }
-        let route = resolve(url.as_str()).map_err(|_| E::ProxyRouting)?;
+        #[cfg(windows)]
+        let route = resolve_windows(url.as_str()).map_err(|error| AcquisitionError {
+            category: E::ProxyRouting,
+            http_status: None,
+            operation: error.operation,
+            raw_os_error: error.raw_os_error,
+        })?;
+        #[cfg(not(windows))]
+        let route = resolve(url.as_str())
+            .map_err(|_| AcquisitionError::at(E::ProxyRouting, super::preparation::PreparationOperation::ProxyRoute))?;
         let mut public_url = url.clone();
         public_url.set_query(None);
         observed(public_url.as_str(), &route);
@@ -1152,7 +1235,10 @@ pub(crate) fn acquire_observed(
             .connect_timeout(Duration::from_secs(15))
             .timeout(Duration::from_secs(300));
         if let Route::Proxy(proxy) = route {
-            builder = builder.proxy(reqwest::Proxy::all(proxy).map_err(|_| E::ProxyRouting)?);
+            builder = builder.proxy(
+                reqwest::Proxy::all(proxy)
+                    .map_err(|_| AcquisitionError::at(E::ProxyRouting, super::preparation::PreparationOperation::ProxyConfigure))?,
+            );
         }
         let response = builder
             .build()
@@ -1165,21 +1251,25 @@ pub(crate) fn acquire_observed(
             let location = response
                 .headers()
                 .get(reqwest::header::LOCATION)
-                .ok_or(E::Http)?
+                .ok_or_else(|| AcquisitionError::at(E::Http, super::preparation::PreparationOperation::RedirectLocation))?
                 .to_str()
-                .map_err(|_| E::Http)?;
-            url = url.join(location).map_err(|_| E::Http)?;
+                .map_err(|_| AcquisitionError::at(E::Http, super::preparation::PreparationOperation::RedirectLocation))?;
+            url = url
+                .join(location)
+                .map_err(|_| AcquisitionError::at(E::Http, super::preparation::PreparationOperation::RedirectLocation))?;
             continue;
         }
         if !response.status().is_success() {
             return Err(AcquisitionError {
                 category: E::Http,
                 http_status: Some(response.status().as_u16()),
+                operation: super::preparation::PreparationOperation::HttpStatus,
+                raw_os_error: None,
             });
         }
         return store_artifact(response, path, expected_bytes, cancel, progress);
     }
-    Err(E::Http.into())
+    Err(AcquisitionError::at(E::Http, super::preparation::PreparationOperation::RedirectLimit))
 }
 fn store_artifact(
     mut response: impl Read,
@@ -1193,7 +1283,7 @@ fn store_artifact(
         .create_new(true)
         .write(true)
         .open(path)
-        .map_err(|e| E::io(&e))?;
+        .map_err(|e| AcquisitionError::io(super::preparation::PreparationOperation::ArtifactCreate, &e))?;
     let mut total = 0_u64;
     // The compiled manifest is an exact artifact byte contract, independent of HTTP headers.
     progress(0, Some(expected_bytes));
@@ -1201,25 +1291,41 @@ fn store_artifact(
     let mut buffer = [0_u8; 65536];
     loop {
         if cancel.load(Ordering::Acquire) {
-            return Err(E::Cancelled.into());
+            return Err(AcquisitionError::at(E::Cancelled, super::preparation::PreparationOperation::AcquireCancel));
         }
         let n = response.read(&mut buffer).map_err(|e| {
             let mut source = std::error::Error::source(&e);
             while let Some(cause) = source {
                 if let Some(request) = cause.downcast_ref::<reqwest::Error>() {
                     if request.is_timeout() {
-                        return E::Timeout;
+                        return AcquisitionError {
+                            category: E::Timeout,
+                            http_status: None,
+                            operation: super::preparation::PreparationOperation::ResponseRead,
+                            raw_os_error: nested_os_error(&e),
+                        };
                     }
                     if request.is_connect() {
-                        return E::Connect;
+                        return AcquisitionError {
+                            category: E::Connect,
+                            http_status: None,
+                            operation: super::preparation::PreparationOperation::ResponseRead,
+                            raw_os_error: nested_os_error(&e),
+                        };
                     }
                 }
                 source = cause.source();
             }
-            if e.kind() == std::io::ErrorKind::TimedOut {
+            let category = if e.kind() == std::io::ErrorKind::TimedOut {
                 E::Timeout
             } else {
                 E::Unknown
+            };
+            AcquisitionError {
+                category,
+                http_status: None,
+                operation: super::preparation::PreparationOperation::ResponseRead,
+                raw_os_error: nested_os_error(&e),
             }
         })?;
         if n == 0 {
@@ -1227,18 +1333,20 @@ fn store_artifact(
         }
         total += n as u64;
         if total > expected_bytes {
-            return Err(E::Size.into());
+            return Err(AcquisitionError::at(E::Size, super::preparation::PreparationOperation::ArtifactLength));
         }
-        file.write_all(&buffer[..n]).map_err(|e| E::io(&e))?;
+        file.write_all(&buffer[..n])
+            .map_err(|e| AcquisitionError::io(super::preparation::PreparationOperation::ArtifactWrite, &e))?;
         if last_progress.elapsed() >= Duration::from_millis(200) {
             progress(total, Some(expected_bytes));
             last_progress = std::time::Instant::now();
         }
     }
     if total != expected_bytes {
-        return Err(E::Size.into());
+        return Err(AcquisitionError::at(E::Size, super::preparation::PreparationOperation::ArtifactLength));
     }
-    file.sync_all().map_err(|e| E::io(&e))?;
+    file.sync_all()
+        .map_err(|e| AcquisitionError::io(super::preparation::PreparationOperation::ArtifactSync, &e))?;
     progress(total, Some(expected_bytes));
     Ok(())
 }
@@ -1246,6 +1354,19 @@ fn store_artifact(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn artifact_create_error_preserves_operation_and_os_code() {
+        use super::super::preparation::PreparationOperation;
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("existing");
+        std::fs::write(&path, b"preserve").unwrap();
+        let expected = OpenOptions::new().create_new(true).write(true).open(&path).unwrap_err();
+        let error = store_artifact(std::io::Cursor::new(b"new"), &path, 3,
+            &AtomicBool::new(false), |_, _| {}).unwrap_err();
+        assert_eq!(error.operation, PreparationOperation::ArtifactCreate);
+        assert_eq!(error.raw_os_error, expected.raw_os_error());
+        assert_eq!(std::fs::read(path).unwrap(), b"preserve");
+    }
     #[test]
     fn acquisition_rejects_plain_http_and_cancellation_before_creating_a_file() {
         use super::super::preparation::ErrorCategory as E;
