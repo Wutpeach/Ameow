@@ -45,6 +45,11 @@ impl Global for SettingsKeyBindings {}
 fn error_text(p: Palette) -> Hsla {
     if p.night { p.red } else { rgb(0xb8323c).into() }
 }
+fn component_dot(p: Palette, label: &'static str, id: &'static str) -> AnyElement {
+    div().id(id).size(px(6.)).flex_none().rounded_full().bg(p.orange)
+        .aria_label(label).into_any_element()
+}
+
 fn inline_notice(p: Palette, message: impl Into<String>, danger: bool) -> Div {
     let color = if danger { error_text(p) } else { p.neutral };
     div().p(px(10.)).rounded(px(6.))
@@ -153,9 +158,12 @@ struct Projection {
     preparation_status: Option<(String, bool)>,
     upstream: ameow_next::download::upstream::UpstreamChecker,
     preview_upstream: Option<ameow_next::download::upstream::UpstreamSnapshot>,
+    preview_gallery_upstream: Option<ameow_next::download::upstream::UpstreamSnapshot>,
     upstream_available: bool,
     engine_command_pending: bool,
     engine_notice: Option<bool>,
+    extension: ameow_next::browser_sessions::extension::Snapshot,
+    extension_location: Option<(PathBuf, PathBuf)>,
     bridge_config_pending: bool,
     bridge_config_result: Option<Result<(), String>>,
 }
@@ -185,9 +193,12 @@ impl Projection {
             preparation_status: ui.and_then(|ui| ui.preparation_status_at(main.now())),
             upstream: ui.map(|ui| ui.upstream.clone()).unwrap_or_default(),
             preview_upstream: None,
+            preview_gallery_upstream: None,
             upstream_available: ui.is_some_and(|ui| ui.upstream_check_available()),
             engine_command_pending: ui.is_some_and(|ui| ui.engine_command_pending),
             engine_notice: ui.and_then(|ui| ui.engine_notice),
+            extension: ui.map(|ui| ui.extension.clone()).unwrap_or_default(),
+            extension_location: ui.and_then(|ui| ui.component_locations()),
             bridge_config_pending: ui.is_some_and(|ui| ui.bridge_config_pending),
             bridge_config_result: ui.and_then(|ui| ui.bridge_config_result.clone()),
         }
@@ -270,6 +281,9 @@ pub struct SettingsWindow {
     preview_select: Option<PreferenceKind>,
     keyboard_focus: bool,
     component_menu_open: bool,
+    component_downloader: ameow_next::download::contract::Downloader,
+    components_seen: Vec<String>,
+    components_visible: bool,
     help_open: Option<&'static str>,
     upstream_feedback: Option<(std::time::Instant, bool)>,
     title_language: Language,
@@ -325,6 +339,8 @@ impl SettingsWindow {
         crate::brand_icons::set_window(hwnd(window));
         let browser_visibility = cx.observe_window_visibility(window, |this, visibility, _, cx| {
             this.browser_demo_visibility(visibility.is_visible());
+            this.components_visible = visibility.is_visible();
+            this.mark_components_seen(cx);
             cx.notify();
         });
         let observer = cx.observe(&main, |this, main, cx| {
@@ -339,6 +355,7 @@ impl SettingsWindow {
                 && (this.projection.shortcut_pending || (next.shortcut != this.projection.shortcut && matches!(next.status, SettingsStatus::Saved)));
             this.browser_setup_observe(&next);
             this.projection = next;
+            this.mark_components_seen(cx);
             if shortcut_saved { this.reset_copy_feedback_later("shortcut", cx); }
             if update_scheduled { this.show_update_notice(cx); }
             this.refresh_health(false, cx);
@@ -419,6 +436,9 @@ impl SettingsWindow {
             preview_select: None,
             keyboard_focus: false,
             component_menu_open: false,
+            component_downloader: Default::default(),
+            components_seen: Vec::new(),
+            components_visible: false,
             help_open: None,
             upstream_feedback: None,
             update_notice_deadline: None,
@@ -444,12 +464,14 @@ impl SettingsWindow {
                         if ticks % 10 == 0 {
                             this.refresh_startup(None, cx);
                         }
+                        if this.components_unread() { cx.notify(); }
                         if this.page == Page::Components {
                             if let Ok(next) =
                                 this.main.update(cx, |main, _| Projection::from_main(main))
                             {
                                 this.projection = next;
                             }
+                            this.mark_components_seen(cx);
                             cx.notify();
                         }
                     })
@@ -1145,11 +1167,13 @@ impl SettingsWindow {
             .child(svg().path(icon).size(px(14.)).flex_none()
                 .text_color(if selected { p.primary_text() } else { p.neutral }))
             .whitespace_nowrap()
-            .child(label)
+            .child(div().relative().child(label)
+                .when(page == Page::Components && self.components_unread(), |s| s.child(div().absolute().right(px(-7.)).top(px(-1.)).child(component_dot(p, self.projection.language.text("有未查看的更新", "Unread update"), "component-navigation-unread")))))
             .on_key_down(cx.listener(move |this, event: &KeyDownEvent, _, cx| {
                 if event.keystroke.key == "enter" || event.keystroke.key == "space" {
                     for select in &mut this.selects { select.open = false; }
                     this.page = page;
+                    if page == Page::Components { this.components_seen.clear(); this.mark_components_seen(cx); }
                     this.browser_ui.guide = 0;
                     this.browser_ui.clear_menu();
                     this.finish_shortcut(cx);
@@ -1164,6 +1188,7 @@ impl SettingsWindow {
             .on_click(cx.listener(move |this, _, _, cx| {
                 for select in &mut this.selects { select.open = false; }
                 this.page = page;
+                if page == Page::Components { this.components_seen.clear(); this.mark_components_seen(cx); }
                 this.browser_ui.guide = 0;
                 this.browser_ui.clear_menu();
                 this.finish_shortcut(cx);
@@ -2121,6 +2146,7 @@ impl Prototype {
                 let view = root.view().clone().downcast::<SettingsWindow>().expect("settings content");
                 view.update(cx, |view, cx| {
                     view.page = Page::Components;
+                    view.mark_components_seen(cx);
                     view.notices_open = false;
                     view.help_open = None;
                     view.scroll.set_offset(point(px(0.), px(0.)));
@@ -2214,8 +2240,27 @@ impl Prototype {
         match scene.state.as_str() {
             "checking" => upstream.pending = true,
             "check-failed" => { upstream.checked_at_ms = Some(ameow_next::download::progress::now_ms()); upstream.result = Some(Err(ameow_next::download::upstream::UpstreamError::Network)); },
-            "update-available" => { upstream.checked_at_ms = Some(ameow_next::download::progress::now_ms()); upstream.result = Some(Ok("2026.11.01".into())); },
+            "update-available" => { upstream.checked_at_ms = Some(ameow_next::download::progress::now_ms()); upstream.result = Some(Ok("2026.11.01".into())); upstream.installability = ameow_next::download::upstream::Installability::Installable; },
             _ => {},
+        }
+        if scene.state == "requires-ameow" {
+            upstream.checked_at_ms = Some(ameow_next::download::progress::now_ms());
+            upstream.result = Some(Ok("2026.11.01".into()));
+            upstream.installability = ameow_next::download::upstream::Installability::RequiresAmeow;
+        }
+        if scene.state == "gallery-update" {
+            projection.preview_gallery_upstream = Some(ameow_next::download::upstream::UpstreamSnapshot {
+                checked_at_ms: Some(ameow_next::download::progress::now_ms()), result: Some(Ok("1.33.0".into())),
+                installability: ameow_next::download::upstream::Installability::Installable, ..Default::default()
+            });
+        }
+        if scene.state == "extension-reload" {
+            projection.extension = ameow_next::browser_sessions::extension::Snapshot {
+                available: Some(ameow_next::browser_sessions::extension::Identity { version: "0.5.2".into(),
+                    extension_id: ameow_next::browser_sessions::native::EXTENSION_ID.into(), source_sha256: "b".repeat(64), capabilities: vec![] }),
+                pending: true, unread: true, needs_reload: true, ..Default::default()
+            };
+            projection.extension_location = Some((PathBuf::from("preview-runtime"), PathBuf::from("C:/Apps/Ameow/browser-extension")));
         }
         projection.preview_upstream = Some(upstream);
         if let Some(handle) = self.settings_window {
@@ -2257,6 +2302,7 @@ impl Prototype {
                     "third-party-licenses-copy-failed" => Some(false),
                     _ => None,
                 };
+                view.component_downloader = if scene.state == "gallery-update" { ameow_next::download::contract::Downloader::GalleryDl } else { Default::default() };
                 view.component_menu_open = matches!(scene.state.as_str(), "version-menu" | "update-available" | "checking" | "check-failed");
                 view.page = match scene.surface.as_str() {
                     _ if scene.state.starts_with("app-") || scene.state.starts_with("third-party-licenses") || scene.state == "about" => Page::About,
@@ -2290,6 +2336,7 @@ impl Prototype {
         }
     }
     pub(super) fn open_or_focus_settings(&mut self, cx: &mut Context<Self>) {
+        if let Some(ui) = &mut self.downloads { ui.request_component_checks(); }
         self.model.keyboard(false, self.now());
         if let Some(handle) = self.settings_window {
             if handle.update(cx, |_, _, _| ()).is_ok() {

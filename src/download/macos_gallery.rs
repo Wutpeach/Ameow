@@ -90,6 +90,9 @@ pub(super) fn extract_python(archive: &Path, directory: &Path, control: &Control
 }
 
 pub(super) fn extract_gallery(archive: &Path, directory: &Path, control: &Control) -> Result<(), F> {
+    extract_gallery_selected(archive, directory, control, WHEELS[0].sha256, WHEELS[0].bytes, true, &[])
+}
+pub(super) fn extract_gallery_selected(archive: &Path, directory: &Path, control: &Control, gallery_hash: &str, gallery_bytes: u64, allow_acquisition: bool, reuse: &[PathBuf]) -> Result<(), F> {
     let wheel_dir = directory.join("gallery-wheels");
     fs::create_dir(&wheel_dir).map_err(|error| F::io(C::GalleryDl, S::Extract, error))?;
     for wheel in WHEELS {
@@ -97,14 +100,13 @@ pub(super) fn extract_gallery(archive: &Path, directory: &Path, control: &Contro
         if wheel.name == "gallery.whl" {
             fs::copy(archive, &path).map_err(|error| F::io(C::GalleryDl, S::Extract, error))?;
         } else {
-            network::acquire_observed(wheel.url, &path, wheel.bytes, control.cancellation_flag(), |_, _| {}, |_, _| {})
-                .map_err(|error| {
-                    let mut failure = fail(S::Acquire, error.category);
-                    failure.http_status = error.http_status;
-                    failure
-                })?;
+            stage_dependency(wheel, &path, allow_acquisition, reuse, |url, path, bytes| {
+                network::acquire_observed(url, path, bytes, control.cancellation_flag(), |_, _| {}, |_, _| {})
+                    .map_err(|error| { let mut failure = fail(S::Acquire, error.category); failure.http_status = error.http_status; failure })
+            })?;
         }
-        runtime::check_file(&path, wheel.sha256).map_err(|_| fail(S::Verify, E::Hash))?;
+        let expected = if wheel.name == "gallery.whl" { gallery_hash } else { wheel.sha256 };
+        runtime::check_file(&path, expected).map_err(|_| fail(S::Verify, E::Hash))?;
         fs::set_permissions(&path, fs::Permissions::from_mode(0o444))
             .map_err(|error| F::io(C::GalleryDl, S::Extract, error))?;
     }
@@ -114,7 +116,24 @@ pub(super) fn extract_gallery(archive: &Path, directory: &Path, control: &Contro
         .map_err(|error| F::io(C::GalleryDl, S::Extract, error))?;
     fs::set_permissions(&wheel_dir, fs::Permissions::from_mode(0o700))
         .map_err(|error| F::io(C::GalleryDl, S::Extract, error))?;
-    verify_gallery(directory).map_err(|_| fail(S::Verify, E::Hash))
+    verify_gallery_selected(directory, gallery_hash, gallery_bytes).map_err(|_| fail(S::Verify, E::Hash))
+}
+
+fn stage_dependency(wheel: &Wheel, destination: &Path, allow_acquisition: bool, reuse: &[PathBuf],
+    acquire: impl FnOnce(&str, &Path, u64) -> Result<(), F>) -> Result<(), F> {
+    for directory in reuse {
+        if runtime::typed_safe_existing_dir(directory).is_err() { continue; }
+        let source = directory.join("gallery-wheels").join(wheel.name);
+        if let Ok(mut verified) = runtime::check_file(&source, wheel.sha256) {
+            if verified.metadata().map_err(|error| F::io(C::GalleryDl, S::Cache, error))?.len() != wheel.bytes { continue; }
+            let mut output = File::create_new(destination).map_err(|error| F::io(C::GalleryDl, S::Extract, error))?;
+            std::io::copy(&mut verified, &mut output).and_then(|_| output.sync_all())
+                .map_err(|error| F::io(C::GalleryDl, S::Extract, error))?;
+            return Ok(());
+        }
+    }
+    if !allow_acquisition { return Err(fail(S::Cache, E::Hash)); }
+    acquire(wheel.url, destination, wheel.bytes)
 }
 
 fn write_file(path: &Path, content: &[u8], mode: u32) -> std::io::Result<()> {
@@ -139,13 +158,21 @@ fn make_readonly(path: &Path) -> std::io::Result<()> {
 }
 
 pub(super) fn verify_gallery(directory: &Path) -> Result<(), String> {
+    verify_gallery_selected(directory, WHEELS[0].sha256, WHEELS[0].bytes)
+}
+pub(super) fn verify_gallery_selected(directory: &Path, gallery_hash: &str, gallery_bytes: u64) -> Result<(), String> {
     runtime::check_file(&directory.join("gallery-dl"), LAUNCHER_SHA)?;
-    verify_gallery_dependencies(directory, |path, expected| runtime::check_file(path, expected).map(|_| ()))?;
+    verify_gallery_dependencies_selected(directory, gallery_hash, gallery_bytes, |path, expected| runtime::check_file(path, expected).map(|_| ()))?;
     Ok(())
 }
 
 pub(super) fn verify_gallery_dependencies(
-    directory: &Path, mut verify: impl FnMut(&Path, &str) -> Result<(), String>,
+    directory: &Path, verify: impl FnMut(&Path, &str) -> Result<(), String>,
+) -> Result<Vec<PathIdentity>, String> {
+    verify_gallery_dependencies_selected(directory, WHEELS[0].sha256, WHEELS[0].bytes, verify)
+}
+pub(super) fn verify_gallery_dependencies_selected(
+    directory: &Path, gallery_hash: &str, gallery_bytes: u64, mut verify: impl FnMut(&Path, &str) -> Result<(), String>,
 ) -> Result<Vec<PathIdentity>, String> {
     verify(&directory.join("gallery-entry.py"), ENTRY_SHA)?;
     let identity = PathIdentity::capture(&directory.join("gallery-wheels"))?;
@@ -156,8 +183,9 @@ pub(super) fn verify_gallery_dependencies(
     }
     for wheel in WHEELS {
         let path = directory.join("gallery-wheels").join(wheel.name);
-        verify(&path, wheel.sha256)?;
-        if fs::symlink_metadata(&path).map_err(|error| error.to_string())?.len() != wheel.bytes {
+        let (expected, bytes) = if wheel.name == "gallery.whl" { (gallery_hash, gallery_bytes) } else { (wheel.sha256, wheel.bytes) };
+        verify(&path, expected)?;
+        if fs::symlink_metadata(&path).map_err(|error| error.to_string())?.len() != bytes {
             return Err("Gallery wheel size mismatch".into());
         }
     }
@@ -244,12 +272,15 @@ pub(super) fn copy_python(source: &Path, target: &Path) -> Result<(), String> {
 }
 
 pub(super) fn copy_gallery(source: &Path, target: &Path) -> Result<(), String> {
-    verify_gallery(source)?;
+    copy_gallery_selected(source, target, WHEELS[0].sha256, WHEELS[0].bytes)
+}
+pub(super) fn copy_gallery_selected(source: &Path, target: &Path, gallery_hash: &str, gallery_bytes: u64) -> Result<(), String> {
+    verify_gallery_selected(source, gallery_hash, gallery_bytes)?;
     copy_tree(&source.join("gallery-wheels"), &target.join("gallery-wheels"))?;
     for name in ["gallery-dl", "gallery-entry.py"] {
         fs::copy(source.join(name), target.join(name)).map_err(|error| error.to_string())?;
     }
-    verify_gallery(target)
+    verify_gallery_selected(target, gallery_hash, gallery_bytes)
 }
 
 fn copy_tree(source: &Path, target: &Path) -> Result<(), String> {
@@ -272,6 +303,17 @@ fn copy_tree(source: &Path, target: &Path) -> Result<(), String> {
 mod tests {
     use super::*;
 
+    #[test]
+    fn damaged_fixed_dependency_does_not_acquire_during_selected_restart() {
+        let root = tempfile::tempdir().unwrap();
+        let previous = root.path().join("previous"); fs::create_dir(&previous).unwrap();
+        fs::create_dir(previous.join("gallery-wheels")).unwrap();
+        fs::write(previous.join("gallery-wheels/requests.whl"), b"damaged fixed wheel").unwrap();
+        let result = stage_dependency(&WHEELS[1], &root.path().join("requests.whl"), false, &[previous],
+            |_, _, _| panic!("selected restart has no acquisition permission"));
+        assert!(result.is_err());
+        assert!(!root.path().join("requests.whl").exists());
+    }
     #[test]
     fn verified_tree_rejects_nested_edits_additions_removals_and_link_replacement() {
         for change in ["edit", "add", "remove", "link"] {

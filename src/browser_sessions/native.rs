@@ -22,10 +22,32 @@ struct PageMessage { version: u32, request_id: String, operation: PageOperation 
 #[derive(Deserialize)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 enum PageOperation { Submit { url: String, clip: Option<crate::download::request::ClipRange> } }
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct IdentityMessage { version: u32, request_id: String, operation: IdentityOperation }
+#[derive(Deserialize)]
+#[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
+enum IdentityOperation {
+    ReportExtensionIdentity { source_id: String, identity: super::extension::Identity },
+}
+fn identity_response(message: IdentityMessage, root: &Path, directory: impl FnOnce() -> Result<PathBuf>) -> serde_json::Value {
+    if message.version != 1 || message.request_id.is_empty() || message.request_id.len() > 80
+        || !message.request_id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-') {
+        return serde_json::json!({"version":1,"ok":false,"error":"E_SESSION_PROTOCOL"});
+    }
+    let IdentityOperation::ReportExtensionIdentity { source_id, identity } = message.operation;
+    match directory().and_then(|directory| super::extension::report_loaded(root, &directory, &source_id, identity)) {
+        Ok(()) => serde_json::json!({"version":1,"request_id":message.request_id,"ok":true,"sites":[]}),
+        Err(code) => serde_json::json!({"version":1,"request_id":message.request_id,"ok":false,"error":code}),
+    }
+}
 pub fn serve(input: &mut impl Read, output: &mut impl Write, root: &Path) -> Result<()> {
     serve_with_instance(input, output, root, None)
 }
 pub fn serve_with_instance(input: &mut impl Read, output: &mut impl Write, root: &Path, instance: Option<PathBuf>) -> Result<()> {
+    serve_with_identity_directory(input, output, root, instance, extension_directory)
+}
+fn serve_with_identity_directory(input: &mut impl Read, output: &mut impl Write, root: &Path, instance: Option<PathBuf>, directory: impl Fn() -> Result<PathBuf>) -> Result<()> {
     loop {
         let mut length = [0u8; 4];
         match input.read(&mut length[..1]) {
@@ -43,7 +65,9 @@ pub fn serve_with_instance(input: &mut impl Read, output: &mut impl Write, root:
         input
             .read_exact(&mut bytes)
             .map_err(|_| "E_SESSION_FRAME")?;
-        let response = if let Ok(message) = serde_json::from_slice::<PageMessage>(&bytes) {
+        let response = if let Ok(message) = serde_json::from_slice::<IdentityMessage>(&bytes) {
+            identity_response(message, root, &directory)
+        } else if let Ok(message) = serde_json::from_slice::<PageMessage>(&bytes) {
             if message.version != 1 || message.request_id.len() < 8 || message.request_id.len() > 80
                 || !message.request_id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-') {
                 serde_json::json!({"version":1,"ok":false,"error":"E_SESSION_PROTOCOL"})
@@ -336,4 +360,43 @@ fn register(manifest: &Path) -> Result<()> {
         fs::copy(manifest, directory.join(format!("{HOST_NAME}.json"))).map_err(|_| storage())?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod extension_identity_tests {
+    use super::*;
+    fn exchange(root: &Path, files: &Path, identity: serde_json::Value) -> serde_json::Value {
+        let value = serde_json::json!({"version":1,"request_id":"loaded-code-check","operation":{
+            "operation":"report_extension_identity","source_id":"1".repeat(32),"identity":identity}});
+        let bytes = serde_json::to_vec(&value).unwrap();
+        let mut frame = (bytes.len() as u32).to_le_bytes().to_vec(); frame.extend(bytes);
+        let mut output = Vec::new();
+        serve_with_identity_directory(&mut frame.as_slice(), &mut output, root, None, || Ok(files.to_path_buf())).unwrap();
+        assert_eq!(u32::from_le_bytes(output[..4].try_into().unwrap()) as usize, output.len()-4);
+        serde_json::from_slice(&output[4..]).unwrap()
+    }
+    #[test]
+    fn framed_loaded_identity_is_separate_from_available_files_and_sessions() {
+        let root = tempfile::tempdir().unwrap();
+        let files = root.path().join("files"); fs::create_dir(&files).unwrap();
+        let available = serde_json::json!({"version":"0.5.2","extensionId":EXTENSION_ID,"sourceSha256":"b".repeat(64),"capabilities":["session_sync_v1"]});
+        fs::write(files.join("build.json"), serde_json::to_vec(&available).unwrap()).unwrap();
+        fs::write(files.join("manifest.json"), br#"{"manifest_version":3,"version":"0.5.2","background":{"service_worker":"background.js"}}"#).unwrap();
+        fs::write(files.join("background.js"), b"// actual fixture code").unwrap();
+        let mut loaded = available.clone(); loaded["sourceSha256"] = "a".repeat(64).into();
+        assert_eq!(exchange(root.path(), &files, loaded)["ok"], true);
+        assert!(super::super::extension::snapshot(root.path(), &files).unwrap().pending);
+        assert!(Store::new(root.path()).list().unwrap().is_empty());
+        assert_eq!(exchange(root.path(), &files, available)["ok"], true);
+        assert!(!super::super::extension::snapshot(root.path(), &files).unwrap().pending);
+    }
+    #[test]
+    fn identity_payload_cannot_smuggle_private_fields_or_invent_a_connection() {
+        let root = tempfile::tempdir().unwrap();
+        let identity = serde_json::json!({"version":"0.5.2","extensionId":EXTENSION_ID,"sourceSha256":"a".repeat(64),"url":"https://private.invalid/secret"});
+        let reply = exchange(root.path(), root.path(), identity);
+        assert_eq!(reply["ok"], false);
+        assert!(!reply.to_string().contains("private"));
+        assert!(!root.path().join("extension-update").exists());
+    }
 }

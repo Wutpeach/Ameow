@@ -2,9 +2,23 @@ import { Sessions, within, scope, siteFromUrl } from './core.mjs';
 import { PageTools } from './page-background.mjs';
 const pages = new PageTools(chrome);
 const sessions = new Sessions(chrome);
+// Compile the running identity into the worker: reading build.json after replacement would report code that is not loaded.
+const loadedIdentity = typeof __AMEOW_EXTENSION_IDENTITY__ === 'undefined' ? null : __AMEOW_EXTENSION_IDENTITY__;
+let identityReporting = false;
+async function reportLoadedIdentity() {
+  if (!loadedIdentity || identityReporting) return;
+  identityReporting = true;
+  try {
+    const { source_id } = await sessions.state();
+    await chrome.runtime.sendNativeMessage('org.ameow.browser_sessions', { version: 1, request_id: crypto.randomUUID(),
+      operation: { operation: 'report_extension_identity', source_id, identity: loadedIdentity } });
+  } catch { /* An older or unavailable host must not change session/page behavior. */ }
+  finally { identityReporting = false; }
+}
 let work = Promise.resolve();
 const enqueue = action => { const next = work.then(action); work = next.catch(() => {}); return next; };
 async function reconcile() {
+  void reportLoadedIdentity();
   await enqueue(() => pages.reconcile());
   await chrome.alarms.create('ameow-sync', { periodInMinutes: 1 });
   return enqueue(() => sessions.sync());
@@ -58,4 +72,5 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
   return true;
 });
 // Recreate an alarm lost during an extension update or browser restart.
+void reportLoadedIdentity();
 void chrome.alarms.get('ameow-sync').then(alarm => { if (!alarm) void reconcile(); });

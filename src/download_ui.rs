@@ -25,6 +25,8 @@ use std::{
 
 pub enum UiReply {
     AppUpdate(ameow_next::app_update::service::Handle),
+    ComponentOwners { upstream: ameow_next::download::upstream::UpstreamChecker, root: PathBuf, directory: Option<PathBuf> },
+    Extension(ameow_next::browser_sessions::extension::Snapshot),
     Reply(CommandReply),
     Retry { source: u64, reply: CommandReply },
     RowCommand { job: u64, cleanup: bool, reply: CommandReply },
@@ -125,6 +127,10 @@ pub struct DownloadUi {
     pub preparation_copy_pending: bool,
     pub preparation_status: Option<(String, bool)>,
     pub upstream: ameow_next::download::upstream::UpstreamChecker,
+    pub extension: ameow_next::browser_sessions::extension::Snapshot,
+    component_root: Option<PathBuf>,
+    extension_directory: Option<PathBuf>,
+    checks_when_ready: bool,
     pub engine_command_pending: bool,
     pub engine_notice: Option<bool>,
     pub bridge_config_pending: bool,
@@ -153,9 +159,11 @@ impl DownloadUi {
         let result = std::thread::Builder::new().name("gpui-download-commands".into()).spawn(move || {
             let args: Vec<_> = std::env::args().collect();
             let value = |name: &str| args.iter().position(|arg| arg == name).and_then(|index| args.get(index + 1)).cloned();
+            let mut component_root = None;
             let setup = (|| {
                 let isolated = ameow_next::control::isolated_root(&args).map_err(|e|e.to_string())?;
                 let root = match &isolated { Some(root) => root.join("runtime"), None => value("--runtime-root").map(PathBuf::from).map_or_else(RuntimeManager::default_root, Ok)? };
+                component_root = Some(root.clone());
                 use ameow_next::download::preparation::RuntimeRootSource;
                 let root_source = if isolated.is_some() { RuntimeRootSource::IsolatedInstance }
                     else if value("--runtime-root").is_some() { RuntimeRootSource::ExplicitRuntimeRoot }
@@ -182,6 +190,10 @@ impl DownloadUi {
                     return;
                 }
             };
+            let component_root = component_root.expect("runtime root resolved");
+            let extension_directory = ameow_next::browser_sessions::native::extension_directory().ok();
+            let _ = sender.send(UiReply::ComponentOwners { upstream: ameow_next::download::upstream::UpstreamChecker::with_root(component_root.clone()), root: component_root.clone(), directory: extension_directory.clone() });
+            let mut extension_checked = Instant::now() - Duration::from_secs(2);
             let mut evidence = value("--queue-evidence").and_then(|path| {
                 #[cfg(all(feature="app-update-fixture",debug_assertions))]
                 if value("--app-update-fixture-dir").is_some(){return std::fs::OpenOptions::new().create(true).append(true).open(path).ok();}
@@ -218,6 +230,13 @@ impl DownloadUi {
             }
             let mut disconnected = false;
             loop {
+                if extension_checked.elapsed() >= Duration::from_secs(1) {
+                    if let Some(directory) = &extension_directory
+                        && let Ok(state) = ameow_next::browser_sessions::extension::snapshot(&component_root, directory) {
+                        let _ = sender.send(UiReply::Extension(state));
+                    }
+                    extension_checked = Instant::now();
+                }
                 match receiver.recv_timeout(Duration::from_millis(80)) {
                     Ok(command) => {
                         if worker_launch.as_ref().is_some_and(|s| !s.commands_allowed())
@@ -232,7 +251,7 @@ impl DownloadUi {
                         let diagnostic_job = match &command { QueueCommand::CopyDiagnostic(job) => Some(*job), _ => None };
                         let saving = matches!(&command, QueueCommand::SaveSettings(_));
                         let retrying_preparation = matches!(&command, QueueCommand::RetryPreparation);
-                        let updating_runtime = matches!(&command, QueueCommand::UpgradeEngine { .. } | QueueCommand::RestoreRecommended);
+                        let updating_runtime = matches!(&command, QueueCommand::UpgradeEngine { .. } | QueueCommand::RestoreRecommended | QueueCommand::UpgradeDownloader { .. } | QueueCommand::RestoreRecommendedDownloader { .. });
                         let configuring_bridge = matches!(&command, QueueCommand::InstallBrowserBridge);
                         let retry_source = match &command { QueueCommand::Retry(id) => Some(*id), _ => None };
                         let row_command = match &command {
@@ -335,9 +354,10 @@ impl DownloadUi {
     }
     pub fn set_preview_scene(&mut self, scene: &crate::preview::Scene) {
         self.updates = ameow_next::app_update::service::Handle::inert(
-            crate::app_update_ui::preview_view(&scene.state),
+            crate::app_update_ui::preview_view(if scene.state == "extension-update" { "app-manual-quiet" } else { &scene.state }),
         );
         self.named_preview = Some(scene.clone());
+        self.extension = if scene.state == "extension-update" { ameow_next::browser_sessions::extension::Snapshot { pending: true, unread: true, needs_reload: true, ..Default::default() } } else { Default::default() };
         self.preparation_hovered = scene.surface == "full" && scene.name.ends_with("-popover");
         self.snapshot = Some(Arc::new(crate::preview::snapshot(scene)));
         self.presentation = Default::default();
@@ -462,6 +482,8 @@ impl DownloadUi {
             update_ui_step:None,
             updates: Default::default(),
             app_update: None,
+            extension: Default::default(),
+            component_root: None, extension_directory: None, checks_when_ready: false,
             engine_command_pending: false,
             engine_notice: None,
             bridge_config_pending: false,
@@ -475,7 +497,7 @@ impl DownloadUi {
         if self.app_update.as_ref().is_some_and(|s| !s.commands_allowed())
             && !matches!(&command, QueueCommand::Stop | QueueCommand::Cancel(_) | QueueCommand::RetryCleanup(_) | QueueCommand::CopyDiagnostic(_) | QueueCommand::CopyPreparationDiagnostic) { return false; }
         if self.named_preview.is_some() { return false; }
-        if self.fixture && matches!(command, QueueCommand::Submit { .. } | QueueCommand::SubmitWithOptions { .. } | QueueCommand::SaveSettings(_) | QueueCommand::RetryPreparation | QueueCommand::UpgradeEngine { .. } | QueueCommand::RestoreRecommended | QueueCommand::InstallBrowserBridge | QueueCommand::RemoveBrowserSession { .. }) {
+        if self.fixture && matches!(command, QueueCommand::Submit { .. } | QueueCommand::SubmitWithOptions { .. } | QueueCommand::SaveSettings(_) | QueueCommand::RetryPreparation | QueueCommand::UpgradeEngine { .. } | QueueCommand::RestoreRecommended | QueueCommand::UpgradeDownloader { .. } | QueueCommand::RestoreRecommendedDownloader { .. } | QueueCommand::InstallBrowserBridge | QueueCommand::RemoveBrowserSession { .. }) {
             return false;
         }
         let cancel = match &command { QueueCommand::Cancel(job) => Some(*job), _ => None };
@@ -548,29 +570,37 @@ impl DownloadUi {
                 || (message == "已复制组件诊断" && self.preparation_copied_at.is_some_and(|at| now.saturating_sub(at) < crate::ui_motion::COPY_FEEDBACK_MS))
         }).cloned()
     }
-    pub fn request_upstream_check(&self) -> bool {
-        let accepted = self.upstream_check_available() && self.upstream.request();
-        self.evidence(serde_json::json!({"type":"upstream_check_admission","accepted":accepted,"fixture":self.fixture}));
-        accepted
+    pub fn request_downloader_check(&self, downloader: ameow_next::download::contract::Downloader, manual: bool) -> bool {
+        self.upstream_check_available() && self.upstream.request_for(downloader, manual)
     }
-    pub fn request_engine_update(&mut self, version: Option<String>, now: u64) -> bool {
+    pub fn request_component_checks(&mut self) {
+        self.checks_when_ready = true;
+        if self.component_root.is_none() || !self.upstream_check_available() { return; }
+        for downloader in [ameow_next::download::contract::Downloader::YtDlp, ameow_next::download::contract::Downloader::GalleryDl] {
+            self.upstream.request_for(downloader, false);
+        }
+    }
+    pub fn request_downloader_update(&mut self, downloader: ameow_next::download::contract::Downloader, version: Option<String>, now: u64) -> bool {
+        use ameow_next::download::upstream::{Installability, compare_versions};
         if self.fixture || self.engine_command_pending { return false; }
         if let Some(version) = &version {
-            let query = self.upstream.snapshot();
-            let current = self.snapshot.as_ref().and_then(|s| s.verified_runtime_versions.iter().find(|(name, _)| name == "yt-dlp")).map(|(_, v)| v.as_str());
-            if query.pending || query.worker_running
-                || query.checked_at_ms.is_none_or(|at| ameow_next::download::progress::now_ms().saturating_sub(at) > 600_000)
+            let query = self.upstream.snapshot_for(downloader);
+            let current = self.snapshot.as_ref().and_then(|s| s.verified_runtime_versions.iter().find(|(name, _)| name == downloader.label())).map(|(_, v)| v.as_str());
+            if query.pending || query.worker_running || query.installability != Installability::Installable
+                || query.checked_at_ms.is_none()
                 || query.result.as_ref().and_then(|r| r.as_ref().ok()) != Some(version)
-                || current.is_none_or(|current| ameow_next::download::upstream::compare_stable_versions(version, current) != Some(std::cmp::Ordering::Greater)) {
+                || current.is_none_or(|current| compare_versions(downloader, version, current) != Some(std::cmp::Ordering::Greater)) {
                 self.engine_notice = Some(false);
                 return false;
             }
         }
-        let command = version.map_or(QueueCommand::RestoreRecommended, |version| QueueCommand::UpgradeEngine { version });
+        let command = version.map_or(QueueCommand::RestoreRecommendedDownloader { downloader }, |version| QueueCommand::UpgradeDownloader { downloader, version });
         self.engine_command_pending = self.send(command, now);
         self.engine_notice = if self.engine_command_pending { None } else { Some(false) };
         self.engine_command_pending
     }
+    pub fn extension_pending(&self) -> bool { self.extension.pending }
+    pub fn component_locations(&self) -> Option<(PathBuf, PathBuf)> { Some((self.component_root.clone()?, self.extension_directory.clone()?)) }
     pub fn retry_preparation(&mut self, now: u64) {
         if !self.preparation_retry_available() { return; }
         self.preparation_retry_pending = self.send(QueueCommand::RetryPreparation, now);
@@ -955,6 +985,8 @@ pub(crate) fn command_summary(command: &QueueCommand) -> serde_json::Value {
         QueueCommand::CopyPreparationDiagnostic => serde_json::json!({"type":"command","command":"copy-preparation-diagnostic"}),
         QueueCommand::UpgradeEngine { version } => serde_json::json!({"type":"command","command":"upgrade-engine","version":version}),
         QueueCommand::RestoreRecommended => serde_json::json!({"type":"command","command":"restore-recommended"}),
+        QueueCommand::UpgradeDownloader { downloader, version } => serde_json::json!({"type":"command","command":"upgrade-downloader","downloader":downloader,"version":version}),
+        QueueCommand::RestoreRecommendedDownloader { downloader } => serde_json::json!({"type":"command","command":"restore-recommended-downloader","downloader":downloader}),
     }
 }
 fn reply_summary(reply: &CommandReply) -> serde_json::Value {
@@ -1185,6 +1217,12 @@ fn preparation_visible(snapshot: &QueueSnapshot, now: u64) -> bool {
         return false;
     }
     let preparation = &snapshot.preparation;
+    // Optional replacement work stays in settings while the existing runtime remains usable.
+    if !snapshot.verified_runtime_versions.is_empty() && !snapshot.preparation_held && !snapshot.preparation_owner_lost
+        && preparation.phase != PreparationPhase::Failed
+        && snapshot.runtime_update.phase != ameow_next::download::runtime_update::RuntimeUpdatePhase::Idle {
+        return false;
+    }
     // Local cache checks are quiet; only work from this attempt can earn a success hint.
     let setup = preparation.phase == PreparationPhase::Downloading
         || preparation.failure.is_some()
@@ -1711,6 +1749,11 @@ impl Prototype {
         for reply in ui.poll() {
             match reply {
                 UiReply::AppUpdate(handle) => ui.updates = handle,
+                UiReply::ComponentOwners { upstream, root, directory } => {
+                    ui.upstream = upstream; ui.component_root = Some(root); ui.extension_directory = directory;
+                    if ui.checks_when_ready { ui.request_component_checks(); }
+                }
+                UiReply::Extension(state) => ui.extension = state,
                 UiReply::RuntimeUpdate(reply) => {
                     ui.engine_command_pending = false;
                     ui.engine_notice = Some(matches!(reply, CommandReply::Applied(true)));
@@ -2576,7 +2619,7 @@ impl Prototype {
                         || self
                             .downloads
                             .as_ref()
-                            .is_some_and(|ui| ui.updates.snapshot().full_attention())
+                            .is_some_and(|ui| ui.updates.snapshot().full_attention() || ui.extension_pending())
                 })
     }
     pub(super) fn preparation_animation_delay(&self) -> Option<u64> {
@@ -2604,15 +2647,17 @@ impl Prototype {
         let preparation = &snapshot.preparation;
         let update = ui.updates.snapshot();
         let update_attention = update.full_attention();
+        let extension_attention = ui.extension_pending();
         let p = Palette::new(self.night);
         let g = self.model.geometry();
         let failed = preparation.phase == PreparationPhase::Failed
             || snapshot.preparation_held
             || snapshot.preparation_owner_lost;
         let ready = preparation.phase == PreparationPhase::Ready && !failed;
-        let component_visible = preparation_popup_visible(snapshot, ameow_next::download::progress::now_ms(), update_attention);
+        let component_visible = preparation_popup_visible(snapshot, ameow_next::download::progress::now_ms(), update_attention || extension_attention);
         let update_only = update_attention && !component_visible;
-        let popup = self.ui_motion.presence("full-preparation-popup", ui.preparation_hovered && (!ready || update_attention));
+        let extension_only = extension_attention && !component_visible && !update_attention;
+        let popup = self.ui_motion.presence("full-preparation-popup", ui.preparation_hovered && (!ready || update_attention || extension_attention));
         let fraction = preparation_fraction(preparation);
         let now = self.now();
         let can_retry = ui.preparation_retry_available();
@@ -2716,6 +2761,20 @@ impl Prototype {
                 .when(component_visible, |s| s.border_t_1().border_color(p.border))
                 .child(self.application_update_button(&update, ui.language, cx)));
         }
+        if extension_attention {
+            let label = ui.language.text("浏览器扩展需要重载", "Reload browser extension");
+            details = details.child(gpui_base::Button::new("extension-update")
+                .accessibility_label(label).w_full().min_h(px(36.)).h_auto().px(px(10.)).py(px(8.))
+                .flex().items_center().gap(px(6.)).rounded(px(8.)).border_1().border_color(transparent_black())
+                .when(component_visible || update_attention, |s| s.border_t_1().border_color(p.border))
+                .text_color(p.primary_text()).text_size(px(10.)).line_height(px(14.))
+                .cursor_pointer().hover(move |s| s.bg(p.badge)).active(move |s| s.bg(p.border))
+                .focus(move |s| s.border_color(p.neutral))
+                .child(svg().path("icons/blocks.svg").size(px(12.)).flex_none().text_color(p.neutral))
+                .child(label)
+                .on_mouse_down(MouseButton::Left, cx.listener(|_, _, _, cx| cx.stop_propagation()))
+                .on_click(cx.listener(|this, _, _, cx| this.open_component_settings(cx))));
+        }
         div()
             .id("component-preparation-indicator")
             .absolute()
@@ -2747,19 +2806,21 @@ impl Prototype {
                 gpui_base::Button::new("component-preparation-status")
                     .accessibility_label(if update_only {
                         format!("{}，{}", crate::app_update_ui::headline(&update, ui.language), crate::app_update_ui::full_label(&update, ui.language))
-                    } else { ui.language.text("组件状态", "Component status").into() })
-                    .disabled(!update_only || crate::app_update_ui::popup_action(&update).is_none())
+                    } else if extension_only { ui.language.text("浏览器扩展需要重载", "Reload browser extension").into() }
+                    else { ui.language.text("组件状态", "Component status").into() })
+                    .disabled(!extension_only && (!update_only || crate::app_update_ui::popup_action(&update).is_none()))
                     .relative()
                     .size(px(crate::tokens::SMALL_ICON_BUTTON_SIZE))
                     .flex_none()
                     .rounded_full()
                     .bg(p.badge)
                     .hover(move |s| crate::tokens::icon_hover(s, p))
-                    .when(update_only && crate::app_update_ui::popup_action(&update).is_some(), |button| button.cursor_pointer())
+                    .when(extension_only || update_only && crate::app_update_ui::popup_action(&update).is_some(), |button| button.cursor_pointer())
                     .on_click(cx.listener(move |this, _, _, cx| {
                         if update_only { this.full_update_action(cx); }
+                        else if extension_only { this.open_component_settings(cx); }
                     }))
-                    .when(!update_only, |ring| ring.child(indicator::preparation_ring(
+                    .when(!update_only && !extension_only, |ring| ring.child(indicator::preparation_ring(
                         p,
                         fraction,
                         failed,
@@ -2767,11 +2828,13 @@ impl Prototype {
                         now,
                         self.model.reduced,
                     )))
+                    .when(extension_only, |ring| ring.child(svg().path("icons/blocks.svg")
+                        .absolute().left(px(4.)).top(px(4.)).size(px(crate::tokens::ICON_SIZE)).text_color(p.neutral)))
                     .when(update_only, |ring| ring.child(
                         svg().path(crate::app_update_ui::popup_icon(&update))
                             .absolute().left(px(4.)).top(px(4.)).size(px(crate::tokens::ICON_SIZE))
                             .text_color(p.neutral)))
-                    .when(failed && !update_only, |ring| {
+                    .when(failed && !update_only && !extension_only, |ring| {
                         ring.child(
                             div()
                                 .absolute()
@@ -2784,7 +2847,7 @@ impl Prototype {
                                 .child("!"),
                         )
                     })
-                    .when(ready && !update_only, |ring| {
+                    .when(ready && !update_only && !extension_only, |ring| {
                         ring.child(
                             svg()
                                 .path("icons/check.svg")
@@ -2836,6 +2899,25 @@ impl ExitIssue {
 #[cfg(test)]
 mod tests {
     use super::{ErrorCategory, PreparationPhase, PreparationStage};
+    #[test]
+    fn optional_component_update_stays_in_settings_but_cleanup_fault_remains_visible() {
+        use ameow_next::download::runtime_update::RuntimeUpdatePhase;
+        let mut snapshot = crate::queue_fixture::snapshot(Vec::new());
+        snapshot.verified_runtime_versions = vec![("yt-dlp".into(), "2026.10.01".into())];
+        snapshot.runtime_update.phase = RuntimeUpdatePhase::Downloading;
+        snapshot.preparation.phase = PreparationPhase::Downloading;
+        snapshot.preparation.stage = PreparationStage::Acquire;
+        assert!(!super::preparation_visible(&snapshot, 0));
+        snapshot.preparation_held = true;
+        assert!(super::preparation_visible(&snapshot, 0));
+        snapshot.preparation_held = false;
+        snapshot.preparation_owner_lost = true;
+        assert!(super::preparation_visible(&snapshot, 0));
+        snapshot.preparation_owner_lost = false;
+        snapshot.verified_runtime_versions.clear();
+        snapshot.preparation.phase = PreparationPhase::Failed;
+        assert!(super::preparation_visible(&snapshot, 0));
+    }
     #[test]
     #[ignore = "Replays a task-owned real queue trace from AMEOW_PROGRESS_QUEUE_TRACE; no window or synthetic byte values"]
     fn real_queue_trace_updates_existing_main_and_row_progress() {
@@ -4010,7 +4092,7 @@ mod tests {
         assert!(ui.preparation_status_at(2008).is_none());
         ui.fixture = true;
         assert!(!ui.upstream_check_available());
-        assert!(!ui.request_upstream_check());
+        assert!(!ui.request_downloader_check(ameow_next::download::contract::Downloader::YtDlp, true));
         assert!(ui.upstream.snapshot().checked_at_ms.is_none());
         assert!(!ui.preparation_retry_available());
     }

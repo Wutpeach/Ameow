@@ -161,5 +161,9 @@
   {"name":"full.app-retry","surface":"full","state":"app-retry","description":"应用更新失败后的Full入口"},
   {"name":"full.app-authorization-cancelled","surface":"full","state":"app-authorization-cancelled","description":"取消系统授权后的Full入口"},
   {"name":"tray.app-retry","surface":"tray","state":"app-retry","description":"应用更新失败后的菜单入口"},
-  {"name":"tray.app-authorization-cancelled","surface":"tray","state":"app-authorization-cancelled","description":"取消系统授权后的菜单入口"}
+  {"name":"tray.app-authorization-cancelled","surface":"tray","state":"app-authorization-cancelled","description":"取消系统授权后的菜单入口"},
+  {"name": "components.extension-reload", "surface": "components", "state": "extension-reload", "description": "扩展首行待重载，查看只清导航未读"},
+  {"name": "components.gallery-update", "surface": "components", "state": "gallery-update", "description": "图库下载器可更新与独立恢复入口"},
+  {"name": "components.requires-ameow", "surface": "components", "state": "requires-ameow", "description": "上游新版不适配，无可更新橙点"},
+  {"name": "full.extension-update-popover", "surface": "full", "state": "extension-update", "description": "应用提醒关闭时扩展待重载入口仍可见"}
 ]

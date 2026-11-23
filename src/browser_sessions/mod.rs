@@ -1,5 +1,6 @@
 //! Site-scoped browser sessions. No raw credential implements Debug or enters a projection.
 pub mod native;
+pub mod extension;
 mod protection;
 mod public_text;
 #[cfg(test)]
