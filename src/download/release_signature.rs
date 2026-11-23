@@ -12,7 +12,15 @@ const FINGERPRINT: &[u8] = &[
 ];
 
 pub(crate) fn verify(sums: &[u8], signature: &[u8]) -> Result<(), String> {
-    verify_inner(sums, signature).ok_or_else(|| "E_UPDATE_SIGNATURE".into())
+    verify_inner(sums, signature, MODULUS, FINGERPRINT).ok_or_else(|| "E_UPDATE_SIGNATURE".into())
+}
+
+// Public key published by the upstream author at https://github.com/mikf.gpg.
+// Fingerprint also identifies the verified upstream release tags; rotation fails closed.
+pub(crate) fn verify_gallery(sums: &[u8], signature: &[u8]) -> Result<(), String> {
+    let modulus = include_bytes!("../../assets/gallery-dl-release-rsa-modulus.bin");
+    let fingerprint = &[0x3e,0x09,0xf5,0x90,0x83,0x33,0xdd,0x83,0xdb,0xdc,0xe7,0x37,0x56,0x80,0xca,0x38,0x9d,0x36,0x5a,0x88];
+    verify_inner(sums, signature, modulus, fingerprint).ok_or_else(|| "E_UPDATE_SIGNATURE".into())
 }
 
 fn take<'a>(data: &mut &'a [u8], n: usize) -> Option<&'a [u8]> {
@@ -52,7 +60,7 @@ fn packet(data: &[u8]) -> Option<&[u8]> {
     data.is_empty().then_some(body)
 }
 
-fn subpackets(mut data: &[u8], hashed: bool) -> Option<()> {
+fn subpackets(mut data: &[u8], hashed: bool, expected_fingerprint: &[u8]) -> Option<()> {
     let (mut fingerprint, mut created, mut issuer) = (false, false, false);
     while !data.is_empty() {
         let first = take(&mut data, 1)?[0];
@@ -63,7 +71,7 @@ fn subpackets(mut data: &[u8], hashed: bool) -> Option<()> {
         };
         let sub = take(&mut data, len)?;
         match sub {
-            [33, 4, rest @ ..] if hashed && !fingerprint && rest == FINGERPRINT => {
+            [33, 4, rest @ ..] if hashed && !fingerprint && rest == expected_fingerprint => {
                 fingerprint = true
             }
             [2, _, _, _, _] if hashed && !created => created = true,
@@ -78,7 +86,7 @@ fn subpackets(mut data: &[u8], hashed: bool) -> Option<()> {
     }
 }
 
-fn verify_inner(sums: &[u8], signature: &[u8]) -> Option<()> {
+fn verify_inner(sums: &[u8], signature: &[u8], modulus: &[u8], fingerprint: &[u8]) -> Option<()> {
     if sums.len() > 1024 * 1024 || signature.len() > 4096 {
         return None;
     }
@@ -88,10 +96,10 @@ fn verify_inner(sums: &[u8], signature: &[u8]) -> Option<()> {
         return None;
     }
     let hashed_len = u16_len(&mut data)?;
-    subpackets(take(&mut data, hashed_len)?, true)?;
+    subpackets(take(&mut data, hashed_len)?, true, fingerprint)?;
     let signed_header_len = 6 + hashed_len;
     let unhashed_len = u16_len(&mut data)?;
-    subpackets(take(&mut data, unhashed_len)?, false)?;
+    subpackets(take(&mut data, unhashed_len)?, false, fingerprint)?;
     let prefix = take(&mut data, 2)?;
     let bits = u16_len(&mut data)?;
     if bits == 0 || bits > 4096 {
@@ -115,7 +123,7 @@ fn verify_inner(sums: &[u8], signature: &[u8]) -> Option<()> {
         return None;
     }
     signature::RsaPublicKeyComponents {
-        n: MODULUS,
+        n: modulus,
         e: &[1, 0, 1],
     }
     .verify(&signature::RSA_PKCS1_2048_8192_SHA512, &signed, &padded)
@@ -127,6 +135,17 @@ mod tests {
     use super::*;
     const SUMS: &[u8] = include_bytes!("../../assets/test/yt-dlp-2026.10.26-SHA2-256SUMS");
     const SIG: &[u8] = include_bytes!("../../assets/test/yt-dlp-2026.10.26-SHA2-256SUMS.sig");
+
+    #[test]
+    fn gallery_release_uses_its_own_pinned_key_and_rejects_tampering() {
+        let sums = include_bytes!("../../assets/test/gallery-dl-1.32.21-SHA256SUMS");
+        let sig = include_bytes!("../../assets/test/gallery-dl-1.32.21-SHA256SUMS.sig");
+        assert!(verify_gallery(sums, sig).is_ok());
+        assert!(verify(sums, sig).is_err());
+        assert!(verify_gallery(SUMS, SIG).is_err());
+        let mut damaged = sums.to_vec(); damaged[0] ^= 1;
+        assert!(verify_gallery(&damaged, sig).is_err());
+    }
 
     #[test]
     fn authentic_release_and_tampering() {

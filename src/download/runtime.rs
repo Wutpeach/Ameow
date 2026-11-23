@@ -565,9 +565,7 @@ pub struct RuntimeManager {
 }
 struct Candidate {
     manifest: Manifest,
-    artifact: PathBuf,
-    component: String,
-    exact_probe_file: String,
+    artifacts: Vec<(String, PathBuf, String)>,
     allow_acquisition: bool,
 }
 #[cfg(test)]
@@ -589,6 +587,7 @@ impl RuntimeManager {
         self.root_source = source;
         self
     }
+    #[cfg(test)]
     pub(crate) fn candidate(
         root: PathBuf,
         manifest: Manifest,
@@ -597,12 +596,14 @@ impl RuntimeManager {
         exact_probe_file: &str,
         allow_acquisition: bool,
     ) -> Self {
+        Self::candidates(root, manifest, vec![(component.into(), artifact, exact_probe_file.into())], allow_acquisition)
+    }
+    pub(crate) fn candidates(
+        root: PathBuf, manifest: Manifest, artifacts: Vec<(String, PathBuf, String)>, allow_acquisition: bool,
+    ) -> Self {
         let mut manager = Self::new(root);
         manager.candidate = Some(Candidate {
-            manifest,
-            artifact,
-            component: component.into(),
-            exact_probe_file: exact_probe_file.into(),
+            manifest, artifacts,
             allow_acquisition,
         });
         manager
@@ -807,7 +808,7 @@ impl RuntimeManager {
             if self
                 .candidate
                 .as_ref()
-                .is_none_or(|candidate| component.name != candidate.component)
+                .is_none_or(|candidate| !candidate.artifacts.iter().any(|(name, _, _)| component.name == *name))
             {
                 #[cfg(target_os = "macos")]
                 let mut reused = false;
@@ -847,13 +848,13 @@ impl RuntimeManager {
                             let verified = if component.name == "python" {
                                 super::macos_gallery::verify_python(previous)
                             } else {
-                                super::macos_gallery::verify_gallery(previous)
+                                super::macos_gallery::verify_gallery_selected(previous, &component.sha256, component.bytes)
                             };
                             if verified.is_err() { continue; }
                             let copied = if component.name == "python" {
                                 super::macos_gallery::copy_python(previous, stage)
                             } else {
-                                super::macos_gallery::copy_gallery(previous, stage)
+                                super::macos_gallery::copy_gallery_selected(previous, stage, &component.sha256, component.bytes)
                             };
                             copied.map_err(|_| F::new(component_id, S::Extract, E::Hash))?;
                             reused = true; break;
@@ -872,7 +873,7 @@ impl RuntimeManager {
             }
             if control.is_cancelled() { return Err(fail(S::Acquire, E::Cancelled)); }
             let archive_name = format!("{}.artifact", component.name);
-            let local_candidate = self.candidate.as_ref().is_some_and(|candidate| component.name == candidate.component);
+            let local_candidate = self.candidate.as_ref().is_some_and(|candidate| candidate.artifacts.iter().any(|(name, _, _)| component.name == *name));
             let reusable_archive = if local_candidate { None } else {
                 reuse_candidates.iter().filter(|previous| typed_safe_existing_dir(previous).is_ok())
                     .find_map(|previous| {
@@ -911,7 +912,7 @@ impl RuntimeManager {
             #[cfg(target_os = "macos")]
             let bundled_gallery = match component.name.as_str() {
                 "python" => { super::macos_gallery::extract_python(&archive, stage, control)?; true }
-                "gallery-dl" => { super::macos_gallery::extract_gallery(&archive, stage, control)?; true }
+                "gallery-dl" => { super::macos_gallery::extract_gallery_selected(&archive, stage, control, &component.sha256, component.bytes, self.candidate.as_ref().is_none_or(|candidate| candidate.allow_acquisition), &reuse_candidates)?; true }
                 _ => false,
             };
             #[cfg(not(target_os = "macos"))]
@@ -1036,11 +1037,11 @@ impl RuntimeManager {
         progress: impl FnMut(u64, Option<u64>),
     ) -> Result<(), network::AcquisitionError> {
         if let Some(candidate) = &self.candidate {
-            if component.name == candidate.component {
+            if let Some((_, artifact, _)) = candidate.artifacts.iter().find(|(name, _, _)| component.name == *name) {
                 if control.is_cancelled() {
                     return Err(super::preparation::ErrorCategory::Cancelled.into());
                 }
-                fs::copy(&candidate.artifact, archive).map_err(|e| {
+                fs::copy(artifact, archive).map_err(|e| {
                     network::AcquisitionError { category: super::preparation::ErrorCategory::io(&e),
                         http_status: None, operation: super::preparation::PreparationOperation::FileCopy, raw_os_error: e.raw_os_error() }
                 })?;
@@ -1127,7 +1128,7 @@ impl RuntimeManager {
                     || !probe_matches(
                         self.candidate
                             .as_ref()
-                            .is_some_and(|candidate| file.name == candidate.exact_probe_file),
+                            .is_some_and(|candidate| candidate.artifacts.iter().any(|(_, _, name)| file.name == *name)),
                         &file.version_contains,
                         &outcome.stdout,
                         &outcome.stderr,
@@ -1164,8 +1165,8 @@ fn verify_bundles(
             super::preparation::RuntimeComponent::Runtime, stage, super::preparation::ErrorCategory::Hash))?);
     }
     #[cfg(target_os = "macos")]
-    if manifest.components.iter().any(|component| component.name == "gallery-dl") {
-        let directories = super::macos_gallery::verify_gallery_dependencies(directory, |path, expected| {
+    if let Some(component) = manifest.components.iter().find(|component| component.name == "gallery-dl") {
+        let directories = super::macos_gallery::verify_gallery_dependencies_selected(directory, &component.sha256, component.bytes, |path, expected| {
             verified.file(path, expected, super::preparation::RuntimeComponent::GalleryDl, stage).map_err(|error| error.to_string())
         }).map_err(|_| super::preparation::PreparationFailure::new(
             super::preparation::RuntimeComponent::GalleryDl, stage, super::preparation::ErrorCategory::Hash))?;

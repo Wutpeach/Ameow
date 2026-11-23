@@ -1,30 +1,25 @@
-//! Read-only check of the official yt-dlp stable release.
-use super::network::{self, Route};
-use serde::Deserialize;
+//! Cached metadata checks never acquire or activate a downloader.
+use super::{
+    contract::Downloader,
+    network::{self, Route},
+};
+use serde::{Deserialize, Serialize};
 use std::{
-    io::Read,
+    fs::{self, File},
+    io::{Read, Write},
+    path::{Path, PathBuf},
     sync::{Arc, Mutex},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
-#[derive(Clone, Copy)]
-enum Source {
-    YtDlpPyPi,
-}
-
-impl Source {
-    fn url(self) -> &'static str {
-        match self {
-            Self::YtDlpPyPi => "https://pypi.org/pypi/yt-dlp/json",
-        }
-    }
-}
-
 const MAX_BODY: u64 = 16 * 1024 * 1024;
+const MAX_CACHE: u64 = 64 * 1024;
 const COOLDOWN: Duration = Duration::from_secs(5);
 const DEADLINE: Duration = Duration::from_secs(30);
+const AUTO_INTERVAL_MS: u64 = 86_400_000;
+const CACHE_FILE: &str = "upstream-checks.json";
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UpstreamError {
     Route,
     Timeout,
@@ -35,6 +30,20 @@ pub enum UpstreamError {
     Network,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Installability {
+    #[default]
+    Unknown,
+    Installable,
+    RequiresAmeow,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CachedRelease {
+    pub version: String,
+    pub installability: Installability,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct UpstreamSnapshot {
     pub pending: bool,
@@ -42,84 +51,365 @@ pub struct UpstreamSnapshot {
     pub checked_at_ms: Option<u64>,
     pub result: Option<Result<String, UpstreamError>>,
     pub cooldown_remaining_ms: u64,
+    pub installability: Installability,
+    pub last_success: Option<CachedRelease>,
+    pub cache_error: bool,
+}
+
+#[derive(Default)]
+struct ComponentState {
+    snapshot: UpstreamSnapshot,
+    last_started: Option<Instant>,
+    started_at_ms: u64,
+    last_attempt_ms: Option<u64>,
+    last_seen_version: Option<String>,
 }
 
 #[derive(Default)]
 struct State {
-    snapshot: UpstreamSnapshot,
-    last_started: Option<Instant>,
-    started_at_ms: u64,
+    components: [ComponentState; 2],
+}
+
+#[derive(Default, Serialize, Deserialize)]
+struct StoredComponent {
+    checked_at_ms: Option<u64>,
+    last_attempt_ms: Option<u64>,
+    result: Option<Result<CachedRelease, UpstreamError>>,
+    last_success: Option<CachedRelease>,
+    last_seen_version: Option<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct Stored {
+    schema: u32,
+    #[serde(default)]
+    runtime_identity: String,
+    components: [StoredComponent; 2],
 }
 
 #[derive(Clone, Default)]
 pub struct UpstreamChecker {
     state: Arc<Mutex<State>>,
+    root: Option<PathBuf>,
+}
+
+fn index(downloader: Downloader) -> usize {
+    match downloader {
+        Downloader::YtDlp => 0,
+        Downloader::GalleryDl => 1,
+    }
 }
 
 impl UpstreamChecker {
+    /// Loads only bounded local results; checking starts when settings requests it.
+    pub fn with_root(root: PathBuf) -> Self {
+        let checker = Self {
+            root: Some(root),
+            ..Self::default()
+        };
+        if let Some(root) = &checker.root {
+            match load_cache(root) {
+                Ok(Some(stored)) => {
+                    let mut state = checker.state.lock().unwrap_or_else(|e| e.into_inner());
+                    for (component, stored) in state.components.iter_mut().zip(stored.components) {
+                        component.last_attempt_ms = stored.last_attempt_ms;
+                        component.last_seen_version = stored.last_seen_version;
+                        component.snapshot.checked_at_ms = stored.checked_at_ms;
+                        component.snapshot.installability = stored
+                            .result
+                            .as_ref()
+                            .and_then(|r| r.as_ref().ok())
+                            .map_or(Installability::Unknown, |r| r.installability);
+                        component.snapshot.result = stored.result.map(|r| r.map(|r| r.version));
+                        component.snapshot.last_success = stored.last_success;
+                    }
+                }
+                Ok(None) => {}
+                Err(()) => {
+                    let mut state = checker.state.lock().unwrap_or_else(|e| e.into_inner());
+                    for component in &mut state.components {
+                        component.snapshot.cache_error = true;
+                    }
+                }
+            }
+        }
+        checker
+    }
+
     pub fn snapshot(&self) -> UpstreamSnapshot {
+        self.snapshot_for(Downloader::YtDlp)
+    }
+
+    pub fn snapshot_for(&self, downloader: Downloader) -> UpstreamSnapshot {
         let state = self.state.lock().unwrap_or_else(|e| e.into_inner());
-        let mut snapshot = state.snapshot.clone();
+        let component = &state.components[index(downloader)];
+        let mut snapshot = component.snapshot.clone();
         snapshot.worker_running = snapshot.pending;
-        if snapshot.pending && state.last_started.is_some_and(|t| t.elapsed() >= DEADLINE) {
+        if snapshot.pending
+            && component
+                .last_started
+                .is_some_and(|t| t.elapsed() >= DEADLINE)
+        {
             snapshot.pending = false;
             snapshot.checked_at_ms = Some(
-                state
+                component
                     .started_at_ms
                     .saturating_add(DEADLINE.as_millis() as u64),
             );
             snapshot.result = Some(Err(UpstreamError::Timeout));
+            snapshot.installability = Installability::Unknown;
         }
-        snapshot.cooldown_remaining_ms = state.last_started.map_or(0, |started| {
+        snapshot.cooldown_remaining_ms = component.last_started.map_or(0, |started| {
             COOLDOWN.saturating_sub(started.elapsed()).as_millis() as u64
         });
         snapshot
     }
 
     pub fn request(&self) -> bool {
-        self.request_with(query_latest)
+        self.request_for(Downloader::YtDlp, true)
     }
 
+    pub fn request_for(&self, downloader: Downloader, manual: bool) -> bool {
+        self.request_component_with(downloader, manual, move || query_release(downloader))
+    }
+
+    pub fn mark_seen(&self, downloader: Downloader, version: &str) -> bool {
+        if normalize_version(downloader, version).as_deref() != Some(version) {
+            return false;
+        }
+        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        let component = &mut state.components[index(downloader)];
+        if component
+            .snapshot
+            .result
+            .as_ref()
+            .and_then(|r| r.as_ref().ok())
+            .map(String::as_str)
+            != Some(version)
+            || component.snapshot.installability != Installability::Installable
+        {
+            return false;
+        }
+        if component.last_seen_version.as_deref().is_some_and(|seen| {
+            compare_versions(downloader, version, seen) != Some(std::cmp::Ordering::Greater)
+        }) {
+            return true;
+        }
+        let previous_seen = component.last_seen_version.clone();
+        component.last_seen_version = Some(version.into());
+        let saved = self.persist(&state);
+        if !saved { state.components[index(downloader)].last_seen_version = previous_seen; }
+        state.components[index(downloader)].snapshot.cache_error = !saved;
+        saved
+    }
+
+    pub fn has_unread(&self, downloader: Downloader, current_version: Option<&str>) -> bool {
+        let state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        let component = &state.components[index(downloader)];
+        let snapshot = &component.snapshot;
+        if snapshot.pending
+            && component
+                .last_started
+                .is_some_and(|at| at.elapsed() >= DEADLINE)
+        {
+            return false;
+        }
+        let Some(Ok(version)) = &snapshot.result else {
+            return false;
+        };
+        snapshot.installability == Installability::Installable
+            && component.last_seen_version.as_deref().is_none_or(|seen| {
+                compare_versions(downloader, version, seen) == Some(std::cmp::Ordering::Greater)
+            })
+            && current_version.is_some_and(|current| {
+                compare_versions(downloader, version, current) == Some(std::cmp::Ordering::Greater)
+            })
+    }
+
+    fn persist(&self, state: &State) -> bool {
+        self.root
+            .as_ref()
+            .is_none_or(|root| save_cache(root, state).is_ok())
+    }
+
+    #[cfg(test)]
     fn request_with(
         &self,
         query: impl FnOnce() -> Result<String, UpstreamError> + Send + 'static,
     ) -> bool {
+        self.request_component_with(Downloader::YtDlp, true, move || {
+            query().map(|version| CachedRelease {
+                version,
+                installability: Installability::Installable,
+            })
+        })
+    }
+
+    fn request_component_with(
+        &self,
+        downloader: Downloader,
+        manual: bool,
+        query: impl FnOnce() -> Result<CachedRelease, UpstreamError> + Send + 'static,
+    ) -> bool {
         let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
-        if state.snapshot.pending || state.last_started.is_some_and(|t| t.elapsed() < COOLDOWN) {
+        let component = &mut state.components[index(downloader)];
+        let now = now_ms();
+        if component.snapshot.pending
+            || component
+                .last_started
+                .is_some_and(|t| t.elapsed() < COOLDOWN)
+            || !manual
+                && component
+                    .last_attempt_ms
+                    .is_some_and(|at| now.saturating_sub(at) < AUTO_INTERVAL_MS)
+        {
             return false;
         }
-        state.snapshot.pending = true;
-        state.last_started = Some(Instant::now());
-        state.started_at_ms = now_ms();
-        let shared = Arc::clone(&self.state);
+        component.snapshot.pending = true;
+        component.last_started = Some(Instant::now());
+        component.started_at_ms = now;
+        component.last_attempt_ms = Some(now);
+        let saved = self.persist(&state);
+        state.components[index(downloader)].snapshot.cache_error = !saved;
+        let checker = self.clone();
         if std::thread::Builder::new()
-            .name("yt-dlp-release-check".into())
+            .name(format!("{}-release-check", downloader.label()))
             .spawn(move || {
                 let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(query))
                     .unwrap_or(Err(UpstreamError::Network));
-                let mut state = shared.lock().unwrap_or_else(|e| e.into_inner());
-                state.snapshot.pending = false;
-                if state.last_started.is_some_and(|t| t.elapsed() >= DEADLINE) {
-                    state.snapshot.checked_at_ms = Some(
-                        state
+                let mut state = checker.state.lock().unwrap_or_else(|e| e.into_inner());
+                let component = &mut state.components[index(downloader)];
+                component.snapshot.pending = false;
+                let result = if component
+                    .last_started
+                    .is_some_and(|t| t.elapsed() >= DEADLINE)
+                {
+                    component.snapshot.checked_at_ms = Some(
+                        component
                             .started_at_ms
                             .saturating_add(DEADLINE.as_millis() as u64),
                     );
-                    state.snapshot.result = Some(Err(UpstreamError::Timeout));
+                    Err(UpstreamError::Timeout)
                 } else {
-                    state.snapshot.checked_at_ms = Some(now_ms());
-                    state.snapshot.result = Some(result);
+                    component.snapshot.checked_at_ms = Some(now_ms());
+                    result
+                };
+                component.snapshot.installability = result
+                    .as_ref()
+                    .map_or(Installability::Unknown, |r| r.installability);
+                if let Ok(release) = &result {
+                    component.snapshot.last_success = Some(release.clone());
                 }
+                component.snapshot.result = Some(result.map(|release| release.version));
+                let saved = checker.persist(&state);
+                state.components[index(downloader)].snapshot.cache_error = !saved;
             })
             .is_err()
         {
-            state.snapshot.pending = false;
-            state.snapshot.checked_at_ms = Some(now_ms());
-            state.snapshot.result = Some(Err(UpstreamError::Network));
+            let component = &mut state.components[index(downloader)];
+            component.snapshot.pending = false;
+            component.snapshot.checked_at_ms = Some(now_ms());
+            component.snapshot.result = Some(Err(UpstreamError::Network));
+            component.snapshot.installability = Installability::Unknown;
+            self.persist(&state);
             return false;
         }
         true
     }
+}
+
+fn load_cache(root: &Path) -> Result<Option<Stored>, ()> {
+    super::runtime::check_data_location(root).map_err(|_| ())?;
+    let path = root.join(CACHE_FILE);
+    let metadata = match fs::symlink_metadata(&path) {
+        Ok(metadata) => metadata,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(_) => return Err(()),
+    };
+    if !super::is_plain_file(&metadata) || metadata.len() > MAX_CACHE {
+        return Err(());
+    }
+    let file = File::open(path).map_err(|_| ())?;
+    let mut stored: Stored = serde_json::from_reader(file.take(MAX_CACHE + 1)).map_err(|_| ())?;
+    if stored.schema != 1 {
+        return Err(());
+    }
+    for (component, downloader) in stored
+        .components
+        .iter()
+        .zip([Downloader::YtDlp, Downloader::GalleryDl])
+    {
+        let valid =
+            |version: &str| normalize_version(downloader, version).as_deref() == Some(version);
+        if component
+            .last_seen_version
+            .as_deref()
+            .is_some_and(|v| !valid(v))
+            || component
+                .last_success
+                .as_ref()
+                .is_some_and(|r| !valid(&r.version))
+            || component
+                .result
+                .as_ref()
+                .and_then(|r| r.as_ref().ok())
+                .is_some_and(|r| !valid(&r.version))
+        {
+            return Err(());
+        }
+    }
+    invalidate_environment(&mut stored, &runtime_identity());
+    Ok(Some(stored))
+}
+
+fn runtime_identity() -> String {
+    use sha2::Digest;
+    let mut hash = sha2::Sha256::new();
+    hash.update(b"component-compatibility-v1");
+    if let Ok(manifest) = super::runtime::manifest() { hash.update(serde_json::to_vec(&manifest).unwrap_or_default()); }
+    hash.update(include_bytes!("macos_gallery.rs"));
+    format!("{:x}", hash.finalize())
+}
+
+fn invalidate_environment(stored: &mut Stored, identity: &str) {
+    if stored.runtime_identity == identity { return; }
+    for component in &mut stored.components {
+        component.last_attempt_ms = None;
+        if let Some(Ok(release)) = &mut component.result { release.installability = Installability::Unknown; }
+        if let Some(release) = &mut component.last_success { release.installability = Installability::Unknown; }
+    }
+    stored.runtime_identity = identity.to_owned();
+}
+
+fn save_cache(root: &Path, state: &State) -> Result<(), ()> {
+    super::runtime::check_data_location(root).map_err(|_| ())?;
+    super::runtime::safe_dir(root).map_err(|_| ())?;
+    let stored = Stored {
+        schema: 1,
+        runtime_identity: runtime_identity(),
+        components: std::array::from_fn(|i| {
+            let component = &state.components[i];
+            StoredComponent {
+                checked_at_ms: component.snapshot.checked_at_ms,
+                last_attempt_ms: component.last_attempt_ms,
+                result: component.snapshot.result.clone().map(|r| {
+                    r.map(|version| CachedRelease {
+                        version,
+                        installability: component.snapshot.installability,
+                    })
+                }),
+                last_success: component.snapshot.last_success.clone(),
+                last_seen_version: component.last_seen_version.clone(),
+            }
+        }),
+    };
+    let mut file = tempfile::NamedTempFile::new_in(root).map_err(|_| ())?;
+    let bytes = serde_json::to_vec(&stored).map_err(|_| ())?;
+    file.write_all(&bytes)
+        .and_then(|_| file.as_file().sync_all())
+        .map_err(|_| ())?;
+    file.persist(root.join(CACHE_FILE)).map_err(|_| ())?;
+    Ok(())
 }
 
 fn now_ms() -> u64 {
@@ -140,66 +430,7 @@ fn request_error(error: reqwest::Error) -> UpstreamError {
     }
 }
 
-/// Queries the official PyPI project once using the current Windows route.
-pub fn query_latest() -> Result<String, UpstreamError> {
-    let started = Instant::now();
-    let source = Source::YtDlpPyPi;
-    let route = network::resolve(source.url());
-    let remaining = DEADLINE.saturating_sub(started.elapsed());
-    if remaining.is_zero() {
-        return Err(UpstreamError::Timeout);
-    }
-    let route = route.map_err(|_| UpstreamError::Route)?;
-    query_route(source.url(), route, remaining.min(Duration::from_secs(15)))
-}
-
-fn query_route(url: &str, route: Route, timeout: Duration) -> Result<String, UpstreamError> {
-    let mut builder = reqwest::blocking::Client::builder()
-        .no_proxy()
-        .redirect(reqwest::redirect::Policy::none())
-        .connect_timeout(Duration::from_secs(5))
-        .timeout(timeout);
-    if let Route::Proxy(proxy) = route {
-        builder = builder.proxy(reqwest::Proxy::all(proxy).map_err(|_| UpstreamError::Route)?);
-    }
-    let response = builder
-        .build()
-        .map_err(request_error)?
-        .get(url)
-        .header(reqwest::header::USER_AGENT, "Ameow-Next/0.1")
-        .header(reqwest::header::ACCEPT, "application/json")
-        .send()
-        .map_err(request_error)?;
-    if !response.status().is_success() {
-        return Err(UpstreamError::Http(response.status().as_u16()));
-    }
-    if response
-        .content_length()
-        .is_some_and(|length| length > MAX_BODY)
-    {
-        return Err(UpstreamError::TooLarge);
-    }
-    parse_response(response)
-}
-
-#[derive(Deserialize)]
-struct Project {
-    info: ProjectInfo,
-    releases: std::collections::HashMap<String, Vec<Distribution>>,
-}
-
-#[derive(Deserialize)]
-struct ProjectInfo {
-    name: String,
-    version: String,
-}
-
-#[derive(Deserialize)]
-struct Distribution {
-    yanked: bool,
-}
-
-fn parse_response(response: impl Read) -> Result<String, UpstreamError> {
+fn read_response(response: impl Read) -> Result<Vec<u8>, UpstreamError> {
     let mut bytes = Vec::new();
     response
         .take(MAX_BODY + 1)
@@ -226,13 +457,95 @@ fn parse_response(response: impl Read) -> Result<String, UpstreamError> {
     if bytes.len() as u64 > MAX_BODY {
         return Err(UpstreamError::TooLarge);
     }
-    let project: Project =
-        serde_json::from_slice(&bytes).map_err(|_| UpstreamError::InvalidResponse)?;
-    if project.info.name != "yt-dlp" {
+    Ok(bytes)
+}
+
+fn get(url: &str, route: Route, timeout: Duration) -> Result<Vec<u8>, UpstreamError> {
+    let mut builder = reqwest::blocking::Client::builder()
+        .no_proxy()
+        .redirect(reqwest::redirect::Policy::none())
+        .connect_timeout(Duration::from_secs(5))
+        .timeout(timeout);
+    if let Route::Proxy(proxy) = route {
+        builder = builder.proxy(reqwest::Proxy::all(proxy).map_err(|_| UpstreamError::Route)?);
+    }
+    let response = builder
+        .build()
+        .map_err(request_error)?
+        .get(url)
+        .header(reqwest::header::USER_AGENT, "Ameow")
+        .header(reqwest::header::ACCEPT, "application/json")
+        .send()
+        .map_err(request_error)?;
+    if !response.status().is_success() {
+        return Err(UpstreamError::Http(response.status().as_u16()));
+    }
+    if response.content_length().is_some_and(|n| n > MAX_BODY) {
+        return Err(UpstreamError::TooLarge);
+    }
+    read_response(response)
+}
+
+fn fetch_json<T: serde::de::DeserializeOwned>(
+    url: &str,
+    started: Instant,
+) -> Result<T, UpstreamError> {
+    let route = network::resolve(url).map_err(|_| UpstreamError::Route)?;
+    let remaining = DEADLINE.saturating_sub(started.elapsed());
+    if remaining.is_zero() {
+        return Err(UpstreamError::Timeout);
+    }
+    serde_json::from_slice(&get(url, route, remaining.min(Duration::from_secs(15)))?)
+        .map_err(|_| UpstreamError::InvalidResponse)
+}
+
+#[derive(Deserialize)]
+struct Project {
+    info: ProjectInfo,
+    releases: std::collections::HashMap<String, Vec<Distribution>>,
+}
+#[derive(Deserialize)]
+struct ProjectInfo {
+    name: String,
+    version: String,
+    #[cfg(target_os = "macos")]
+    #[serde(default)]
+    requires_python: Option<String>,
+    #[serde(default)]
+    requires_dist: Option<Vec<String>>,
+}
+#[derive(Deserialize)]
+struct Distribution {
+    yanked: bool,
+    #[serde(default)]
+    filename: String,
+    #[serde(default)]
+    url: String,
+    #[serde(default)]
+    size: u64,
+    #[serde(default)]
+    digests: std::collections::HashMap<String, String>,
+}
+#[derive(Deserialize)]
+struct Release {
+    tag_name: String,
+    draft: bool,
+    prerelease: bool,
+    assets: Vec<Asset>,
+}
+#[derive(Deserialize)]
+struct Asset {
+    name: String,
+    size: u64,
+    browser_download_url: String,
+}
+
+fn project_latest(project: &Project, downloader: Downloader) -> Result<String, UpstreamError> {
+    if project.info.name != downloader.label() {
         return Err(UpstreamError::InvalidResponse);
     }
-    let latest =
-        normalize_stable_version(&project.info.version).ok_or(UpstreamError::InvalidResponse)?;
+    let latest = normalize_version(downloader, &project.info.version)
+        .ok_or(UpstreamError::InvalidResponse)?;
     let files = project
         .releases
         .get(&project.info.version)
@@ -240,14 +553,262 @@ fn parse_response(response: impl Read) -> Result<String, UpstreamError> {
     if !files.iter().any(|file| !file.yanked) {
         return Err(UpstreamError::InvalidResponse);
     }
-    for (version, files) in &project.releases {
-        if files.iter().any(|file| !file.yanked)
-            && compare_stable_versions(version, &latest) == Some(std::cmp::Ordering::Greater)
-        {
-            return Err(UpstreamError::InvalidResponse);
-        }
+    if project.releases.iter().any(|(version, files)| {
+        files.iter().any(|f| !f.yanked)
+            && compare_versions(downloader, version, &latest) == Some(std::cmp::Ordering::Greater)
+    }) {
+        return Err(UpstreamError::InvalidResponse);
     }
     Ok(latest)
+}
+
+pub fn query_latest() -> Result<String, UpstreamError> {
+    let project: Project = fetch_json("https://pypi.org/pypi/yt-dlp/json", Instant::now())?;
+    project_latest(&project, Downloader::YtDlp)
+}
+
+#[cfg(test)]
+fn query_route(url: &str, route: Route, timeout: Duration) -> Result<String, UpstreamError> {
+    parse_response(get(url, route, timeout)?.as_slice())
+}
+#[cfg(test)]
+fn parse_response(response: impl Read) -> Result<String, UpstreamError> {
+    let project: Project = serde_json::from_slice(&read_response(response)?)
+        .map_err(|_| UpstreamError::InvalidResponse)?;
+    project_latest(&project, Downloader::YtDlp)
+}
+
+pub fn query_release(downloader: Downloader) -> Result<CachedRelease, UpstreamError> {
+    let started = Instant::now();
+    let project: Project = fetch_json(
+        &format!("https://pypi.org/pypi/{}/json", downloader.label()),
+        started,
+    )?;
+    let version = project_latest(&project, downloader)?;
+    inspect_release(downloader, project, version, started)
+}
+
+/// Revalidate the exact clicked version; a newer release appearing meanwhile is not an incompatibility.
+pub fn query_installability(downloader: Downloader, version: &str) -> Result<Installability, UpstreamError> {
+    #[derive(Deserialize)]
+    struct VersionMetadata { info: ProjectInfo, urls: Vec<Distribution> }
+    let normalized = normalize_version(downloader, version).ok_or(UpstreamError::InvalidResponse)?;
+    let started = Instant::now();
+    let metadata: VersionMetadata = fetch_json(&format!("https://pypi.org/pypi/{}/{normalized}/json", downloader.label()), started)?;
+    if metadata.info.name != downloader.label()
+        || normalize_version(downloader, &metadata.info.version).as_deref() != Some(normalized.as_str())
+        || !metadata.urls.iter().any(|file| !file.yanked) { return Err(UpstreamError::InvalidResponse); }
+    let project = Project { releases: std::collections::HashMap::from([(metadata.info.version.clone(), metadata.urls)]), info: metadata.info };
+    Ok(inspect_release(downloader, project, normalized, started)?.installability)
+}
+
+fn inspect_release(downloader: Downloader, project: Project, version: String, started: Instant) -> Result<CachedRelease, UpstreamError> {
+    let manifest = super::runtime::manifest().map_err(|_| UpstreamError::InvalidResponse)?;
+    let runtime_version = |name: &str| {
+        manifest
+            .components
+            .iter()
+            .find(|c| c.name == name)
+            .map(|c| c.version.as_str())
+    };
+    let mut supported = true;
+    if downloader == Downloader::YtDlp {
+        let deno = project
+            .info
+            .requires_dist
+            .as_deref()
+            .unwrap_or_default()
+            .iter()
+            .find_map(|requirement| {
+                let (dependency, marker) = requirement.split_once(';').unwrap_or((requirement, ""));
+                let marker = marker.split_whitespace().collect::<String>();
+                if !marker.is_empty() && marker != "extra==\"deno\"" && marker != "extra=='deno'" {
+                    return None;
+                }
+                dependency.trim().strip_prefix("deno").map(str::trim)
+            });
+        supported &= deno
+            .zip(runtime_version("deno"))
+            .is_some_and(|(required, current)| satisfies(current, required));
+    }
+    #[cfg(target_os = "macos")]
+    {
+        supported &= project
+            .info
+            .requires_python
+            .as_deref()
+            .zip(runtime_version("python"))
+            .is_some_and(|(required, current)| satisfies(current, required));
+        supported &= fixed_dependencies_supported(project.info.requires_dist.as_deref().unwrap_or_default());
+    }
+    let assets_available = if downloader == Downloader::GalleryDl && cfg!(target_os = "macos") {
+        project
+            .releases
+            .get(&project.info.version)
+            .is_some_and(|files| {
+                files.iter().any(|f| {
+                    !f.yanked
+                        && f.filename.ends_with("-py3-none-any.whl")
+                        && f.size > 0
+                        && f.size <= 128 * 1024 * 1024
+                        && f.url
+                            .starts_with("https://files.pythonhosted.org/packages/")
+                        && f.digests.get("sha256").is_some_and(|h| {
+                            h.len() == 64 && h.bytes().all(|b| b.is_ascii_hexdigit())
+                        })
+                })
+            })
+    } else {
+        let (url, base, names): (String, String, Vec<&str>) = match downloader {
+            Downloader::YtDlp => (
+                format!("https://api.github.com/repos/yt-dlp/yt-dlp/releases/tags/{version}"),
+                format!("https://github.com/yt-dlp/yt-dlp/releases/download/{version}/"),
+                vec![
+                    if cfg!(windows) {
+                        "yt-dlp.exe"
+                    } else {
+                        "yt-dlp"
+                    },
+                    "SHA2-256SUMS",
+                    "SHA2-256SUMS.sig",
+                ],
+            ),
+            Downloader::GalleryDl => (
+                format!(
+                    "https://codeberg.org/api/v1/repos/mikf/gallery-dl/releases/tags/v{version}"
+                ),
+                format!("https://codeberg.org/mikf/gallery-dl/releases/download/v{version}/"),
+                vec!["gallery-dl.exe", "SHA256SUMS", "SHA256SUMS.sig"],
+            ),
+        };
+        let release: Release = fetch_json(&url, started)?;
+        let tag = match downloader {
+            Downloader::YtDlp => version.clone(),
+            Downloader::GalleryDl => format!("v{version}"),
+        };
+        if release.tag_name != tag || release.draft || release.prerelease {
+            return Err(UpstreamError::InvalidResponse);
+        }
+        names.iter().all(|name| {
+            release.assets.iter().any(|asset| {
+                asset.name == *name
+                    && asset.size > 0
+                    && asset.size <= 128 * 1024 * 1024
+                    && asset.browser_download_url == format!("{base}{name}")
+            })
+        })
+    };
+    Ok(CachedRelease {
+        version,
+        installability: if supported && assets_available {
+            Installability::Installable
+        } else {
+            Installability::RequiresAmeow
+        },
+    })
+}
+
+#[cfg(any(test, target_os = "macos"))]
+fn fixed_dependencies_supported(requirements: &[String]) -> bool {
+    requirements.iter().all(|requirement| {
+        let (dependency, marker) = requirement.split_once(';').unwrap_or((requirement, ""));
+        let marker = marker.split_whitespace().collect::<String>();
+        if marker.contains("extra==") { return true; }
+        // Unknown environment expressions need a new validated recipe rather than a guess.
+        if !marker.is_empty() { return false; }
+        let dependency = dependency.trim();
+        let end = dependency.find(|c: char| !c.is_ascii_alphanumeric() && c != '-' && c != '_').unwrap_or(dependency.len());
+        let name = dependency[..end].to_ascii_lowercase().replace('_', "-");
+        let current = match name.as_str() {
+            "requests" => "2.34.2", "idna" => "3.20", "urllib3" => "2.8.0",
+            "charset-normalizer" => "3.5.2", "certifi" => "2026.10.23", _ => return false,
+        };
+        let constraints = dependency[end..].trim().trim_start_matches('(').trim_end_matches(')');
+        constraints.is_empty() || satisfies(current, constraints)
+    })
+}
+
+pub fn normalize_version(downloader: Downloader, version: &str) -> Option<String> {
+    match downloader {
+        Downloader::YtDlp => normalize_stable_version(version),
+        Downloader::GalleryDl => {
+            let parts: Vec<_> = version.split('.').collect();
+            if parts.len() != 3
+                || parts
+                    .iter()
+                    .any(|p| p.is_empty() || p.len() > 6 || !p.bytes().all(|b| b.is_ascii_digit()))
+            {
+                return None;
+            }
+            let parts: Option<Vec<u32>> = parts.iter().map(|p| p.parse().ok()).collect();
+            Some(
+                parts?
+                    .iter()
+                    .map(u32::to_string)
+                    .collect::<Vec<_>>()
+                    .join("."),
+            )
+        }
+    }
+}
+
+pub fn compare_versions(
+    downloader: Downloader,
+    left: &str,
+    right: &str,
+) -> Option<std::cmp::Ordering> {
+    let parts = |value: &str| -> Option<Vec<u32>> {
+        normalize_version(downloader, value)?
+            .split('.')
+            .map(|p| p.parse().ok())
+            .collect()
+    };
+    if downloader == Downloader::YtDlp {
+        compare_stable_versions(left, right)
+    } else {
+        Some(parts(left)?.cmp(&parts(right)?))
+    }
+}
+
+// Unknown requirement forms are unsupported until Ameow validates that runtime combination.
+fn satisfies(current: &str, requirements: &str) -> bool {
+    let parts = |value: &str| -> Option<Vec<u32>> {
+        let mut parts: Vec<u32> = value
+            .trim()
+            .split('.')
+            .map(str::parse)
+            .collect::<Result<_, _>>()
+            .ok()?;
+        if parts.is_empty() || parts.len() > 4 {
+            return None;
+        }
+        parts.resize(4, 0);
+        Some(parts)
+    };
+    let Some(current) = parts(current) else {
+        return false;
+    };
+    !requirements.is_empty()
+        && requirements.split(',').all(|requirement| {
+            let requirement = requirement.trim();
+            let Some(operator) = [">=", "<=", "!=", "==", ">", "<"]
+                .into_iter()
+                .find(|op| requirement.starts_with(op))
+            else {
+                return false;
+            };
+            let Some(required) = parts(&requirement[operator.len()..]) else {
+                return false;
+            };
+            match operator {
+                ">=" => current >= required,
+                "<=" => current <= required,
+                "!=" => current != required,
+                "==" => current == required,
+                ">" => current > required,
+                _ => current < required,
+            }
+        })
 }
 
 /// Converts a stable yt-dlp calendar version to its release-asset spelling.
@@ -497,8 +1058,8 @@ mod tests {
         started_rx.recv_timeout(Duration::from_secs(5)).unwrap();
         let expected_time = {
             let mut state = checker.state.lock().unwrap();
-            state.last_started = Some(Instant::now() - DEADLINE);
-            state.started_at_ms + DEADLINE.as_millis() as u64
+            state.components[0].last_started = Some(Instant::now() - DEADLINE);
+            state.components[0].started_at_ms + DEADLINE.as_millis() as u64
         };
         let snapshot = checker.snapshot();
         assert!(!snapshot.pending);
@@ -532,7 +1093,7 @@ mod tests {
         wait_until_finished(&checker);
         assert_eq!(checker.snapshot().result, Some(Err(UpstreamError::Connect)));
         assert!(!checker.request_with(|| Ok("unexpected".into())));
-        checker.state.lock().unwrap().last_started = Some(Instant::now() - COOLDOWN);
+        checker.state.lock().unwrap().components[0].last_started = Some(Instant::now() - COOLDOWN);
         let (release_tx, release_rx) = mpsc::channel();
         assert!(checker.request_with(move || {
             release_rx.recv_timeout(Duration::from_secs(5)).unwrap();
@@ -544,5 +1105,129 @@ mod tests {
         let snapshot = checker.snapshot();
         assert_eq!(snapshot.result, Some(Ok("2024.01.01".into())));
         assert!(snapshot.checked_at_ms.is_some());
+    }
+
+    #[test]
+    fn daily_limit_survives_restart_and_manual_check_joins_one_worker() {
+        let root = tempfile::tempdir().unwrap();
+        let checker = UpstreamChecker::with_root(root.path().into());
+        assert!(
+            checker
+                .request_component_with(Downloader::YtDlp, false, || Err(UpstreamError::Connect))
+        );
+        wait_until_finished(&checker);
+        let checker = UpstreamChecker::with_root(root.path().into());
+        assert_eq!(checker.snapshot().result, Some(Err(UpstreamError::Connect)));
+        assert!(
+            !checker.request_component_with(Downloader::YtDlp, false, || panic!(
+                "daily retry must not run"
+            ))
+        );
+        let (release_tx, release_rx) = mpsc::channel();
+        assert!(
+            checker.request_component_with(Downloader::YtDlp, true, move || {
+                release_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+                Ok(CachedRelease {
+                    version: "2026.10.26".into(),
+                    installability: Installability::Installable,
+                })
+            })
+        );
+        assert!(
+            !checker.request_component_with(Downloader::YtDlp, true, || panic!(
+                "in-flight must be shared"
+            ))
+        );
+        release_tx.send(()).unwrap();
+        wait_until_finished(&checker);
+        assert!(checker.has_unread(Downloader::YtDlp, Some("2026.10.01")));
+        assert!(checker.mark_seen(Downloader::YtDlp, "2026.10.26"));
+        assert_eq!(checker.snapshot().result, Some(Ok("2026.10.26".into())));
+        let restored = UpstreamChecker::with_root(root.path().into());
+        assert!(!restored.has_unread(Downloader::YtDlp, Some("2026.10.01")));
+        assert!(!restored.snapshot().cache_error);
+    }
+
+    #[test]
+    fn incompatible_release_has_no_unread_and_refresh_failure_is_not_cached_success() {
+        let checker = UpstreamChecker::default();
+        assert!(
+            checker.request_component_with(Downloader::GalleryDl, false, || Ok(CachedRelease {
+                version: "1.33.0".into(),
+                installability: Installability::RequiresAmeow,
+            }))
+        );
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while checker.snapshot_for(Downloader::GalleryDl).worker_running {
+            assert!(Instant::now() < deadline);
+            std::thread::yield_now();
+        }
+        assert!(!checker.has_unread(Downloader::GalleryDl, Some("1.32.20")));
+        assert!(!checker.mark_seen(Downloader::GalleryDl, "1.33.0"));
+        checker.state.lock().unwrap().components[1].last_started = Some(Instant::now() - COOLDOWN);
+        assert!(
+            checker.request_component_with(Downloader::GalleryDl, true, || Err(
+                UpstreamError::Timeout
+            ))
+        );
+        while checker.snapshot_for(Downloader::GalleryDl).worker_running {
+            assert!(Instant::now() < deadline);
+            std::thread::yield_now();
+        }
+        let snapshot = checker.snapshot_for(Downloader::GalleryDl);
+        assert_eq!(snapshot.result, Some(Err(UpstreamError::Timeout)));
+        assert_eq!(snapshot.installability, Installability::Unknown);
+        assert_eq!(snapshot.last_success.unwrap().version, "1.33.0");
+    }
+
+    #[test]
+    fn failed_seen_persistence_keeps_the_update_unread() {
+        let root = tempfile::tempdir().unwrap();
+        let checker = UpstreamChecker::with_root(root.path().into());
+        {
+            let mut state = checker.state.lock().unwrap();
+            state.components[0].snapshot = UpstreamSnapshot { checked_at_ms: Some(now_ms()),
+                result: Some(Ok("2026.10.26".into())), installability: Installability::Installable, ..Default::default() };
+        }
+        fs::create_dir(root.path().join(CACHE_FILE)).unwrap();
+        assert!(!checker.mark_seen(Downloader::YtDlp, "2026.10.26"));
+        assert!(checker.snapshot().cache_error);
+        assert!(checker.has_unread(Downloader::YtDlp, Some("2026.10.01")));
+    }
+
+    #[test]
+    fn environment_change_invalidates_installability_but_preserves_seen_version() {
+        let mut stored = Stored { schema: 1, runtime_identity: "old".into(), components: Default::default() };
+        stored.components[0] = StoredComponent { last_attempt_ms: Some(now_ms()),
+            result: Some(Ok(CachedRelease { version: "2026.10.26".into(), installability: Installability::Installable })),
+            last_seen_version: Some("2026.10.26".into()), ..Default::default() };
+        invalidate_environment(&mut stored, "new");
+        assert_eq!(stored.components[0].last_seen_version.as_deref(), Some("2026.10.26"));
+        assert!(stored.components[0].last_attempt_ms.is_none());
+        assert_eq!(stored.components[0].result.as_ref().unwrap().as_ref().unwrap().installability, Installability::Unknown);
+        assert!(fixed_dependencies_supported(&["requests>=2.30".into()]));
+        assert!(!fixed_dependencies_supported(&["requests>=3".into()]));
+        assert!(!fixed_dependencies_supported(&["new-library>=1".into()]));
+    }
+
+    #[test]
+    fn downloader_versions_and_runtime_requirements_are_numeric_and_fail_closed() {
+        assert_eq!(
+            normalize_version(Downloader::GalleryDl, "1.032.20"),
+            Some("1.32.20".into())
+        );
+        assert_eq!(
+            compare_versions(Downloader::GalleryDl, "1.33.0", "1.9.99"),
+            Some(std::cmp::Ordering::Greater)
+        );
+        for invalid in ["1.33.0rc1", "v1.33.0", "1.33", "1.33.0.1", "1.33.-1"] {
+            assert!(normalize_version(Downloader::GalleryDl, invalid).is_none());
+        }
+        assert!(satisfies("3.13.18", ">=3.11,<3.14"));
+        assert!(satisfies("2.9.8", ">=2.9.8"));
+        assert!(!satisfies("2.9.8", ">=2.10"));
+        assert!(!satisfies("3.13.18", ">=3.14"));
+        assert!(!satisfies("3.13.18", "~=3.13"));
+        assert!(!satisfies("3.13.18", ">=3.13,!=3.13.18"));
     }
 }

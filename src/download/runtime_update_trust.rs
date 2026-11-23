@@ -1,5 +1,6 @@
 //! Trust bootstrap for an official yt-dlp candidate. No local metadata is an authority.
 use super::{
+    contract::Downloader,
     network::{self, Route},
     preparation::{PreparationPhase, PreparationSnapshot, PreparationStage, RuntimeComponent},
     process_supervisor::{Control, ProcessObservation},
@@ -49,7 +50,13 @@ impl ReleaseProof {
         bytes
     }
 
+    #[cfg(test)]
     fn decode(bytes: &[u8]) -> Result<Self, String> {
+        let proof = Self::decode_unverified(bytes)?;
+        proof.checksum()?;
+        Ok(proof)
+    }
+    fn decode_unverified(bytes: &[u8]) -> Result<Self, String> {
         if bytes.len() < 16 || &bytes[..8] != PROOF_MAGIC {
             return Err("E_UPDATE_SIGNATURE".into());
         }
@@ -60,8 +67,16 @@ impl ReleaseProof {
             return Err("E_UPDATE_SIGNATURE".into());
         }
         let proof = Self { sums: bytes[16..16+sums].to_vec(), signature: bytes[16+sums..].to_vec() };
-        proof.checksum()?;
         Ok(proof)
+    }
+    fn checksum_for(&self, downloader: Downloader, version: &str) -> Result<String, String> {
+        match downloader {
+            Downloader::YtDlp => self.checksum(),
+            Downloader::GalleryDl => {
+                super::release_signature::verify_gallery(&self.sums, &self.signature)?;
+                checksum_named(&self.sums, &asset_name(downloader, version))
+            }
+        }
     }
 
     fn persist(&self, root: &Path, version: &str) -> Result<(), String> {
@@ -75,8 +90,14 @@ impl ReleaseProof {
     }
 }
 
+#[cfg(test)]
 fn signed_release(
-    root: &Path, version: &str, mut fetch: impl FnMut(&str, u64) -> Result<Vec<u8>, String>,
+    root: &Path, version: &str, fetch: impl FnMut(&str, u64) -> Result<Vec<u8>, String>,
+) -> Result<(ReleaseProof, bool), String> {
+    signed_release_for(root, Downloader::YtDlp, version, fetch)
+}
+fn signed_release_for(
+    root: &Path, downloader: Downloader, version: &str, mut fetch: impl FnMut(&str, u64) -> Result<Vec<u8>, String>,
 ) -> Result<(ReleaseProof, bool), String> {
     let dir = root.join("release-proofs");
     match fs::symlink_metadata(&dir) {
@@ -84,7 +105,8 @@ fn signed_release(
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
         Err(_) => return Err("E_UPDATE_STORAGE".into()),
     }
-    let path = dir.join(format!("{version}.proof"));
+    let proof_name = if downloader == Downloader::YtDlp { version.to_owned() } else { format!("gallery-{version}") };
+    let path = dir.join(format!("{proof_name}.proof"));
     match fs::symlink_metadata(&path) {
         Ok(meta) => {
             if !super::is_plain_file(&meta)
@@ -96,17 +118,20 @@ fn signed_release(
             let mut bytes = Vec::new();
             file.take(MAX_SUMS + MAX_SIGNATURE + 17).read_to_end(&mut bytes)
                 .map_err(|_| "E_UPDATE_STORAGE")?;
-            return Ok((ReleaseProof::decode(&bytes)?, false));
+            let proof = ReleaseProof::decode_unverified(&bytes)?;
+            proof.checksum_for(downloader, version)?;
+            return Ok((proof, false));
         }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
         Err(_) => return Err("E_UPDATE_STORAGE".into()),
     }
-    let base = format!("https://github.com/yt-dlp/yt-dlp/releases/download/{version}");
+    let base = release_base(downloader, version);
+    let sums = if downloader == Downloader::YtDlp { "SHA2-256SUMS" } else { "SHA256SUMS" };
     let proof = ReleaseProof {
-        sums: fetch(&format!("{base}/SHA2-256SUMS"), MAX_SUMS)?,
-        signature: fetch(&format!("{base}/SHA2-256SUMS.sig"), MAX_SIGNATURE)?,
+        sums: fetch(&format!("{base}/{sums}"), MAX_SUMS)?,
+        signature: fetch(&format!("{base}/{sums}.sig"), MAX_SIGNATURE)?,
     };
-    proof.checksum()?;
+    proof.checksum_for(downloader, version)?;
     Ok((proof, true))
 }
 
@@ -114,7 +139,7 @@ fn allowed(url: &Url) -> bool {
     url.scheme() == "https"
         && matches!(
             url.host_str(),
-            Some("github.com" | "release-assets.githubusercontent.com")
+            Some("github.com" | "release-assets.githubusercontent.com" | "codeberg.org")
         )
         && url.port().is_none()
         && url.username().is_empty()
@@ -165,13 +190,16 @@ fn get(url: &str, control: &Control) -> Result<reqwest::blocking::Response, Stri
 }
 
 fn checksum(bytes: &[u8]) -> Result<String, String> {
+    checksum_named(bytes, YT_ASSET)
+}
+fn checksum_named(bytes: &[u8], asset: &str) -> Result<String, String> {
     let text = std::str::from_utf8(bytes).map_err(|_| "E_UPDATE_CHECKSUM")?;
     let mut found = None;
     for line in text.lines() {
         let Some((digest, name)) = line.split_once("  ") else {
             continue;
         };
-        if name != YT_ASSET {
+        if name != asset {
             continue;
         }
         if found.is_some() || digest.len() != 64 || !digest.bytes().all(|b| b.is_ascii_hexdigit()) {
@@ -226,6 +254,7 @@ fn read_bounded(
 
 fn cached_artifact(
     root: &Path,
+    file_name: &str,
     expected: &str,
     control: &Control,
 ) -> Result<Option<(PathBuf, u64, File)>, String> {
@@ -240,7 +269,7 @@ fn cached_artifact(
         {
             continue;
         }
-        let path = entry.path().join(YT_FILE);
+        let path = entry.path().join(file_name);
         let Ok(metadata) = fs::symlink_metadata(&path) else {
             continue;
         };
@@ -257,127 +286,165 @@ fn cached_artifact(
     Ok(None)
 }
 
-pub(crate) fn prepare_candidate(
-    root: PathBuf,
-    version: &str,
-    allow_acquire: bool,
-    requirements: &TrustedRuntimeRequirements,
-    control: &Control,
-    observer: Arc<dyn Fn(ProcessObservation) + Send + Sync>,
-    mut progress: impl FnMut(PreparationSnapshot),
+// Marker fields only select a candidate; RuntimeManager authenticates its complete catalog/files.
+// Keeping the identity guard avoids hashing a healthy selected asset twice on restart.
+fn cached_artifact_hint(root: &Path, file_name: &str, component_name: &str, expected: &str, control: &Control) -> Result<Option<(PathBuf, u64, File)>, String> {
+    for entry in fs::read_dir(root).map_err(|_| "E_UPDATE_STORAGE")?.take(128) {
+        if control.is_cancelled() { return Err("E_UPDATE_CANCELLED".into()); }
+        let entry = entry.map_err(|_| "E_UPDATE_STORAGE")?;
+        if !entry.file_name().to_string_lossy().starts_with("runtime-") || runtime::typed_safe_existing_dir(&entry.path()).is_err() { continue; }
+        let marker = entry.path().join("complete.json");
+        let Ok(metadata) = fs::symlink_metadata(&marker) else { continue; };
+        if !super::is_plain_file(&metadata) || metadata.len() > 65536 { continue; }
+        let Ok(file) = runtime::open_identity_file(&marker) else { continue; };
+        let Ok(manifest) = serde_json::from_reader::<_, runtime::Manifest>(file.take(65537)) else { continue; };
+        if !manifest.components.iter().any(|component| component.name == component_name && component.sha256 == expected) { continue; }
+        let path = entry.path().join(file_name);
+        let Ok(metadata) = fs::symlink_metadata(&path) else { continue; };
+        if !super::is_plain_file(&metadata) { continue; }
+        let Ok(guard) = runtime::open_identity_file(&path) else { continue; };
+        let metadata = guard.metadata().map_err(|_| "E_UPDATE_STORAGE")?;
+        if !metadata.is_file() || metadata.len() == 0 || metadata.len() > MAX_EXECUTABLE { continue; }
+        return Ok(Some((path, metadata.len(), guard)));
+    }
+    Ok(None)
+}
+
+fn release_base(downloader: Downloader, version: &str) -> String {
+    match downloader {
+        Downloader::YtDlp => format!("https://github.com/yt-dlp/yt-dlp/releases/download/{version}"),
+        Downloader::GalleryDl => format!("https://codeberg.org/mikf/gallery-dl/releases/download/v{version}"),
+    }
+}
+fn asset_name(downloader: Downloader, version: &str) -> String {
+    match downloader {
+        Downloader::YtDlp => YT_ASSET.into(),
+        #[cfg(windows)]
+        Downloader::GalleryDl => { let _ = version; "gallery-dl.exe".into() }
+        #[cfg(target_os = "macos")]
+        Downloader::GalleryDl => format!("gallery_dl-{version}-py3-none-any.whl"),
+    }
+}
+fn tool_name(downloader: Downloader) -> &'static str {
+    match downloader {
+        Downloader::YtDlp => YT_FILE,
+        #[cfg(windows)]
+        Downloader::GalleryDl => "gallery-dl.exe",
+        #[cfg(target_os = "macos")]
+        Downloader::GalleryDl => "gallery-dl",
+    }
+}
+
+pub(crate) fn prepare_selected(
+    root: PathBuf, selection: &super::runtime_update::Selection, allow_acquire: bool,
+    requirements: &TrustedRuntimeRequirements, control: &Control,
+    observer: Arc<dyn Fn(ProcessObservation) + Send + Sync>, mut progress: impl FnMut(PreparationSnapshot),
 ) -> Result<Arc<RuntimeLease>, String> {
     runtime::check_data_location(&root)?;
-    let version = normalize_stable_version(version).ok_or("E_UPDATE_VERSION")?;
-    if !requirements.contains(YT_FILE) {
-        return Err("E_UPDATE_REQUIREMENTS".into());
-    }
-    let mut snapshot = PreparationSnapshot::default();
-    snapshot.observe(
-        PreparationPhase::Preparing,
-        Some(RuntimeComponent::YtDlp),
-        PreparationStage::Cache,
-        0,
-        None,
-        None,
-    );
-    progress(snapshot.clone());
     runtime::safe_dir(&root).map_err(|_| "E_UPDATE_STORAGE")?;
-    let (proof, new_proof) = signed_release(&root, &version, |url, limit| {
-        let mut bytes = Vec::new();
-        read_bounded(get(url, control)?, limit, control, &mut bytes, |_| {})?;
-        Ok(bytes)
-    })?;
-    let expected = proof.checksum()?;
-    let base = format!("https://github.com/yt-dlp/yt-dlp/releases/download/{version}");
-    let temp = tempfile::Builder::new()
-        .prefix("candidate-")
-        .tempdir_in(&root)
-        .map_err(|_| "E_UPDATE_STORAGE")?;
-    snapshot.observe(
-        PreparationPhase::Verifying,
-        Some(RuntimeComponent::YtDlp),
-        PreparationStage::Verify,
-        0,
-        None,
-        None,
-    );
-    progress(snapshot.clone());
-    let (artifact, size, _guard) = if let Some((path, size, guard)) =
-        cached_artifact(&root, &expected, control)?
-    {
-        (path, size, Some(guard))
-    } else {
-        if !allow_acquire { return Err("E_UPDATE_CACHE".into()); }
-        let artifact = temp.path().join(YT_FILE);
-        let mut file = File::create(&artifact).map_err(|_| "E_UPDATE_STORAGE")?;
-        snapshot.observe(
-            PreparationPhase::Downloading,
-            Some(RuntimeComponent::YtDlp),
-            PreparationStage::Acquire,
-            0,
-            None,
-            None,
-        );
-        progress(snapshot.clone());
-        let response = get(&format!("{base}/{YT_ASSET}"), control)?;
-        let total = response
-            .content_length()
-            .filter(|n| *n > 0 && *n <= MAX_EXECUTABLE);
-        let (size, actual) = read_bounded(response, MAX_EXECUTABLE, control, &mut file, |bytes| {
-            snapshot.observe(
-                PreparationPhase::Downloading,
-                Some(RuntimeComponent::YtDlp),
-                PreparationStage::Acquire,
-                bytes,
-                total,
-                None,
-            );
-            progress(snapshot.clone());
-        })?;
-        file.sync_all().map_err(|_| "E_UPDATE_STORAGE")?;
-        drop(file);
-        snapshot.observe(
-            PreparationPhase::Verifying,
-            Some(RuntimeComponent::YtDlp),
-            PreparationStage::Verify,
-            size,
-            Some(size),
-            None,
-        );
-        progress(snapshot.clone());
-        verify_hash(&actual, &expected)?;
-        (artifact, size, None)
-    };
+    if allow_acquire && let Some(version) = selection.version_for(selection.downloader) {
+        let installability = super::upstream::query_installability(selection.downloader, version)
+            .map_err(|error| match error {
+                super::upstream::UpstreamError::Route => "E_UPDATE_ROUTE",
+                super::upstream::UpstreamError::Http(_) => "E_UPDATE_HTTP",
+                super::upstream::UpstreamError::InvalidResponse | super::upstream::UpstreamError::TooLarge => "E_UPDATE_CHECKSUM",
+                _ => "E_UPDATE_NETWORK",
+            })?;
+        if installability != super::upstream::Installability::Installable { return Err("E_UPDATE_REQUIRES_AMEOW".into()); }
+    }
+    let temp = tempfile::Builder::new().prefix("candidate-").tempdir_in(&root).map_err(|_| "E_UPDATE_STORAGE")?;
     let mut catalog = runtime::manifest().map_err(|_| "E_UPDATE_MANIFEST")?;
-    let mut matches = catalog.components.iter_mut().filter(|c| c.name == "yt-dlp");
-    let component = matches.next().ok_or("E_UPDATE_MANIFEST")?;
-    if component.files.len() != 1
-        || component.files[0].name != YT_FILE
-        || component.files[0].archive_path.is_some()
-    {
-        return Err("E_UPDATE_MANIFEST".into());
+    let mut artifacts = Vec::new();
+    let mut proofs = Vec::new();
+    let mut guards = Vec::new();
+    for downloader in [Downloader::YtDlp, Downloader::GalleryDl] {
+        let Some(version) = selection.version_for(downloader) else { continue; };
+        let normalized = match downloader {
+            Downloader::YtDlp => normalize_stable_version(version),
+            Downloader::GalleryDl => super::runtime_update::normalize_gallery_version(version),
+        }.ok_or("E_UPDATE_VERSION")?;
+        if normalized != version { return Err("E_UPDATE_VERSION".into()); }
+        let file_name = tool_name(downloader);
+        if !requirements.contains(file_name) { return Err("E_UPDATE_REQUIREMENTS".into()); }
+        let component_id = RuntimeComponent::from_name(downloader.label());
+        let mut snapshot = PreparationSnapshot::default();
+        snapshot.observe(PreparationPhase::Preparing, Some(component_id), PreparationStage::Cache, 0, None, None);
+        progress(snapshot.clone());
+        let (proof, new_proof) = signed_release_for(&root, downloader, version, |url, limit| {
+            let mut bytes = Vec::new();
+            read_bounded(get(url, control)?, limit, control, &mut bytes, |_| {})?;
+            Ok(bytes)
+        })?;
+        let expected = proof.checksum_for(downloader, version)?;
+        let asset = asset_name(downloader, version);
+        let base = release_base(downloader, version);
+        #[cfg(target_os = "macos")]
+        let cached_name = if downloader == Downloader::GalleryDl { "gallery-dl.artifact" } else { file_name };
+        #[cfg(not(target_os = "macos"))]
+        let cached_name = file_name;
+        let cached = cached_artifact_hint(&root, cached_name, downloader.label(), &expected, control)?;
+        let cached = if cached.is_none() && allow_acquire { cached_artifact(&root, cached_name, &expected, control)? } else { cached };
+        let (artifact, size) = if let Some((path, size, guard)) = cached {
+            guards.push(guard); (path, size)
+        } else {
+            if !allow_acquire { return Err("E_UPDATE_CACHE".into()); }
+            let artifact = temp.path().join(&asset);
+            let mut file = File::create(&artifact).map_err(|_| "E_UPDATE_STORAGE")?;
+            let response = get(&format!("{base}/{asset}"), control)?;
+            let total = response.content_length().filter(|n| *n > 0 && *n <= MAX_EXECUTABLE);
+            let (size, actual) = read_bounded(response, MAX_EXECUTABLE, control, &mut file, |bytes| {
+                snapshot.observe(PreparationPhase::Downloading, Some(component_id), PreparationStage::Acquire, bytes, total, None);
+                progress(snapshot.clone());
+            })?;
+            file.sync_all().map_err(|_| "E_UPDATE_STORAGE")?;
+            verify_hash(&actual, &expected)?;
+            (artifact, size)
+        };
+        snapshot.observe(PreparationPhase::Verifying, Some(component_id), PreparationStage::Verify, size, Some(size), None);
+        progress(snapshot);
+        let component = catalog.components.iter_mut().find(|c| c.name == downloader.label()).ok_or("E_UPDATE_MANIFEST")?;
+        if component.files.len() != 1 || component.files[0].name != file_name || component.files[0].archive_path.is_some() {
+            return Err("E_UPDATE_MANIFEST".into());
+        }
+        component.version = version.into(); component.bytes = size; component.sha256 = expected.clone();
+        component.url = format!("{base}/{asset}");
+        component.source = match downloader {
+            Downloader::YtDlp => format!("https://github.com/yt-dlp/yt-dlp/tree/{version}"),
+            Downloader::GalleryDl => format!("https://codeberg.org/mikf/gallery-dl/src/tag/v{version}"),
+        };
+        #[cfg(windows)]
+        { component.files[0].sha256 = expected; }
+        #[cfg(target_os = "macos")]
+        if downloader == Downloader::YtDlp { component.files[0].sha256 = expected; }
+        component.files[0].version_contains = version.into();
+        artifacts.push((downloader.label().to_owned(), artifact, file_name.to_owned()));
+        if new_proof { proofs.push((proof, if downloader == Downloader::YtDlp { version.to_owned() } else { format!("gallery-{version}") })); }
     }
-    component.version = version.clone();
-    component.url = format!("{base}/{YT_ASSET}");
-    component.source = format!("https://github.com/yt-dlp/yt-dlp/tree/{version}");
-    component.bytes = size;
-    component.sha256 = expected.clone();
-    component.files[0].sha256 = expected;
-    component.files[0].version_contains = version.clone();
-    if matches.next().is_some() {
-        return Err("E_UPDATE_MANIFEST".into());
-    }
-    let lease = RuntimeManager::candidate(root.clone(), catalog, artifact, "yt-dlp", YT_FILE, allow_acquire)
-        .prepare_observed(requirements, control, observer, progress)
-        .map_err(|e| e.to_string())?;
-    // The signed proof is durable only after the entire local runtime passes its probes.
-    if new_proof { proof.persist(&root, &version)?; }
+    let lease = RuntimeManager::candidates(root.clone(), catalog, artifacts, allow_acquire)
+        .prepare_observed(requirements, control, observer, progress).map_err(|e| e.to_string())?;
+    for (proof, name) in proofs { proof.persist(&root, &name)?; }
     Ok(lease)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn gallery_proof_is_authenticated_offline_and_names_the_platform_asset() {
+        let root = tempfile::tempdir().unwrap();
+        let proof = ReleaseProof {
+            sums: include_bytes!("../../assets/test/gallery-dl-1.32.21-SHA256SUMS").to_vec(),
+            signature: include_bytes!("../../assets/test/gallery-dl-1.32.21-SHA256SUMS.sig").to_vec(),
+        };
+        assert!(proof.checksum_for(Downloader::GalleryDl, "1.32.21").is_ok());
+        assert!(proof.checksum_for(Downloader::YtDlp, "1.32.21").is_err());
+        proof.persist(root.path(), "gallery-1.32.21").unwrap();
+        let (_, fresh) = signed_release_for(root.path(), Downloader::GalleryDl, "1.32.21", |_, _| panic!("authentic gallery proof must work offline")).unwrap();
+        assert!(!fresh);
+        let mut damaged = proof.encode(); damaged[16] ^= 1;
+        fs::write(root.path().join("release-proofs/gallery-1.32.21.proof"), damaged).unwrap();
+        assert!(signed_release_for(root.path(), Downloader::GalleryDl, "1.32.21", |_, _| panic!("damaged proof must fail closed")).is_err());
+    }
     fn authentic_proof() -> ReleaseProof {
         ReleaseProof {
             sums: include_bytes!("../../assets/test/yt-dlp-2026.10.26-SHA2-256SUMS").to_vec(),
@@ -483,7 +550,7 @@ mod tests {
         fs::create_dir(&dir).unwrap();
         fs::write(dir.join("yt-dlp.exe"), b"verified").unwrap();
         let expected = runtime::hash(&b"verified"[..]).unwrap();
-        let (_, size, guard) = cached_artifact(root.path(), &expected, &Control::default())
+        let (_, size, guard) = cached_artifact(root.path(), YT_FILE, &expected, &Control::default())
             .unwrap()
             .unwrap();
         assert_eq!(size, 8);
@@ -495,7 +562,7 @@ mod tests {
         );
         drop(guard);
         assert!(
-            cached_artifact(root.path(), &"0".repeat(64), &Control::default())
+            cached_artifact(root.path(), YT_FILE, &"0".repeat(64), &Control::default())
                 .unwrap()
                 .is_none()
         );
@@ -510,12 +577,12 @@ mod tests {
         let artifact = directory.join(YT_FILE);
         fs::write(&artifact, b"verified").unwrap();
         let expected = runtime::hash(&b"verified"[..]).unwrap();
-        let (path, size, guard) = cached_artifact(root.path(), &expected, &Control::default())
+        let (path, size, guard) = cached_artifact(root.path(), YT_FILE, &expected, &Control::default())
             .unwrap().unwrap();
         assert_eq!(path, artifact);
         assert_eq!(size, 8);
         drop(guard);
         fs::write(&artifact, b"tampered").unwrap();
-        assert!(cached_artifact(root.path(), &expected, &Control::default()).unwrap().is_none());
+        assert!(cached_artifact(root.path(), YT_FILE, &expected, &Control::default()).unwrap().is_none());
     }
 }
