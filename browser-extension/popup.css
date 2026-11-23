@@ -29,6 +29,8 @@ button:disabled { opacity:.55; cursor:default; }
 .setting-row { justify-content:space-between; gap:8px; min-height:36px; }
 .setting-label { gap:4px; min-width:0; }
 #tools-title,#session-title { font-size:13px; font-weight:400; white-space:nowrap; }
+#tools-title { white-space:normal; }
+#toggle-tools { flex:none; }
 .session { margin-top:4px; }
 .actions { gap:0; }
 .short-state { color:var(--secondary); font-size:12px; white-space:nowrap; }
@@ -66,6 +68,7 @@ button:disabled { opacity:.55; cursor:default; }
 .popover p { margin-top:5px; color:var(--secondary); font-size:12px; line-height:18px; }
 .popover p:empty { display:none; }
 #session-help { top:88px; max-height:calc(100vh - 100px); }
+#tools-help { top:116px; max-height:calc(100vh - 128px); }
 .site-menu { top:68px; padding:4px; }
 .site-full { top:52px; line-height:18px; overflow-wrap:anywhere; pointer-events:none; }
 .site-menu button { width:100%; background:transparent; text-align:left; }

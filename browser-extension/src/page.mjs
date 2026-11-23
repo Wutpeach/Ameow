@@ -58,7 +58,7 @@ class PageVideoTools {
   constructor() {
     this.binding = null; this.draft = { start_ms: null, end_ms: null }; this.precise = false; this.pending = false; this.stopped = false;
     this.motion = matchMedia("(prefers-reduced-motion: reduce)");
-    this.onVisibility = () => { if (!document.hidden) void this.refresh(); };
+    this.onVisibility = () => { this.syncNativeFeedback(); if (!document.hidden) void this.refresh(); };
     document.addEventListener("visibilitychange", this.onVisibility);
     this.onResize = () => { if (this.dialog && !this.closing) this.fitPeek(); };
     window.addEventListener("resize", this.onResize);
@@ -84,6 +84,7 @@ class PageVideoTools {
         if (changed) { this.draft = { start_ms: null, end_ms: null }; this.precise = false; }
         this.binding = target; this.video = media.video; this.player = media.player; this.mount();
       } else this.binding = target;
+      this.syncNativeFeedback();
     } catch (error) {
       this.unbind();
       if (error.message === "E_PAGE_DISABLED") this.stop();
@@ -91,7 +92,7 @@ class PageVideoTools {
   }
   mount() {
     this.host = document.createElement("ameow-page-tools");
-    this.host.style.cssText = "position:absolute;top:10px;right:10px;z-index:2147483646;display:block;width:146px;height:28px;pointer-events:none";
+    this.host.style.cssText = "position:absolute;top:10px;right:10px;z-index:2147483646;display:block;width:156px;height:32px;pointer-events:none";
     this.position = this.player.style.getPropertyValue("position");
     this.positionPriority = this.player.style.getPropertyPriority("position");
     this.positionChanged = getComputedStyle(this.player).position === "static";
@@ -109,8 +110,38 @@ class PageVideoTools {
     this.toolbar.addEventListener("mouseleave", () => this.rest());
     this.toolbar.addEventListener("focusin", () => this.wake());
     this.toolbar.addEventListener("focusout", () => queueMicrotask(() => this.rest()));
-    this.intersection = new IntersectionObserver(entries => { this.host.style.visibility = entries[0].isIntersecting ? "" : "hidden"; });
+    this.intersection = new IntersectionObserver(entries => {
+      this.host.style.visibility = entries[0].isIntersecting ? "" : "hidden"; this.syncNativeFeedback();
+    });
+    this.feedbackObserver = new MutationObserver(() => this.syncNativeFeedback());
+    this.feedbackObserver.observe(this.player, { childList:true, subtree:true });
+    this.visibilityObserver = new MutationObserver(() => this.syncNativeFeedback());
+    for (let node = this.host; node; node = node.parentElement) {
+      this.visibilityObserver.observe(node, { attributes:true, attributeFilter:["style","class","hidden"] });
+    }
+    this.visibilityObserver.observe(this.toolbar, { attributes:true, attributeFilter:["style","class","hidden"] });
     this.intersection.observe(this.player); this.rest();
+  }
+  restoreNativeFeedback() {
+    const saved = this.nativeFeedback;
+    if (!saved) return;
+    this.nativeFeedback = null;
+    if (saved.value) saved.button.style.setProperty("visibility", saved.value, saved.priority);
+    else saved.button.style.removeProperty("visibility");
+  }
+  syncNativeFeedback() {
+    // Bilibili's player-owned feedback button was confirmed on the live VOD DOM.
+    // YouTube's sampled player had no confirmed feedback target; leave it unchanged.
+    const buttons = location.hostname === "www.bilibili.com"
+      ? this.player?.querySelectorAll(".bpx-player-top-issue") : null;
+    const button = buttons?.length === 1 ? buttons[0] : null;
+    const visible = !document.hidden && !this.dialog && this.host?.isConnected &&
+      this.toolbar?.checkVisibility({ checkVisibilityCSS:true, checkOpacity:true });
+    if (this.nativeFeedback && (!visible || button !== this.nativeFeedback.button)) this.restoreNativeFeedback();
+    if (visible && button && !this.nativeFeedback) {
+      this.nativeFeedback = { button, value:button.style.getPropertyValue("visibility"), priority:button.style.getPropertyPriority("visibility") };
+      button.style.setProperty("visibility", "hidden", "important");
+    }
   }
   held() { return this.toolbar?.matches(":hover") || Boolean(this.root?.activeElement); }
   wake() {
@@ -181,6 +212,7 @@ class PageVideoTools {
     this.savedOverflowPriority = document.documentElement.style.getPropertyPriority("overflow");
     document.documentElement.style.setProperty("overflow", "hidden", "important");
     this.dialog = document.createElement("dialog"); this.dialog.className = "ameow-peek";
+    this.restoreNativeFeedback();
     this.dialog.setAttribute("aria-label", "Ameow 选择片段");
     this.stage = document.createElement("div"); this.stage.className = "ameow-peek-stage";
     this.dialog.append(this.stage); document.body.append(this.dialog);
@@ -479,6 +511,7 @@ class PageVideoTools {
     if (originalConnected) this.wake();
     this.dialog.close(); this.dialog.remove();
     this.dialog = null; this.controls = null; this.submitButton = null; this.closing = false;
+    this.syncNativeFeedback();
     window.dispatchEvent(new Event("resize"));
     if (originalConnected) {
       if (this.returnFocus?.isConnected) this.returnFocus.focus({ preventScroll: true });
@@ -581,6 +614,7 @@ class PageVideoTools {
   }
   unbind() {
     this.closePeek(true);
+    this.feedbackObserver?.disconnect(); this.visibilityObserver?.disconnect(); this.restoreNativeFeedback();
     this.intersection?.disconnect(); this.host?.remove();
     if (this.positionChanged && this.player) this.player.style.setProperty("position", this.position, this.positionPriority);
     for (const timer of [this.collapseTimer, this.dimTimer, this.ackTimer]) clearTimeout(timer);

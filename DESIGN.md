@@ -75,10 +75,12 @@ spacing:
   xxl: "32px"
 components:
   page-video-toolbar:
-    height: "28px"
-    expandedWidth: "146px"
-    iconSize: "12px"
-    brandIconSize: "13px"
+    height: "32px"
+    expandedWidth: "156px"
+    iconSize: "16px"
+    brandIconSize: "16px"
+    idleOpacity: "0.6"
+    playerInset: "10px"
     typography: "{typography.body}"
     rounded: "{rounded.circle}"
   page-video-controls:
@@ -237,6 +239,10 @@ Compact 可见表面为 60px，圆角取 compact；Full 可见表面为 200px，
 ## Components
 
 ### 浏览器会话与配置扩展
+
+页面胶囊固定于播放器右上角，top/right各10px；收起32×32px、品牌及操作图标16px，展开156px并保持右侧下载命中位置。闲置整体不透明度60%，hover/focus恢复100%，沿用原背景和向左展开。仅胶囊实际显示期间隐藏绑定播放器内已核实的确切反馈按钮；Peek、离屏、关闭或解绑恢复，不匹配则不动，不做避让、拖拽或位置记忆。当前真实DOM仅确认Bilibili `.bpx-player-top-issue`；YouTube样本未确认目标，保持原样。
+
+Popup工具开关中文名为“切片/下载 工具条”，英文为“Clip/download toolbar”；右侧复用14px info图标、24px命中与原popover，按需显示“在支持的视频页面显示下载与切片入口。”／“Show download and clip actions on supported video pages.”，Tab及Enter/Space打开、Esc关闭；不增加常驻说明或设置。名称允许自然换行，开关不压缩。
 
 切片 Peek 底栏右侧保留「Ameow 纯色图标 下载」胶囊按钮，高32px、图标16px、间距6px、横向内边距12px；左邻为固定64×32px、与下载共用胶囊外轮廓的「精确」勾选按钮，默认关闭，中性文字/透明底，开启后实心勾选与轻微选中底色，不改变布局。hover、选中和键盘focus保持同一胶囊外轮廓；精确用轻底表达模式，下载用高对比实心表达主操作，不共用外框或增加分隔线。hover和键盘focus就近说明快速模式关键帧偏差及精确模式重新编码可能更慢。Tab聚焦、Space切换；同作品关开保留、清标记保留、换视频/分P重置，提交等待禁用，失败保留选择。下载保留等待/受理与禁用态辨识；右下不另设关闭按钮，点击浮窗外或按Esc回到原播放器，保留胶囊、同作品草稿及页面工具偏好。
 

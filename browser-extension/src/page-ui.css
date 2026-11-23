@@ -8,29 +8,29 @@ button:focus-visible,input:focus-visible { outline:2px solid var(--focus); outli
 button > svg,button > img { width:18px; height:18px; display:block; pointer-events:none; transition:transform 110ms cubic-bezier(.2,.8,.2,1); }
 button:active > svg,button:active > img { transform:scale(.88); }
 svg { fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
-.toolbar { position:absolute; right:0; width:28px; height:28px; color:#fff; pointer-events:auto; opacity:1; font:400 13px/20px "Segoe UI","Microsoft YaHei UI",sans-serif; transition:width 110ms cubic-bezier(.2,.8,.2,1),opacity 180ms ease-out; }
-.toolbar[data-expanded] { width:146px; transition:width 200ms cubic-bezier(.16,1,.3,1),opacity 180ms ease-out; }
-.toolbar[data-dim] { opacity:.35; }
+.toolbar { position:absolute; right:0; width:32px; height:32px; color:#fff; pointer-events:auto; opacity:1; font:400 13px/20px "Segoe UI","Microsoft YaHei UI",sans-serif; transition:width 110ms cubic-bezier(.2,.8,.2,1),opacity 180ms ease-out; }
+.toolbar[data-expanded] { width:156px; transition:width 200ms cubic-bezier(.16,1,.3,1),opacity 180ms ease-out; }
+.toolbar[data-dim] { opacity:.6; }
 .capsule { position:absolute; inset:0; border:1px solid #ffffff30; border-radius:999px; background:rgb(25 26 29 / .84); pointer-events:none; }
-.toolbar button { position:absolute; top:0; height:28px; min-height:28px; display:flex; align-items:center; justify-content:center; gap:6px; border-radius:999px; background:transparent; color:#fff; padding:0; white-space:nowrap; }
+.toolbar button { position:absolute; top:0; height:32px; min-height:32px; display:flex; align-items:center; justify-content:center; gap:6px; border-radius:999px; background:transparent; color:#fff; padding:0; white-space:nowrap; }
 .toolbar button:hover { background:#ffffff20; }
 .toolbar:has(button:focus-visible) .capsule { outline:2px solid var(--focus); outline-offset:2px; }
 .toolbar button:focus-visible { outline-offset:-2px; }
-.toolbar svg { width:12px; height:12px; flex:none; }
-.toolbar .download { right:0; width:74px; clip-path:inset(0 0 0 46px round 999px); transition:clip-path 110ms cubic-bezier(.2,.8,.2,1); }
+.toolbar svg { width:16px; height:16px; flex:none; }
+.toolbar .download { right:0; width:82px; clip-path:inset(0 0 0 50px round 999px); transition:clip-path 110ms cubic-bezier(.2,.8,.2,1); }
 .toolbar[data-expanded] .download { clip-path:inset(0 round 999px); transition-duration:200ms; }
-.download-icon { position:absolute; top:7px; right:7px; display:grid; place-items:center; width:14px; height:14px; transition:transform 110ms cubic-bezier(.2,.8,.2,1); }
-.toolbar[data-expanded] .download-icon { transform:translateX(-41px); transition-duration:200ms; }
-.download-icon svg { width:13px; height:13px; fill:currentColor; stroke:none; transition:transform 110ms ease-out; }
+.download-icon { position:absolute; top:8px; right:8px; display:grid; place-items:center; width:16px; height:16px; transition:transform 110ms cubic-bezier(.2,.8,.2,1); }
+.toolbar[data-expanded] .download-icon { transform:translateX(-44px); transition-duration:200ms; }
+.download-icon svg { width:16px; height:16px; fill:currentColor; stroke:none; transition:transform 110ms ease-out; }
 .toolbar .download:active svg { transform:scale(.88); }
-.download-label { position:absolute; top:4px; right:12px; width:26px; line-height:20px; white-space:nowrap; overflow:hidden; opacity:0; transition:opacity 90ms ease-out; }
+.download-label { position:absolute; top:6px; right:12px; width:26px; line-height:20px; white-space:nowrap; overflow:hidden; opacity:0; transition:opacity 90ms ease-out; }
 .toolbar[data-expanded] .download-label { opacity:1; transition:opacity 150ms ease-out 40ms; }
-.toolbar .select { right:76px; width:68px; opacity:0; transform:translateX(16px); pointer-events:none; transition:opacity 110ms ease-out,transform 110ms cubic-bezier(.2,.8,.2,1); }
+.toolbar .select { right:84px; width:70px; opacity:0; transform:translateX(16px); pointer-events:none; transition:opacity 110ms ease-out,transform 110ms cubic-bezier(.2,.8,.2,1); }
 .toolbar .select span { flex:none; white-space:nowrap; }
 .toolbar[data-expanded] .select { opacity:1; transform:translateX(0); pointer-events:auto; transition-duration:180ms; }
 .toolbar[data-status="accepted"] .download svg { fill:none; stroke:currentColor; color:#81eaa7; }
 .toolbar[data-status="pending"] .download { opacity:.65; }
-.feedback { position:absolute; right:0; top:36px; width:max-content; max-width:min(300px,70vw); padding:8px 12px; border-radius:6px; background:var(--surface); color:var(--text); box-shadow:0 3px 12px #0003; }
+.feedback { position:absolute; right:0; top:40px; width:max-content; max-width:min(300px,70vw); padding:8px 12px; border-radius:6px; background:var(--surface); color:var(--text); box-shadow:0 3px 12px #0003; }
 .feedback:empty { display:none; }
 .controls { -webkit-user-select:none; user-select:none; padding:8px 10px; background:var(--surface); color:var(--text); font:400 13px/20px "Segoe UI","Microsoft YaHei UI",sans-serif; }
 [hidden] { display:none!important; }
