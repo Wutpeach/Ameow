@@ -1,6 +1,12 @@
 #![cfg_attr(target_os = "windows", windows_subsystem = "console")]
 use ameow_next::{browser_sessions::native, download::runtime::RuntimeManager};
 fn main() {
+    #[cfg(windows)]
+    match ameow_next::app_update::forward_component("ameow-browser-host.exe") {
+        Ok(Some(code)) => std::process::exit(code),
+        Err(_) => std::process::exit(1),
+        Ok(None) => {}
+    }
     let mut args: Vec<_> = std::env::args().collect();
     #[cfg(debug_assertions)]
     if let Some(root) = std::env::var_os("AMEOW_BROWSER_TEST_INSTANCE") {

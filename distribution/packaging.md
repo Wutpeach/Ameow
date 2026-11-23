@@ -1,6 +1,6 @@
 # Windows release inputs
 
-The single build entry is scripts/package_portable.ps1. It builds Ameow.exe, AmeowLauncher.exe, ameow-cli.exe, ameow-browser-host.exe and the offline ameow-release.exe, then prepares the single-EXE update ZIP and unsigned plan. It never signs or uploads.
+The single build entry is scripts/package_portable.ps1. It builds Ameow.exe, AmeowLauncher.exe, ameow-cli.exe, ameow-browser-host.exe and the offline ameow-release.exe, then prepares verified unsigned build inputs and an unsigned plan. Windows 0.5.2 is an unreleased new layout: signing creates one complete portable ZIP which is also the application-update payload; it no longer creates a single-EXE update ZIP. It never signs or uploads.
 
 ~~~powershell
 ./scripts/package_portable.ps1 -TargetDirectory D:/AmeowRelease/target -OutputDirectory D:/AmeowRelease/candidate/build
@@ -47,7 +47,7 @@ Pass the verified signed directory to [Windows delivery](windows-delivery.md). O
 
 Ameow [0.5.0 is publicly released](https://github.com/Wutpeach/Ameow/releases/tag/v0.5.0). For each subsequent candidate:
 
-- Verify installation, portable startup through the Launcher, real Ready confirmation, the displayed version and offline notices. Exercise affected update/recovery paths while preserving existing user data and the original candidate.
+- Verify installation, portable startup through the root Ameow.exe launcher, real Ready confirmation, the displayed version and offline notices. Exercise affected update/recovery paths while preserving existing user data and the original candidate.
 - Confirm altered inputs are rejected using an isolated copy. Build success and signature checks alone do not prove the native workflow.
 - Before publishing, check the destination repository, exact tag-to-build commit and asset hashes. Never move an existing release tag or overwrite published assets. Publish only the named platform assets, not entire build/signing directories.
 - After publishing, fetch the real HTTPS update manifest and archive, verify signatures and hashes against the delivered candidate, and check the app's update result. Preserve the source commit, public roots, sequence and delivery hashes. Proposed URLs or a successful upload command do not prove public availability.

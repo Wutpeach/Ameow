@@ -100,7 +100,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let install = root.join("install");
     fs::create_dir(&install)?;
     let mut archive = zip::ZipArchive::new(fs::File::open(signed.join(format!(
-        "Ameow-{}-windows-x64-portable-FIXTURE-NOT-FOR-DISTRIBUTION.zip",
+        "Ameow-{}-windows-x64-portable.zip",
         args[3]
     )))?)?;
     for i in 0..archive.len() {

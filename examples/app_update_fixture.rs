@@ -1,7 +1,9 @@
 //! Local test-vector signer and controlled install helper. Not a release publisher.
 #[cfg(all(feature = "app-update-fixture", debug_assertions))]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    use ameow_next::app_update::{Manifest, TARGET, fixture_envelope, hash};
+    use ameow_next::app_update::fixture_envelope;
+    #[cfg(target_os = "macos")]
+    use ameow_next::app_update::{Manifest, TARGET, hash};
     use std::{
         fs,
         path::PathBuf,
@@ -21,32 +23,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir(&output)?;
     #[cfg(target_os = "macos")]
     let package = macos_package(std::path::Path::new(&args[2]), &output.join("package.zip"))?;
-    #[cfg(not(target_os = "macos"))]
-    let package = {
-        use std::io::{Cursor, Write};
-        let mut zip = zip::ZipWriter::new(Cursor::new(Vec::new()));
-        zip.start_file("Ameow.exe", zip::write::SimpleFileOptions::default())?;
-        zip.write_all(&exe)?;
-        zip.finish()?.into_inner()
-    };
     let version = args[3].clone();
     let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
+    #[cfg(not(target_os = "macos"))]
+    let (manifest, package, _) = ameow_next::app_update::fixture_windows_package(&version, args[4].parse()?, now, &[("Ameow.exe", &exe)]);
+    #[cfg(target_os = "macos")]
     let manifest = Manifest {
-        schema: 1,
-        product: "Ameow".into(),
-        channel: "stable".into(),
-        target: TARGET.into(),
-        version: version.clone(),
-        sequence: args[4].parse()?,
-        issued: now,
-        url: format!(
-            "https://github.com/Wutpeach/Ameow/releases/download/v{version}/Ameow-{version}-{}.zip",
-            if cfg!(target_os = "macos") { "macos-arm64" } else { "windows-x64" }
-        ),
-        package_bytes: package.len() as u64,
-        package_sha256: hash(&package),
-        exe_bytes: exe.len() as u64,
-        exe_sha256: hash(&exe),
+        schema: 1, product: "Ameow".into(), channel: "stable".into(), target: TARGET.into(),
+        version: version.clone(), sequence: args[4].parse()?, issued: now,
+        url: format!("https://github.com/Wutpeach/Ameow/releases/download/v{version}/Ameow-{version}-macos-arm64.zip"),
+        package_bytes: package.len() as u64, package_sha256: hash(&package),
+        exe_bytes: exe.len() as u64, exe_sha256: hash(&exe), bundle_sha256: None,
     };
     let signed = fixture_envelope(&manifest);
     fs::write(output.join("manifest.json"), &signed)?;

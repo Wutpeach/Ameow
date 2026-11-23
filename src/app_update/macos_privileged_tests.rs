@@ -236,7 +236,7 @@ fn preparation_independently_authenticates_and_copies_the_archive() {
         target: package::MACOS_ARM_TARGET.into(), version: "2.0.0".into(), sequence: 2, issued: super::super::store::now(),
         url: "https://github.com/Wutpeach/Ameow/releases/download/v2.0.0/Ameow-2.0.0-macos-arm64.zip".into(),
         package_bytes: bytes.len() as u64, package_sha256: package::hash(&bytes),
-        exe_bytes: executable.len() as u64, exe_sha256: package::hash(&executable) };
+        exe_bytes: executable.len() as u64, exe_sha256: package::hash(&executable), bundle_sha256: None };
     let envelope = package::fixture_envelope(&manifest);
     fs::write(input.join("manifest.json"), &envelope).unwrap();
     let trust = Trust::fixture_for_target(package::MACOS_ARM_TARGET);

@@ -19,20 +19,40 @@ use std::{
 const STARTUP_MS: u64 = 30_000;
 const PERIOD_MS: u64 = 6 * 60 * 60 * 1000;
 const MANUAL_LIMIT_MS: u64 = 10_000;
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(default, deny_unknown_fields)]
+const INSTALL_QUIET_PERIOD: Duration = Duration::from_secs(30);
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct Preferences {
-    pub auto_check: bool,
-    pub auto_download: bool,
-    pub idle_restart: bool,
+    pub auto_update: bool,
+    pub notify_updates: bool,
 }
 impl Default for Preferences {
     fn default() -> Self {
         Self {
-            auto_check: true,
-            auto_download: true,
-            idle_restart: false,
+            auto_update: true,
+            notify_updates: true,
         }
+    }
+}
+impl<'de> Deserialize<'de> for Preferences {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Stored {
+            auto_update: Option<bool>,
+            notify_updates: Option<bool>,
+            auto_check: Option<bool>,
+            auto_download: Option<bool>,
+            idle_restart: Option<bool>,
+        }
+        let stored = Stored::deserialize(deserializer)?;
+        Ok(Self {
+            auto_update: stored.auto_update.unwrap_or_else(|| {
+                stored.auto_check.unwrap_or(true)
+                    && stored.auto_download.unwrap_or(true)
+                    && stored.idle_restart.unwrap_or(true)
+            }),
+            notify_updates: stored.notify_updates.unwrap_or(true),
+        })
     }
 }
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -45,8 +65,15 @@ pub struct View {
     pub launcher: bool,
     #[serde(default)]
     pub check_retry_secs:u64,
+    #[serde(default)]
+    pub check_error: Option<String>,
 }
 impl View {
+    pub fn full_attention(&self) -> bool {
+        self.preferences.notify_updates && matches!(self.update.phase,
+            Phase::Available | Phase::Downloading | Phase::Verifying | Phase::Ready
+                | Phase::WaitingForTasks | Phase::Switching | Phase::Failed | Phase::RolledBack)
+    }
     pub fn attention(&self) -> bool {
         matches!(
             self.update.phase,
@@ -66,10 +93,34 @@ struct Shared {
     view: Mutex<View>,
     coordinator: Mutex<Option<Arc<Coordinator>>>,
     cancel: AtomicBool,
+    check_pending: AtomicBool,
     manual_restart: AtomicBool,
     waiting: AtomicBool,
     publish_gate: Mutex<()>,
     closing: AtomicBool,
+    idle: Mutex<IdleWindow>,
+}
+struct IdleWindow {
+    since: Option<Instant>,
+    interaction: Instant,
+    revision: Option<u64>,
+}
+impl Default for IdleWindow {
+    fn default() -> Self {
+        Self { since: None, interaction: Instant::now(), revision: None }
+    }
+}
+impl IdleWindow {
+    fn ready(&mut self, now: Instant, eligible: bool, revision: u64) -> bool {
+        if !eligible || self.revision != Some(revision) {
+            self.since = eligible.then_some(now);
+            self.revision = Some(revision);
+            return false;
+        }
+        let since = *self.since.get_or_insert(now);
+        now.duration_since(since) >= INSTALL_QUIET_PERIOD
+            && now.duration_since(self.interaction) >= INSTALL_QUIET_PERIOD
+    }
 }
 #[derive(Clone)]
 pub struct Handle {
@@ -90,10 +141,12 @@ impl Handle {
                 view: Mutex::new(view),
                 coordinator: Mutex::new(None),
                 cancel: AtomicBool::new(false),
+                check_pending: AtomicBool::new(false),
                 manual_restart: AtomicBool::new(false),
                 waiting: AtomicBool::new(false),
                 publish_gate: Mutex::new(()),
                 closing: AtomicBool::new(false),
+                idle: Mutex::new(IdleWindow::default()),
             }),
         }
     }
@@ -102,11 +155,29 @@ impl Handle {
         if let Some(coordinator) = self.shared.coordinator.lock().unwrap().as_ref() {
             view.update = coordinator.snapshot();
         }
+        if self.shared.check_pending.load(Ordering::Acquire)
+            && !matches!(view.update.phase, Phase::Downloading | Phase::Verifying | Phase::WaitingForTasks | Phase::Switching)
+        {
+            view.update.phase = Phase::Checking;
+        }
         view
+    }
+    pub fn user_interaction(&self) {
+        *self.shared.idle.lock().unwrap() = IdleWindow::default();
     }
     pub fn send(&self, action: Action) -> bool {
         // Cancellation is observed during an in-flight acquisition before preference persistence.
         match action {
+            Action::Check => {
+                let view = self.snapshot();
+                if self.shared.closing.load(Ordering::Acquire) || view.check_retry_secs > 0
+                    || matches!(view.update.phase, Phase::Checking | Phase::Downloading | Phase::Verifying | Phase::WaitingForTasks | Phase::Switching)
+                    || self.shared.check_pending.compare_exchange(false,true,Ordering::AcqRel,Ordering::Acquire).is_err()
+                { return false; }
+                let sent = self.sender.try_send(Action::Check).is_ok();
+                if !sent { self.shared.check_pending.store(false,Ordering::Release); }
+                sent
+            }
             Action::Restart => {
                 if !matches!(self.snapshot().update.phase, Phase::Ready | Phase::WaitingForTasks) {
                     return false;
@@ -124,7 +195,7 @@ impl Handle {
                 if view.saving || self.shared.closing.load(Ordering::Acquire) {
                     return false;
                 }
-                if !p.auto_check || !p.auto_download {
+                if view.preferences.auto_update && !p.auto_update {
                     let _publish = self.shared.publish_gate.lock().unwrap();
                     self.shared.cancel.store(true, Ordering::Release);
                 }
@@ -178,7 +249,7 @@ impl Handle {
                     }
                     let started = Instant::now();
                     let mut schedule = Schedule::default();
-                    let mut available = None::<Vec<u8>>;
+                    let mut available = None::<(Vec<u8>, Option<String>)>;
                     loop {
                         let action = match receiver.recv_timeout(Duration::from_millis(200)) {
                             Ok(a) => Some(a),
@@ -187,6 +258,7 @@ impl Handle {
                         };
                         let elapsed = started.elapsed().as_millis() as u64;
                         shared.view.lock().unwrap().check_retry_secs=schedule.last.map_or(0,|last|last.saturating_add(MANUAL_LIMIT_MS).saturating_sub(elapsed).div_ceil(1000));
+                        let mut enabled_automatic = false;
                         if let Some(Action::Save(p)) = &action {
                             {
                                 let mut v = shared.view.lock().unwrap();
@@ -205,6 +277,7 @@ impl Handle {
                             v.saving = false;
                             match result {
                                 Ok(()) => {
+                                    enabled_automatic = !v.preferences.auto_update && p.auto_update;
                                     v.preferences = p.clone();
                                     v.saved = true;
                                 }
@@ -216,36 +289,48 @@ impl Handle {
                         let prefs = control.preferences;
                         let manual = matches!(action, Some(Action::Check));
                         let auto = action.is_none()
-                            && prefs.auto_check
                             && control.save_error.is_none()
                             && !control.saving
                             && schedule.due(elapsed);
                         let download = matches!(action, Some(Action::Download))
-                            || matches!(action, Some(Action::Save(_)))
-                                && prefs.auto_check
-                                && prefs.auto_download
+                            || enabled_automatic
                                 && available.is_some();
                         if !manual && !auto && !download {
                             continue;
                         }
-                        if matches!(
-                            coordinator.snapshot().phase,
+                        let previous = coordinator.snapshot();
+                        let checking_ready = manual && previous.phase == Phase::Ready;
+                        let install_error = if previous.phase == Phase::Ready {
+                            previous.error.clone()
+                        } else {
+                            available.as_ref().and_then(|(_, error)| error.clone())
+                        };
+                        if !checking_ready && matches!(
+                            previous.phase,
                             Phase::Ready | Phase::WaitingForTasks | Phase::Switching
                         ) {
+                            if manual { shared.check_pending.store(false,Ordering::Release); }
                             continue;
                         }
                         if shared.closing.load(Ordering::Acquire) || control.saving {
+                            if manual { shared.check_pending.store(false,Ordering::Release); }
                             continue;
                         }
                         if manual && !schedule.manual_allowed(elapsed) {
+                            shared.check_pending.store(false,Ordering::Release);
                             continue;
                         }
                         shared.cancel.store(false, Ordering::Release);
                         let result = (|| -> Result<(), String> {
                             if !download {
                                 schedule.checked(elapsed);
-                                shared.view.lock().unwrap().check_retry_secs=MANUAL_LIMIT_MS/1000;
+                                {
+                                    let mut view = shared.view.lock().unwrap();
+                                    view.check_retry_secs=MANUAL_LIMIT_MS/1000;
+                                    if manual { view.check_error=None; }
+                                }
                                 coordinator.set_state(Phase::Checking, None, None);
+                                shared.check_pending.store(false,Ordering::Release);
                                 let envelope = read_source(
                                     coordinator.install(),
                                     fixture.as_deref(),
@@ -259,7 +344,7 @@ impl Handle {
                                     .trust()
                                     .verify(&envelope, Some(now()))?;
                                 let state=coordinator.install().state()?;
-                                let digest=super::hash(signed.payload.as_bytes());
+                                let digest=m.bundle_sha256.clone().unwrap_or_else(|| super::hash(signed.payload.as_bytes()));
                                 if state.failed.contains(&digest) {
                                     coordinator.set_state(Phase::RolledBack,state.current.map(|r|r.version),state.last_error);available=None;return Ok(());
                                 }
@@ -269,11 +354,17 @@ impl Handle {
                                     available = None;
                                     return Ok(());
                                 }
-                                available = Some(envelope);
-                                coordinator.set_state(Phase::Available, Some(m.version), None);
+                                if let Some(pending) = state.pending.as_ref().filter(|pending| pending.version == m.version) {
+                                    coordinator.install().verify_release(pending)?;
+                                    available = Some((envelope, install_error.clone()));
+                                    coordinator.set_state(Phase::Ready, Some(m.version), install_error.clone());
+                                    return Ok(());
+                                }
+                                available = Some((envelope, install_error.clone()));
+                                coordinator.set_state(Phase::Available, Some(m.version), install_error.clone());
                             }
-                            if download || prefs.auto_check && prefs.auto_download {
-                                let envelope =
+                            if download || prefs.auto_update && control.save_error.is_none() {
+                                let (envelope, _) =
                                     available.as_ref().ok_or("E_APP_UPDATE_CHECK_FIRST")?;
                                 let result = coordinator.install().prepare_observed(
                                     envelope,
@@ -294,15 +385,25 @@ impl Handle {
                                     &shared.publish_gate,
                                 );
                                 result?;
-                                coordinator.set_state(Phase::Ready,coordinator.snapshot().version,None);
+                                coordinator.set_state(Phase::Ready,coordinator.snapshot().version,install_error.clone());
                             }
                             Ok(())
                         })();
+                        let retained = checking_ready && result.is_err() && coordinator.install().state().ok()
+                            .and_then(|state| state.pending)
+                            .is_some_and(|pending| Some(pending.version.as_str()) == previous.version.as_deref()
+                                && coordinator.install().verify_release(&pending).is_ok());
                         match result {
                             Ok(()) => {
                                 schedule.finished(elapsed, false);
                             }
                             Err(_) if shared.cancel.load(Ordering::Acquire) => {
+                                if retained {
+                                    shared.view.lock().unwrap().check_error=Some("E_APP_UPDATE_CANCELLED".into());
+                                    coordinator.set_state(Phase::Ready, previous.version, previous.error);
+                                    schedule.finished(elapsed, false);
+                                    continue;
+                                }
                                 let version = coordinator.snapshot().version;
                                 coordinator.set_state(
                                     if available.is_some() {
@@ -311,12 +412,19 @@ impl Handle {
                                         Phase::Unchecked
                                     },
                                     version,
-                                    None,
+                                    install_error,
                                 );
                                 schedule.finished(elapsed, false);
                             }
                             Err(error) => {
                                 schedule.finished(elapsed, true);
+                                if manual && (retained || coordinator.snapshot().phase == Phase::Checking) {
+                                    shared.view.lock().unwrap().check_error=Some("E_APP_UPDATE_CHECK_FAILED".into());
+                                }
+                                if retained {
+                                    coordinator.set_state(Phase::Ready, previous.version, previous.error);
+                                    continue;
+                                }
                                 coordinator.set_state(
                                     if error == "E_APP_UPDATE_TRUST_NOT_CONFIGURED" {
                                         Phase::Unavailable
@@ -359,6 +467,7 @@ impl Handle {
         }
         let view = self.snapshot();
         if view.saving {
+            self.shared.idle.lock().unwrap().ready(Instant::now(), false, 0);
             return;
         }
         if self.shared.manual_restart.swap(false, Ordering::AcqRel)
@@ -381,21 +490,25 @@ impl Handle {
                     .set_state(Phase::Ready, view.update.version, None);
             }
         }
-        if view.update.phase != Phase::Ready
-            || cfg!(target_os = "macos") && view.update.error.is_some()
-            || view.save_error.is_some()
-            || !view.preferences.idle_restart
-            || !queue.app_update_idle()
-        {
+        let eligible = view.update.phase == Phase::Ready
+            && view.update.error.is_none()
+            && view.save_error.is_none()
+            && view.preferences.auto_update
+            && queue.app_update_idle();
+        let revision = if eligible { queue.snapshot().revision } else { 0 };
+        if !self.shared.idle.lock().unwrap().ready(Instant::now(), eligible, revision) {
             return;
         }
         if session.coordinator.prepare_restart().is_err(){return;}
         // Recheck settings and atomically arbitrate newly accepted work after candidate hashing.
         let control = self.shared.view.lock().unwrap();
+        let mut idle = self.shared.idle.lock().unwrap();
+        if !idle.ready(Instant::now(), true, queue.snapshot().revision)
+            || self.shared.check_pending.load(Ordering::Acquire) { return; }
         #[cfg(target_os = "macos")]
         if session.is_macos_bundle() {
             if !control.saving && control.save_error.is_none()
-                && control.preferences.idle_restart && queue.app_update_idle() {
+                && control.preferences.auto_update && queue.app_update_idle() {
                 self.shared.closing.store(true, Ordering::Release);
                 session.request_restart();
             }
@@ -403,7 +516,7 @@ impl Handle {
         }
         if !control.saving
             && control.save_error.is_none()
-            && control.preferences.idle_restart
+            && control.preferences.auto_update
             && queue.begin_idle_app_update()
         {
             self.shared.closing.store(true, Ordering::Release);

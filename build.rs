@@ -92,7 +92,7 @@ END
     }
     let resource = out.join("brand.rc");
     fs::write(&resource, rc).unwrap();
-    embed_resource::compile_for(resource, ["ameow"], embed_resource::NONE)
+    embed_resource::compile_for(resource, ["ameow", "ameow-launcher"], embed_resource::NONE)
         .manifest_required()
         .expect("Windows brand icons must be embedded");
 }

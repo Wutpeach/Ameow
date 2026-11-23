@@ -350,10 +350,6 @@ fn app_path(selected: Option<&Path>) -> Result<PathBuf, ControlError> {
         .ok_or_else(|| ControlError::new("E_LAUNCH", "CLI has no parent directory"))?;
     #[cfg(windows)]
     {
-        let launcher = dir.join("AmeowLauncher.exe");
-        if launcher.is_file() {
-            return Ok(launcher);
-        }
         let app = dir.join("Ameow.exe");
         return crate::app_update::startup_entry_for(&app)
             .map_err(|e| ControlError::new("E_LAUNCH", e));
@@ -379,6 +375,7 @@ fn start_app(options: &Options, instance_root: &Path) -> Result<(), ControlError
             .map_err(|e| ControlError::new("E_LAUNCH", e.to_string()))?;
         let filename = resolved.file_name().and_then(|v| v.to_str()).unwrap_or("");
         if !(filename.eq_ignore_ascii_case("ameow.exe") || filename == "ameow")
+            || resolved.parent().is_some_and(|p| p.join("state.json").is_file())
             || resolved.components().any(|part| {
                 let name = part.as_os_str().to_string_lossy().to_ascii_lowercase();
                 name == "versions" || name.ends_with(".app")
@@ -395,7 +392,7 @@ fn start_app(options: &Options, instance_root: &Path) -> Result<(), ControlError
     };
     #[cfg(all(windows, feature = "app-update-fixture", debug_assertions))]
     if options.instance_root.is_some()
-        && app.file_name().is_some_and(|name| name.eq_ignore_ascii_case("AmeowLauncher.exe"))
+        && app.parent().is_some_and(|p| p.join("state.json").is_file())
     {
         crate::app_update::release::verify_fixture_launcher(&app)
             .map_err(|e| ControlError::new("E_LAUNCH", e))?;
@@ -834,6 +831,12 @@ pub(crate) fn browser_submit(instance_root: Option<PathBuf>, url: String, clip: 
 pub fn run() -> i32 {
     let raw_args: Vec<_> = std::env::args_os().skip(1).collect();
     let wants_json = raw_args.iter().any(|arg| arg == "--json");
+    #[cfg(windows)]
+    match crate::app_update::forward_component("ameow-cli.exe") {
+        Ok(Some(code)) => return code,
+        Err(error) => return print_error(wants_json, ControlError::new("E_LAUNCH", error).into()),
+        Ok(None) => {}
+    }
     let args: Result<Vec<_>, _> = raw_args.into_iter().map(|arg| arg.into_string()).collect();
     let args = match args {
         Ok(args) => args,
@@ -873,10 +876,10 @@ pub fn run() -> i32 {
             if options.json {
                 println!(
                     "{}",
-                    serde_json::json!({"protocol_version": PROTOCOL_VERSION, "ok":true, "result": {"version": env!("CARGO_PKG_VERSION")}})
+                    serde_json::json!({"protocol_version": PROTOCOL_VERSION, "ok":true, "result": {"version": crate::app_update::BUILD_VERSION}})
                 );
             } else {
-                println!("ameow-cli {}", env!("CARGO_PKG_VERSION"));
+                println!("ameow-cli {}", crate::app_update::BUILD_VERSION);
             }
             0
         }
@@ -885,7 +888,7 @@ pub fn run() -> i32 {
                 if options.json {
                     println!(
                         "{}",
-                        serde_json::to_string(&{ let mut value = serde_json::to_value(&response).expect("serializable response"); value["client"] = serde_json::json!({"version":env!("CARGO_PKG_VERSION"),"protocol_version":PROTOCOL_VERSION}); value }).expect("serializable response")
+                        serde_json::to_string(&{ let mut value = serde_json::to_value(&response).expect("serializable response"); value["client"] = serde_json::json!({"version":crate::app_update::BUILD_VERSION,"protocol_version":PROTOCOL_VERSION}); value }).expect("serializable response")
                     );
                 } else if let Some(result) = response.result {
                     println!(
