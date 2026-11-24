@@ -32,6 +32,7 @@ impl Default for BrowserUi {
 }
 impl BrowserUi {
     pub(super) fn preview_path(&mut self) { self.path = Some(PathBuf::from(r"C:\Apps\Ameow\browser-extension")); }
+    pub(super) fn preview_diagnostic(&mut self, site: &SiteView) { self.selected = Some(site.grant_id.clone()); self.details = true; }
     pub(super) fn has_selected(&self) -> bool { self.selected.is_some() }
     pub(super) fn clear_menu(&mut self) { self.selected = None; self.details = false; self.menu_focus_pending = false; }
     fn begin_setup(&mut self) { self.path = None; self.setup_error = None; self.copy_error = false; }
@@ -234,13 +235,15 @@ impl SettingsWindow {
             }))
             .child(self.button("browser-site-diagnostics", l.text("诊断", "Diagnostics"), true, ButtonStyle::Menu, cx, |this, _, cx| { this.browser_ui.details = !this.browser_ui.details; cx.notify(); }));
         if self.browser_ui.details {
-            let copied = self.copy_feedback.contains_key("browser-diagnostic");
-            panel = panel.child(div().p(px(8.)).rounded(px(6.)).bg(p.badge.opacity(0.55)).text_size(px(12.)).child(break_long(&report)))
-                .child(self.button("browser-copy-diagnostic", if copied { l.text("已复制", "Copied") } else { l.text("复制诊断报告", "Copy diagnostic report") }, true, ButtonStyle::Standard, cx, move |this, window, cx| {
+            let copied = self.copy_feedback.contains_key("browser-diagnostic") && !self.browser_ui.copy_error;
+            panel = panel.child(div().p(px(8.)).rounded(px(6.)).bg(p.badge.opacity(0.55)).flex().items_start().gap(px(8.))
+                .child(div().flex_1().min_w(px(0.)).text_size(px(12.)).child(break_long(&report)))
+                .child(self.icon_button("browser-copy-diagnostic", if copied { "icons/check.svg" } else { "icons/copy.svg" },
+                    if copied { l.text("已复制", "Copied") } else { l.text("复制诊断报告", "Copy diagnostic report") }, true, cx, move |this, window, cx| {
                     let result = if this.projection.preview { Ok(()) } else { crate::tray::copy_text(hwnd(window), &copy_report) };
                     this.browser_ui.copy_error = result.is_err();
                     if result.is_ok() { this.reset_copy_feedback_later("browser-diagnostic", cx); } cx.notify();
-                }));
+                })));
             if self.browser_ui.copy_error { panel = panel.child(inline_notice(p, l.text("复制失败，请重试。", "Copy failed. Try again."), true)); }
         }
         div().absolute().left_0().top(px(88.)).child(deferred(anchored().anchor(gpui::Anchor::TopLeft)
@@ -289,9 +292,10 @@ impl SettingsWindow {
                 path_row = path_row.child(self.help_button("browser-copy-error", l.text("复制失败详情", "Copy error details"),
                     l.text("无法复制路径，请重试。", "Cannot copy the path. Try again.").into(), cx));
             }
-            path_row = path_row.child(self.button("browser-copy-path",
+            path_row = path_row.child(self.icon_button("browser-copy-path",
+                if copied && !self.browser_ui.copy_error { "icons/check.svg" } else { "icons/copy.svg" },
                 if self.browser_ui.copy_error { l.text("重试复制", "Retry copy") } else if copied { l.text("已复制", "Copied") } else { l.text("复制路径", "Copy path") },
-                self.browser_ui.copy_path().is_some(), ButtonStyle::Standard, cx, |this, window, cx| {
+                self.browser_ui.copy_path().is_some(), cx, |this, window, cx| {
                 if let Some(path) = this.browser_ui.copy_path() {
                     let result = if this.projection.preview { Ok(()) } else { crate::tray::copy_text(hwnd(window), &path.to_string_lossy()) };
                     if result.is_ok() { this.browser_ui.copy_error = false; this.reset_copy_feedback_later("browser-extension", cx); }

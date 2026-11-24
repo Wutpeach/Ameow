@@ -53,6 +53,7 @@ use tokens::Palette;
 use ui_tooltip::TooltipExt as _;
 
 const DIAGNOSTIC: &str = "Ameow · Phase 1 mock diagnostic\nE_MOCK_DOWNLOAD: simulated download failure\nNo backend request was made.";
+gpui_kit_assets::icon_assets!(WrenchAsset, [Wrench]);
 struct Assets;
 impl AssetSource for Assets {
     fn load(&self, path: &str) -> anyhow::Result<Option<Cow<'static, [u8]>>> {
@@ -68,6 +69,7 @@ impl AssetSource for Assets {
             "icons/check.svg" => Some(Cow::Borrowed(include_bytes!("../assets/check.svg"))),
             "icons/eye-off.svg" => Some(Cow::Borrowed(include_bytes!("../assets/eye-off.svg"))),
             "icons/settings.svg" => Some(Cow::Borrowed(include_bytes!("../assets/settings.svg"))),
+            "icons/wrench.svg" => WrenchAsset.load(path)?,
             "icons/sliders-horizontal.svg" => Some(Cow::Borrowed(include_bytes!("../assets/sliders-horizontal.svg"))),
             "icons/download.svg" => Some(Cow::Borrowed(include_bytes!("../assets/download.svg"))),
             "icons/blocks.svg" => Some(Cow::Borrowed(include_bytes!("../assets/blocks.svg"))),
@@ -98,6 +100,7 @@ impl AssetSource for Assets {
             .chain(ring_glow::asset_paths())
             .filter(|path: &SharedString| path.starts_with(prefix))
             .collect();
+        paths.extend(WrenchAsset.list(prefix)?);
         paths.extend(gpui_kit_assets::Assets.list(prefix)?);
         paths.sort();
         paths.dedup();

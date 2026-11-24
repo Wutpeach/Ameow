@@ -2187,7 +2187,7 @@ impl Prototype {
         if let Some(snapshot) = projection.queue.as_mut() {
             use ameow_next::download::{preparation::PreparationPhase, runtime_update::RuntimeUpdatePhase};
             let snapshot = std::sync::Arc::make_mut(snapshot);
-            if matches!(scene.state.as_str(), "browser-sessions" | "browser-session-failed" | "browser-session-partitioned" | "browser-session-long") {
+            if matches!(scene.state.as_str(), "browser-sessions" | "browser-session-failed" | "browser-session-partitioned" | "browser-session-long" | "browser-session-diagnostic") {
                 use ameow_next::browser_sessions::{SiteView, SyncResult, SyncError};
                 let at = ameow_next::browser_sessions::now();
                 snapshot.browser_sessions.sites = [
@@ -2240,7 +2240,7 @@ impl Prototype {
         match scene.state.as_str() {
             "checking" | "mixed-checks" => upstream.pending = true,
             "check-failed" => { upstream.checked_at_ms = Some(ameow_next::download::progress::now_ms()); upstream.result = Some(Err(ameow_next::download::upstream::UpstreamError::Network)); },
-            "update-available" => { upstream.checked_at_ms = Some(ameow_next::download::progress::now_ms()); upstream.result = Some(Ok("2026.11.01".into())); upstream.installability = ameow_next::download::upstream::Installability::Installable; },
+            "update-available" | "updates-available" => { upstream.checked_at_ms = Some(ameow_next::download::progress::now_ms()); upstream.result = Some(Ok("2026.11.01".into())); upstream.installability = ameow_next::download::upstream::Installability::Installable; },
             _ => {},
         }
         if scene.state == "requires-ameow" {
@@ -2248,7 +2248,7 @@ impl Prototype {
             upstream.result = Some(Ok("2026.11.01".into()));
             upstream.installability = ameow_next::download::upstream::Installability::RequiresAmeow;
         }
-        if scene.state == "gallery-update" {
+        if matches!(scene.state.as_str(), "gallery-update" | "updates-available") {
             projection.preview_gallery_upstream = Some(ameow_next::download::upstream::UpstreamSnapshot {
                 checked_at_ms: Some(ameow_next::download::progress::now_ms()), result: Some(Ok("1.33.0".into())),
                 installability: ameow_next::download::upstream::Installability::Installable, ..Default::default()
@@ -2292,6 +2292,10 @@ impl Prototype {
                 view.browser_ui.guide = u8::from(scene.state.starts_with("browser-connect"));
                 view.browser_ui.guide_focus_pending = view.browser_ui.guide > 0;
                 view.browser_ui.details = scene.state == "browser-session-long";
+                if scene.state == "browser-session-diagnostic"
+                    && let Some(site) = view.projection.queue.as_ref().and_then(|s| s.browser_sessions.sites.first()) {
+                    view.browser_ui.preview_diagnostic(site);
+                }
                 if view.browser_ui.guide > 0 { view.browser_ui.preview_setup(&scene.state); }
                 view.open_pending = scene.state == "folder-opening";
                 view.help_open = match scene.state.as_str() {

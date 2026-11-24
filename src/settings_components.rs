@@ -235,7 +235,7 @@ impl SettingsWindow {
         }
     }
 
-    fn extension_component(&self, cx: &mut Context<Self>) -> AnyElement {
+    fn extension_component(&self, actions_width: f32, cx: &mut Context<Self>) -> AnyElement {
         let l = self.projection.language;
         let p = Palette::new(self.projection.night);
         let extension = &self.projection.extension;
@@ -249,8 +249,9 @@ impl SettingsWindow {
                     .when(extension.pending, |s| s.child(component_dot(p, l.text("需要重载扩展", "Extension reload required"), "extension-update-dot"))))
                 .child(div().flex().items_center().gap(px(8.))
                     .child(div().text_size(px(12.)).text_color(p.neutral).child(version.to_owned()))
-                    .child(self.button("component-extension-setup", l.text("配置扩展", "Set up extension"), true,
-                        ButtonStyle::Standard, cx, |this, _, cx| this.open_browser_guide(cx)))));
+                    .child(div().w(px(actions_width)).flex().justify_end().child(self.icon_button("component-extension-setup",
+                        "icons/wrench.svg", l.text("配置扩展", "Set up extension"), true,
+                        cx, |this, _, cx| this.open_browser_guide(cx))))));
         if extension.needs_reload {
             row = row.child(div().pb(px(8.)).child(inline_notice(p,
                 l.text("请在浏览器扩展管理页重新加载 Ameow，再刷新正在使用的网页。", "Reload Ameow in your browser’s extension manager, then refresh the pages you are using."), false)));
@@ -348,6 +349,9 @@ impl SettingsWindow {
     pub(super) fn components_page(&self, cx: &mut Context<Self>) -> AnyElement {
         let l = self.projection.language; let p = Palette::new(self.projection.night);
         let snapshot = self.projection.queue.as_deref();
+        let actions_width = if [Downloader::YtDlp, Downloader::GalleryDl].into_iter().any(|downloader| self.component_has_restore(downloader)) {
+            tokens::CONTROL_HEIGHT * 2. + 8.
+        } else { tokens::CONTROL_HEIGHT };
         let mut content = div().flex().flex_col()
             .child(div().flex().items_center().justify_between().pb(px(8.))
                 .child(div().text_size(px(13.)).font_weight(FontWeight::MEDIUM)
@@ -355,7 +359,7 @@ impl SettingsWindow {
                 .child(self.icon_button("check-component-updates", "icons/refresh-cw.svg",
                     l.text("检查更新", "Check updates"), self.can_check_upstream(), cx,
                     |this, window, cx| this.check_upstream(window, cx))))
-            .child(self.extension_component(cx));
+            .child(self.extension_component(actions_width, cx));
         let components = [("yt-dlp", "yt-dlp"), ("gallery-dl", "gallery-dl"), ("deno", "Deno"), ("ffmpeg", "FFmpeg / ffprobe")];
         for (index, (name, label)) in components.into_iter().enumerate() {
             let version = verified_version(snapshot, name).unwrap_or(l.text("不可用", "Unavailable"));
@@ -367,13 +371,13 @@ impl SettingsWindow {
             let updatable = matches!(name, "yt-dlp" | "gallery-dl");
             let upstream = self.component_upstream_for(downloader);
             let candidate = updatable.then(|| upgrade_for(downloader, &upstream, verified_version(snapshot, name))).flatten();
-            let mut controls = div().flex_none().flex().items_center().gap(px(8.)).child(version_value);
+            let mut actions = div().w(px(actions_width)).flex_none().flex().items_center().justify_end().gap(px(8.));
             if let Some(version) = &candidate {
                 let version = version.clone();
-                controls = controls.child(self.button(if downloader == Downloader::YtDlp { "update-video-downloader" } else { "update-gallery-downloader" },
-                    format!("{} {version}", l.text("更新至", "Update to")),
+                actions = actions.child(self.icon_button(if downloader == Downloader::YtDlp { "update-video-downloader" } else { "update-gallery-downloader" },
+                    "icons/circle-arrow-up.svg", format!("{label} · {} {version}", l.text("更新至", "Update to")),
                     self.engine_update_available() && !upstream.pending && !upstream.worker_running,
-                    ButtonStyle::Standard, cx, move |this, _, cx| {
+                    cx, move |this, _, cx| {
                         this.component_downloader = downloader; this.select_engine_version(Some(version.clone()), cx);
                     }));
             }
@@ -399,8 +403,9 @@ impl SettingsWindow {
                         .child(deferred(anchored().anchor(gpui::Anchor::TopRight).snap_to_window_with_margin(Edges::all(px(12.)))
                             .child(div().relative().top(px(presence.travel(-4.))).opacity(presence.alpha).child(menu)))));
                 }
-                controls = controls.child(anchor);
+                actions = actions.child(anchor);
             }
+            let controls = div().flex_none().flex().items_center().gap(px(8.)).child(version_value).child(actions);
             let mut section = div().flex().flex_col().border_b_1().border_color(p.border)
                 .child(div().min_h(px(tokens::SETTINGS_ROW_HEIGHT)).flex().items_center().justify_between().gap(px(12.))
                     .child(div().flex().items_center().gap(px(6.)).text_size(px(13.)).child(label)
@@ -428,7 +433,7 @@ impl SettingsWindow {
             for (name, version) in snapshot.verified_runtime_versions.iter().filter(|(name, _)| !["yt-dlp", "gallery-dl", "deno", "ffmpeg"].contains(&name.as_str())) {
                 content = content.child(div().min_h(px(tokens::SETTINGS_ROW_HEIGHT)).flex().items_center().justify_between()
                     .border_b_1().border_color(p.border).text_size(px(13.)).child(name.clone())
-                    .child(div().text_size(px(12.)).text_color(p.neutral).child(version.clone())));
+                    .child(div().text_size(px(12.)).text_color(p.neutral).pr(px(actions_width + 8.)).child(version.clone())));
             }
         }
         content.child(self.component_diagnostics(cx)).into_any_element()
