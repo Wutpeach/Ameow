@@ -349,9 +349,12 @@ impl SettingsWindow {
         let l = self.projection.language; let p = Palette::new(self.projection.night);
         let snapshot = self.projection.queue.as_deref();
         let mut content = div().flex().flex_col()
-            .child(div().flex().justify_end().pb(px(8.)).child(self.button("check-component-updates",
-                l.text("检查更新", "Check updates"), self.can_check_upstream(), ButtonStyle::Standard, cx,
-                |this, window, cx| this.check_upstream(window, cx))))
+            .child(div().flex().items_center().justify_between().pb(px(8.))
+                .child(div().text_size(px(13.)).font_weight(FontWeight::MEDIUM)
+                    .child(l.text("组件", "Components")))
+                .child(self.icon_button("check-component-updates", "icons/refresh-cw.svg",
+                    l.text("检查更新", "Check updates"), self.can_check_upstream(), cx,
+                    |this, window, cx| this.check_upstream(window, cx))))
             .child(self.extension_component(cx));
         let components = [("yt-dlp", "yt-dlp"), ("gallery-dl", "gallery-dl"), ("deno", "Deno"), ("ffmpeg", "FFmpeg / ffprobe")];
         for (index, (name, label)) in components.into_iter().enumerate() {
