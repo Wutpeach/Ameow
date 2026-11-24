@@ -1,9 +1,9 @@
 {
-  "productCodeHead": "24efab16ef72a4f8071105bbef22e14bd881996c",
-  "popupBuildHead": "24efab16ef72a4f8071105bbef22e14bd881996c",
-  "productPr": "https://github.com/Wutpeach/Ameow/pull/76",
+  "productCodeHead": "630bfd649d635cd968c44d79b5b504a1f8e44ae2",
+  "popupBuildHead": "630bfd649d635cd968c44d79b5b504a1f8e44ae2",
+  "productPr": null,
   "popup": "Current compact product popup, with synthetic transport and in-memory diagnostics.",
-  "sourceSha256": "716ba16ea769dba633900f0ef6b5ba6b1365a72b74e8edee12dfa7b9facb8df8",
+  "sourceSha256": "6d276c363d0c3c8a74c0c9af5da5511f54c1f288d22dc1ed84fc3e94fbafd112",
   "previousCandidate": {
     "captureExeSha256": "14cdd01acb36d940fbdd4bdfce07566d5659c3b4e7a1ce099c4ce8ae830a021a",
     "revision": "c617b99bb2e0ac48b71ced51a50396c5b37ffe20",
@@ -89,20 +89,20 @@
     {
       "packagePath": "popup.html",
       "sitePath": "site/src/components/manual/sources/popup.html",
-      "bytes": 2453,
-      "sha256": "77510c3182250c71170a3838d00828d43ff8d2d3b8e547afa7b391ae1c737466"
+      "bytes": 2970,
+      "sha256": "dd2d006ea60b0cd811c2f77caf8dd983612685499d48855cc2f35d1bf13aa77c"
     },
     {
       "packagePath": "popup.css",
       "sitePath": "site/public/manual/browser/vendor/popup.css",
-      "bytes": 6996,
-      "sha256": "18b34fcdf5c94a0d22f585ef95566e578d1872a92278cfe7b502656e97e659ef"
+      "bytes": 7263,
+      "sha256": "eb69dd97ddc18773fbc5592d35260f4d77366eacdc2649dc26dddaa40ef23973"
     },
     {
       "packagePath": "popup.js",
       "sitePath": "site/public/manual/browser/vendor/popup.js",
-      "bytes": 199787,
-      "sha256": "e10a4c9c1558a780efdfa8d3435633aa381a3d587c79dc911bf3dbdec47d1a87"
+      "bytes": 202919,
+      "sha256": "3ced974e9ab671832a0a106780a66d5fab9be20774f9a1c07923ed5ae910f400"
     },
     {
       "packagePath": "ameow-cat.svg",
@@ -119,8 +119,8 @@
     {
       "packagePath": "build.json",
       "sitePath": "site/public/manual/browser/vendor/build.json",
-      "bytes": 163,
-      "sha256": "473d66d0f02108c4522b353a142c0604336f3b3aaa4c0df80468f4c35bd718f2"
+      "bytes": 291,
+      "sha256": "970c5b44ad890eed0d94eee15e838e51c7cdb94295b70ceb27c343fdbe0d303c"
     },
     {
       "packagePath": "page.css",
@@ -131,8 +131,8 @@
     {
       "packagePath": "page.js",
       "sitePath": "site/public/manual/browser/vendor/page.js",
-      "bytes": 61643,
-      "sha256": "c37cd77042ab89177335a7e8d5a7500d78b3e6acd379b90d5122f330192e1e1a"
+      "bytes": 63599,
+      "sha256": "0fac9cdb06c73d2734ccabb55ad3666c714c36107bfeee06fed82112356a8a6f"
     }
   ],
   "previousPopupCandidates": [
@@ -176,6 +176,61 @@
           "packagePath": "popup-dist/build.json",
           "bytes": 163,
           "sitePath": "site/public/manual/browser/vendor/build.json"
+        }
+      ]
+    },
+    {
+      "productCodeHead": "24efab16ef72a4f8071105bbef22e14bd881996c",
+      "popupBuildHead": "24efab16ef72a4f8071105bbef22e14bd881996c",
+      "sourceSha256": "716ba16ea769dba633900f0ef6b5ba6b1365a72b74e8edee12dfa7b9facb8df8",
+      "assets": [
+        {
+          "packagePath": "popup.html",
+          "sitePath": "site/src/components/manual/sources/popup.html",
+          "bytes": 2970,
+          "sha256": "dd2d006ea60b0cd811c2f77caf8dd983612685499d48855cc2f35d1bf13aa77c"
+        },
+        {
+          "packagePath": "popup.css",
+          "sitePath": "site/public/manual/browser/vendor/popup.css",
+          "bytes": 7263,
+          "sha256": "eb69dd97ddc18773fbc5592d35260f4d77366eacdc2649dc26dddaa40ef23973"
+        },
+        {
+          "packagePath": "popup.js",
+          "sitePath": "site/public/manual/browser/vendor/popup.js",
+          "bytes": 202919,
+          "sha256": "3ced974e9ab671832a0a106780a66d5fab9be20774f9a1c07923ed5ae910f400"
+        },
+        {
+          "packagePath": "ameow-cat.svg",
+          "sitePath": "site/public/manual/browser/vendor/ameow-cat.svg",
+          "bytes": 2071,
+          "sha256": "337bf491c6c84891f9246a70e535dca23bc3ed34fb71cc158d431a8893a9bc21"
+        },
+        {
+          "packagePath": "LICENSES.txt",
+          "sitePath": "site/public/manual/browser/vendor/LICENSES.txt",
+          "bytes": 5464,
+          "sha256": "28cc1068cb43ec54365ff66626365403f8307d0962755d02a5d4db1961ec3b84"
+        },
+        {
+          "packagePath": "build.json",
+          "sitePath": "site/public/manual/browser/vendor/build.json",
+          "bytes": 291,
+          "sha256": "970c5b44ad890eed0d94eee15e838e51c7cdb94295b70ceb27c343fdbe0d303c"
+        },
+        {
+          "packagePath": "page.css",
+          "sitePath": "site/public/manual/browser/vendor/page.css",
+          "bytes": 2515,
+          "sha256": "42b2c33792fbbaf640e84f587464c1a3c335099cd6b8051c469c730d6b74d639"
+        },
+        {
+          "packagePath": "page.js",
+          "sitePath": "site/public/manual/browser/vendor/page.js",
+          "bytes": 63599,
+          "sha256": "0fac9cdb06c73d2734ccabb55ad3666c714c36107bfeee06fed82112356a8a6f"
         }
       ]
     }

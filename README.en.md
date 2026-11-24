@@ -37,7 +37,7 @@ Check the [yt-dlp site list](https://github.com/yt-dlp/yt-dlp/blob/master/suppor
 
 No Intel Mac or Linux build is provided.
 
-1. **Install and open.** Launch the Windows installer build from Start. For the portable build, extract everything and run `AmeowLauncher.exe`. On Mac, move `Ameow.app` to `/Applications` or `~/Applications` and open it from Finder.
+1. **Install and open.** Launch the Windows installer build from Start. For the portable build, extract everything and run `Ameow.exe`. On Mac, move `Ameow.app` to `/Applications` or `~/Applications` and open it from Finder.
 2. **Choose a save folder.** Select a writable folder in Settings, or drop a folder onto the floating window. Follow the prompts to prepare download components online on first use.
 3. **Paste a media link.** Paste into the floating window and follow progress in the queue. Collect the files from your save folder when the task finishes.
 
@@ -76,7 +76,7 @@ Page tools and session sync require the Chrome/Edge extension (Chromium 120 or l
 Sync reuses the browser session you already have. It does not sign you in or verify that the site still accepts the session. The Page tools switch and site-session permission are independent.
 
 <p align="center">
-  <img src="docs/images/readme/session-sync.gif" alt="The popup shows the current bilibili.com page with Page tools on. The session sync button changes to Synced when selected; a copy button is available next to Diagnostics." width="560">
+  <img src="docs/images/readme/session-sync.gif" alt="The popup shows bilibili.com with the Clip/download toolbar on. Authorize changes to Synced when selected; a copy button is available next to Diagnostics." width="560">
 </p>
 
 ## Frequently asked questions

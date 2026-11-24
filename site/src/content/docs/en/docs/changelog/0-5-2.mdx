@@ -1,0 +1,47 @@
+---
+title: "v0.5.2"
+description: "Download, component, update, extension and desktop improvements."
+sidebar:
+  label: "v0.5.2 · 2026-11-24"
+---
+
+2026-11-24 · [GitHub Release](https://github.com/Wutpeach/Ameow/releases/tag/v0.5.2)
+
+
+This update reduces repeated work before downloads start, adds manual updates for both downloaders, and makes app updates, extension reloads and desktop feedback clearer.
+
+### Download and upgrade
+
+| Your computer | File to download |
+| --- | --- |
+| Windows x64 | [Full installer](https://github.com/Wutpeach/Ameow/releases/download/v0.5.2/Ameow_0.5.2_windows_x64_installer.exe), recommended for most users |
+| Windows x64, portable use | [Complete portable ZIP](https://github.com/Wutpeach/Ameow/releases/download/v0.5.2/Ameow-0.5.2-windows-x64-portable.zip); extract the whole archive and run `Ameow.exe` in its root folder |
+| Apple Silicon Mac | [Mac ZIP](https://github.com/Wutpeach/Ameow/releases/download/v0.5.2/Ameow-0.5.2-macos-arm64.zip); extract it and move `Ameow.app` to `/Applications` or `~/Applications` |
+
+**Existing Windows users should fully reinstall 0.5.2.** Exit Ameow, uninstall the old version and clear its old program folder, or install into a new empty folder. For portable use, extract into a new empty folder and update shortcuts that point to the old program. Keep your settings, component cache and downloaded files; only the old program folder needs clearing. In-app updates in older versions cannot perform this directory layout change.
+
+Both Windows packages include all features, the CLI, browser connection component and extension. Starting with 0.5.2, future Windows in-app updates replace the complete set. The complete portable ZIP also serves in-app updates, so there is no separate single-program update ZIP. Mac continues to update the full App. The two `ameow-update-*.json` files are for automatic updates and need no manual download.
+
+**If you use the extension:** open Settings → Components, then select the Set up extension wrench on the browser extension row. Use the displayed path to configure or load it, reload Ameow in your browser’s extension manager, then refresh the pages you are using. Updating files in the desktop app does not reload the extension in your browser.
+
+### Downloads and components
+
+- Streamline repeated checks during download startup and component preparation to reduce waiting. Reuse resolution results within the same anonymous video download. Actual time still depends on the site, network and media.
+- Check and manually update both yt-dlp and gallery-dl in Components, or restore Ameow’s recommended version from each downloader’s more menu. Checking does not install anything; updates and recovery are managed separately for each downloader.
+- Small orange dots show new component versions. The navigation dot clears after you view the update, while the component keeps its indicator until updated. Versions that require a newer Ameow explain that requirement.
+- Improve component preparation and retries after failure by reusing acquired files that remain trusted, with more useful failure diagnostics.
+
+### App and extension
+
+- App update settings now have two switches: Automatic updates and Update notifications. With Automatic updates on, Ameow downloads in the background and restarts to install at a suitable idle time after tasks finish and resources are released. Turning it off keeps checks active and leaves downloading and installation to you. Update notifications independently controls the app update reminder at the lower-left of Full.
+- Download or restart an update directly from Full’s lower-left popover. Extension reload reminders open Components directly. Manual checks remain available in About.
+- The browser extension now occupies the first component row, with its version, setup action and reload instructions when needed. Copy icons for setup paths and diagnostic reports turn into checks after success; settings show fewer unnecessary progress messages.
+- The extension popup shows its interface first, then loads page-tool and site-session state separately. Unconfirmed state shows as loading, with a retry action if no response arrives. Background connection improvements reduce waiting on repeated opens.
+- The player’s clip/download toolbar is larger and easier to see. An exactly identified overlapping Bilibili feedback button is temporarily hidden while the toolbar is visible. The extension switch now has a nearby explanation.
+
+### Desktop improvements and fixes
+
+- Download-complete and folder-saved feedback finish with a short fade. Refine the cat’s ear and looking motions while respecting reduced motion.
+- Fix shortcut icons after a new Windows installation and use the root `Ameow.exe` with the official icon as the launch entry.
+- Fix tasks getting stuck and preventing the app from quitting after cancellation during link resolution on Mac.
+- Fix an incorrect update security verification error when Ameow is already up to date.

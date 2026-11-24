@@ -9,16 +9,16 @@ import { Aside, Steps } from '@astrojs/starlight/components';
 
 | 平台 | 选择的文件 |
 | --- | --- |
-| Windows x64 安装版 | [安装程序](https://github.com/Wutpeach/Ameow/releases/download/v0.5.1/Ameow_0.5.1_windows_x64_installer.exe) |
-| Windows x64 便携版 | [便携 ZIP](https://github.com/Wutpeach/Ameow/releases/download/v0.5.1/Ameow_0.5.1_windows_x64_portable.zip) |
-| macOS Apple Silicon | [Mac ZIP](https://github.com/Wutpeach/Ameow/releases/download/v0.5.1/Ameow-0.5.1-macos-arm64.zip) |
+| Windows x64 安装版 | [安装程序](https://github.com/Wutpeach/Ameow/releases/download/v0.5.2/Ameow_0.5.2_windows_x64_installer.exe) |
+| Windows x64 便携版 | [便携 ZIP](https://github.com/Wutpeach/Ameow/releases/download/v0.5.2/Ameow-0.5.2-windows-x64-portable.zip) |
+| macOS Apple Silicon | [Mac ZIP](https://github.com/Wutpeach/Ameow/releases/download/v0.5.2/Ameow-0.5.2-macos-arm64.zip) |
 
 Mac 需要 Apple Silicon 和 macOS 13 或更新系统；不支持 Intel Mac、Universal 或 Linux。
 
 ## Windows
 
 <Steps>
-1. 运行安装程序并完成向导，随后从开始菜单打开 Ameow。使用便携版时，先完整解压，再运行 `AmeowLauncher.exe`。
+1. 运行安装程序并完成向导，随后从开始菜单打开 Ameow。使用便携版时，先完整解压，再运行 `Ameow.exe`。
 2. 按[快速上手](../)选择保存位置并提交链接。首次需要的下载组件由应用联网准备。
 </Steps>
 
@@ -39,4 +39,8 @@ Mac 需要 Apple Silicon 和 macOS 13 或更新系统；不支持 Intel Mac、Un
 
 在[设置的关于页](../desktop/settings/)检查应用更新，按提示下载并重启。下载组件在组件与诊断页单独管理。
 
-Windows 应用内更新只替换主程序。更新扩展和连接组件请使用完整安装包或便携包，重新配置并重载扩展，再刷新视频页面；详见[扩展安装与连接](../extension/#connection)。
+**Windows 从旧版升级到 0.5.2，请完整重新安装。** 退出 Ameow，卸载旧版并清理旧程序文件夹，或选择新的空文件夹安装；便携版也请完整解压到新空文件夹，并更新旧快捷方式。设置、组件缓存和下载文件不需要清空。旧版 Windows 应用内更新不能完成本次目录布局调整。Mac 继续按提示更新完整 App，无需按 Windows 的步骤清理旧程序目录。
+
+从 0.5.2 起，Windows 完整安装版和便携版均包含主程序、CLI、浏览器连接组件与扩展；后续应用内更新更新整套文件。完整便携 ZIP 同时用于应用内更新，不再另发单程序更新 ZIP。Mac 继续更新完整 App。两平台的签名更新 JSON 供自动更新使用，无需手动下载。
+
+更新后在组件页配置扩展，按当前路径在浏览器扩展管理页重载 Ameow，再刷新正在使用的网页；详见[扩展安装与连接](../extension/#connection)。

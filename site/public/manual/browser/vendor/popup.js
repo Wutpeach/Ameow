@@ -888,7 +888,6 @@ function siteFromUrl(value) {
   if (!site2 || !site2.includes(".")) throw Error("E_PAGE");
   return site2;
 }
-var scope = (site2) => [`https://*.${site2}/*`, `http://*.${site2}/*`];
 
 // ../assets/copy.svg
 var copy_default = '<!-- Lucide copy, rendered at 10px with a 1.2px stroke. ISC license. -->\r\n<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="white" stroke-width="1.92" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="8" height="8" rx="1.333"/><path d="M3.333 10H2.667A1.333 1.333 0 0 1 1.333 8.667v-6A1.333 1.333 0 0 1 2.667 1.333h6A1.333 1.333 0 0 1 10 2.667v.666"/></svg>\r\n';
@@ -897,10 +896,10 @@ var copy_default = '<!-- Lucide copy, rendered at 10px with a 1.2px stroke. ISC 
 var check_default = '<!-- Lucide check, copy feedback rendered at 10px with a 1.2px stroke. ISC license. -->\r\n<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="white" stroke-width="1.92" stroke-linecap="round" stroke-linejoin="round"><path d="m13.333 4-7.333 7.333-3.333-3.333"/></svg>\r\n';
 
 // ../assets/rotate-ccw.svg
-var rotate_ccw_default = `<!-- Lucide rotate-ccw; ISC. Stroke matches Ameow's existing 16px icons. -->
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5"/>
-</svg>
+var rotate_ccw_default = `<!-- Lucide rotate-ccw; ISC. Stroke matches Ameow's existing 16px icons. -->\r
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">\r
+  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5"/>\r
+</svg>\r
 `;
 
 // ../assets/circle-alert.svg
@@ -935,6 +934,21 @@ var pending = false;
 var busy = "";
 var syncedFeedback = false;
 var stateKnown = false;
+var tabGeneration = 0;
+var sessionGeneration = 0;
+var toolsGeneration = 0;
+var pendingTimer;
+var READ_TIMEOUT_MS = 5e3;
+async function boundedRead(promise) {
+  let timer;
+  try {
+    return await Promise.race([promise, new Promise((_, reject) => {
+      timer = setTimeout(() => reject(Error("E_BRIDGE")), READ_TIMEOUT_MS);
+    })]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
 var sourceName = navigator.userAgent.includes("Edg/") ? "Microsoft Edge" : "Chrome / Chromium";
 var errorEn = { E_COOKIE_READ: "Could not read browser cookies", E_BRIDGE: "Browser connection failed", E_SESSION_STORAGE: "Session storage failed", E_SESSION_LIMIT: "Session exceeds the sync limit", E_SESSION_INVALID: "Session data was not accepted", E_SESSION_PROTOCOL: "Browser bridge is incompatible", E_SESSION_STALE: "Sync message expired", E_PERMISSION: "Site permission was removed", E_SESSION_REVOKED: "Site authorization was removed", E_SESSION_SOURCE_CHANGED: "Site source changed", E_BRIDGE_NOT_REGISTERED: "Browser bridge registration was not found", E_BRIDGE_FORBIDDEN: "Browser denied the connection", E_BRIDGE_START: "Browser bridge could not start", E_BRIDGE_EXIT: "Browser bridge exited", E_BRIDGE_IO: "Browser connection failed" };
 var errorText = (code) => {
@@ -946,11 +960,11 @@ var safeId = (value) => typeof value === "string" && /^[a-zA-Z0-9_-]{1,80}$/.tes
 var safeSource = (value) => ["Microsoft Edge", "Chrome / Chromium"].includes(value) ? value : t("\u672A\u77E5\u6765\u6E90", "Unknown source");
 function connection(kind) {
   connectionState = kind;
-  const full = kind === "ready" ? t("\u6269\u5C55\u8FDE\u63A5\u5C31\u7EEA", "Extension connection ready") : kind === "unavailable" ? t("\u6269\u5C55\u8FDE\u63A5\u4E0D\u53EF\u7528", "Extension connection unavailable") : t("\u6269\u5C55\u8FDE\u63A5\u672A\u77E5", "Extension connection unknown");
-  $("connection").textContent = kind === "ready" ? t("\u5C31\u7EEA", "Ready") : kind === "unavailable" ? t("\u672A\u8FDE\u63A5", "Disconnected") : t("\u672A\u77E5", "Unknown");
+  const full = kind === "ready" ? t("\u6269\u5C55\u8FDE\u63A5\u5C31\u7EEA", "Extension connection ready") : kind === "unavailable" ? t("\u6269\u5C55\u8FDE\u63A5\u4E0D\u53EF\u7528", "Extension connection unavailable") : kind === "checking" ? t("\u6B63\u5728\u68C0\u67E5\u6269\u5C55\u8FDE\u63A5", "Checking extension connection") : t("\u6269\u5C55\u8FDE\u63A5\u672A\u77E5", "Extension connection unknown");
+  $("connection").textContent = kind === "ready" ? t("\u5C31\u7EEA", "Ready") : kind === "unavailable" ? t("\u672A\u8FDE\u63A5", "Disconnected") : kind === "checking" ? t("\u8FDE\u63A5\u4E2D", "Connecting") : t("\u672A\u77E5", "Unknown");
   $("connection").setAttribute("aria-label", full);
   $("connection-title").textContent = full;
-  $("connection-detail").textContent = kind === "ready" ? t("\u53EF\u540C\u6B65\u672C\u7AD9\u767B\u5F55\u6001\u3002", "Site session sync is available.") : t("\u8BF7\u68C0\u67E5\u6269\u5C55\u914D\u7F6E\u540E\u91CD\u8BD5\u3002", "Check extension setup and retry.");
+  $("connection-detail").textContent = kind === "ready" ? t("\u53EF\u540C\u6B65\u672C\u7AD9\u767B\u5F55\u6001\u3002", "Site session sync is available.") : kind === "checking" ? t("\u6B63\u5728\u68C0\u67E5\u6269\u5C55\u8FDE\u63A5\u3002", "Checking extension connection.") : t("\u8BF7\u68C0\u67E5\u6269\u5C55\u914D\u7F6E\u540E\u91CD\u8BD5\u3002", "Check extension setup and retry.");
   $("connection").toggleAttribute("data-ready", kind === "ready");
   $("connection").toggleAttribute("data-error", kind === "unavailable");
 }
@@ -994,7 +1008,7 @@ function paintButton(button, text, icon, hover) {
   button.replaceChildren(...children);
 }
 function controls() {
-  const working = Boolean(busy) || pending;
+  const working = Boolean(busy) || pending && !lastError;
   $("authorize").disabled = working || !stateKnown;
   $("sync").disabled = working || !stateKnown;
   $("revoke").disabled = working;
@@ -1064,7 +1078,9 @@ function render(state) {
   authorized = own;
   stateKnown = valid || own;
   pending = Boolean(own && grant?.pending);
+  clearTimeout(pendingTimer);
   $("page-unavailable").hidden = true;
+  $("session-loading").hidden = true;
   $("authorize").hidden = !valid || own;
   $("sync").hidden = !own;
   $("revoke").hidden = !own;
@@ -1081,15 +1097,37 @@ function render(state) {
   else status(valid ? "" : t("\u4F1A\u8BDD\u72B6\u6001\u6682\u4E0D\u53EF\u786E\u8BA4", "Session status unavailable"));
   controls();
   updateDiagnostic();
+  if (pending && !lastError) pendingTimer = setTimeout(() => {
+    if (!pending || lastError || busy) return;
+    $("sync").hidden = true;
+    $("retry-status").hidden = false;
+    status(t("\u540C\u6B65\u5C1A\u672A\u5B8C\u6210", "Sync is still pending"), t("\u70B9\u51FB\u91CD\u8BD5\u4EE5\u8BFB\u53D6\u6700\u65B0\u72B6\u6001\u3002", "Retry to read the latest status."));
+  }, READ_TIMEOUT_MS);
 }
 async function refresh() {
-  render(await send("status"));
+  const generation = ++sessionGeneration;
+  try {
+    const state = await boundedRead(send("status"));
+    if (generation === sessionGeneration) render(state);
+  } catch (error) {
+    if (generation === sessionGeneration) throw error;
+  }
 }
 $("retry-status").addEventListener("click", async () => {
+  if (!site) {
+    void loadTab();
+    return;
+  }
+  $("session-loading").hidden = false;
+  $("retry-status").hidden = true;
+  connection("checking");
+  updateDiagnostic();
   $("retry-status").disabled = true;
   try {
     await refresh();
   } catch (error) {
+    $("session-loading").hidden = true;
+    $("retry-status").hidden = false;
     connection("unavailable");
     lastError = error.message;
     updateDiagnostic();
@@ -1097,6 +1135,9 @@ $("retry-status").addEventListener("click", async () => {
   } finally {
     $("retry-status").disabled = false;
   }
+});
+$("retry-tools").addEventListener("click", () => {
+  void loadTools();
 });
 $("copy-diagnostic").addEventListener("click", async () => {
   clearTimeout(copiedTimer);
@@ -1146,22 +1187,11 @@ for (const action of ["authorize", "sync", "revoke"]) $(action).addEventListener
   busy = action;
   controls();
   try {
-    if (action === "authorize") {
-      if (!await chrome.permissions.request({ origins: scope(site) })) {
-        status(t("\u672A\u6388\u6743", "Not authorized"));
-        return;
-      }
-      const result = await send("authorize", { replaces: current?.grant_id || null, source_name: sourceName });
-      if (result[site] !== "synced") throw Error(result[site]);
-    } else {
-      if (action === "sync" && lastError === "E_PERMISSION" && !await chrome.permissions.request({ origins: scope(site) })) {
-        status(t("\u540C\u6B65\u672A\u5B8C\u6210", "Sync did not complete"), recovery("E_PERMISSION"), true);
-        return;
-      }
-      const result = await send(action);
-      if (!["synced", "revoked"].includes(result[site])) throw Error(result[site]);
-    }
+    const result = await send(action, action === "authorize" ? { replaces: current?.grant_id || null, source_name: sourceName } : { request_permission: action === "sync" && lastError === "E_PERMISSION" });
     await refresh();
+    if (result[site] !== (action === "revoke" ? "revoked" : "synced")) {
+      throw Error(result[site] === "revoked" ? "E_SESSION_REVOKED" : result[site]);
+    }
     if (action !== "revoke") {
       clearTimeout(feedbackTimer);
       syncedFeedback = true;
@@ -1187,8 +1217,11 @@ for (const [id, zh, en] of [
   ["session-title", "\u767B\u5F55\u6001\u540C\u6B65", "Session sync"],
   ["diagnostics-title", "\u8BCA\u65AD", "Diagnostics"],
   ["retry-status", "\u91CD\u8BD5", "Retry"],
-  ["tools-title", "\u9875\u9762\u5DE5\u5177", "Page tools"]
+  ["retry-tools", "\u91CD\u8BD5", "Retry"],
+  ["tools-title", "\u5207\u7247/\u4E0B\u8F7D \u5DE5\u5177\u6761", "Clip/download toolbar"]
 ]) $(id).textContent = t(zh, en);
+$("tools-info").setAttribute("aria-label", t("\u5DE5\u5177\u6761\u8BF4\u660E", "About the toolbar"));
+$("tools-help").textContent = t("\u5728\u652F\u6301\u7684\u89C6\u9891\u9875\u9762\u663E\u793A\u4E0B\u8F7D\u4E0E\u5207\u7247\u5165\u53E3\u3002", "Show download and clip actions on supported video pages.");
 for (const mark of document.querySelectorAll(".icon")) {
   const name = [...mark.classList].find((value) => value.startsWith("icon-"))?.slice(5);
   if (icons[name]) mark.replaceWith(makeIcon(name));
@@ -1212,52 +1245,98 @@ $("site").addEventListener("keydown", (event) => {
   if (event.key === "Escape") hideFullSite();
 });
 paintButton($("retry-status"), t("\u91CD\u8BD5", "Retry"), "refresh");
+paintButton($("retry-tools"), t("\u91CD\u8BD5", "Retry"), "refresh");
+$("site").textContent = t("\u6B63\u5728\u8BFB\u53D6\u9875\u9762", "Reading page");
+$("tools-loading").textContent = $("session-loading").textContent = t("\u8BFB\u53D6\u4E2D", "Loading");
 controls();
-connection("unknown");
+connection("checking");
 updateDiagnostic();
-try {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  host = pageHost(tab.url);
-  tabId = tab.id;
-  site = siteFromUrl(tab.url);
-  $("site").textContent = site;
-  $("site").title = site;
-  $("site").setAttribute("aria-label", site);
-  $("authorize").title = t("\u5141\u8BB8\u540C\u6B65\u672C\u7AD9\u53CA\u5B50\u57DF\u7684\u767B\u5F55\u6001\uFF0C\u4EC5\u7528\u4E8E Ameow \u4E0B\u8F7D", "Allow this site and its subdomains for Ameow downloads");
-  const [pageResult, sessionResult] = await Promise.allSettled([
-    host ? chrome.runtime.sendMessage({ action: "pages-status", host }) : null,
-    send("status")
-  ]);
-  if (host) {
-    $("page-tools").hidden = false;
-    if (pageResult.status === "fulfilled" && pageResult.value?.ok && typeof pageResult.value.value?.enabled === "boolean") {
-      toolsEnabled = pageResult.value.value.enabled;
-      $("toggle-tools").setAttribute("aria-pressed", String(toolsEnabled));
-      $("toggle-tools").setAttribute("aria-label", toolsEnabled ? t("\u5173\u95ED\u9875\u9762\u5DE5\u5177", "Turn off page tools") : t("\u542F\u7528\u9875\u9762\u5DE5\u5177", "Enable page tools"));
-      $("toggle-tools").disabled = false;
-    } else {
-      $("page-status").textContent = t("\u9875\u9762\u5DE5\u5177\u72B6\u6001\u4E0D\u53EF\u7528\uFF0C\u8BF7\u91CD\u65B0\u6253\u5F00\u6269\u5C55\u3002", "Page tools status unavailable. Reopen the extension.");
-      $("toggle-tools").setAttribute("aria-label", t("\u9875\u9762\u5DE5\u5177\u72B6\u6001\u4E0D\u53EF\u7528", "Page tools status unavailable"));
-    }
+document.querySelector("main").getBoundingClientRect();
+document.documentElement.removeAttribute("data-initializing");
+async function loadTools() {
+  const generation = ++toolsGeneration;
+  $("tools-loading").hidden = false;
+  $("retry-tools").hidden = true;
+  $("toggle-tools").hidden = true;
+  $("page-status").textContent = "";
+  try {
+    const reply = await boundedRead(chrome.runtime.sendMessage({ action: "pages-status", host }));
+    if (generation !== toolsGeneration) return;
+    if (!reply?.ok || typeof reply.value?.enabled !== "boolean") throw Error("E_BRIDGE");
+    toolsEnabled = reply.value.enabled;
+    $("toggle-tools").setAttribute("aria-pressed", String(toolsEnabled));
+    $("toggle-tools").setAttribute("aria-label", toolsEnabled ? t("\u5173\u95ED\u9875\u9762\u5DE5\u5177", "Turn off page tools") : t("\u542F\u7528\u9875\u9762\u5DE5\u5177", "Enable page tools"));
+    $("toggle-tools").disabled = false;
+    $("toggle-tools").hidden = false;
+    $("toggle-tools").getBoundingClientRect();
+    $("toggle-tools").removeAttribute("data-initial-value");
+  } catch {
+    if (generation !== toolsGeneration) return;
+    $("page-status").textContent = t("\u9875\u9762\u5DE5\u5177\u72B6\u6001\u4E0D\u53EF\u7528\uFF0C\u8BF7\u91CD\u8BD5\u3002", "Page tools status unavailable. Try again.");
+    $("retry-tools").hidden = false;
+  } finally {
+    if (generation === toolsGeneration) $("tools-loading").hidden = true;
   }
-  if (sessionResult.status === "rejected") throw sessionResult.reason;
-  render(sessionResult.value);
-} catch (error) {
-  connection(site && /^E_BRIDGE|^E_SESSION_PROTOCOL/.test(error.message) ? "unavailable" : "unknown");
-  lastError = error.message;
+}
+async function loadSession() {
+  try {
+    await refresh();
+  } catch (error) {
+    $("session-loading").hidden = true;
+    $("retry-status").hidden = false;
+    connection("unavailable");
+    lastError = error.message;
+    updateDiagnostic();
+    status(t("\u6269\u5C55\u8FDE\u63A5\u4E0D\u53EF\u7528", "Extension connection unavailable"), t("\u8BF7\u91CD\u8BD5\u3002", "Try again."), true);
+  }
+}
+async function loadTab() {
+  const generation = ++tabGeneration;
+  $("retry-status").hidden = true;
+  $("page-unavailable").hidden = true;
+  $("session-loading").hidden = false;
+  connection("checking");
   updateDiagnostic();
-  $("retry-status").hidden = !site || authorized;
-  $("authorize").hidden = true;
-  $("sync").hidden = !authorized;
-  if (!site) {
+  $("site").textContent = t("\u6B63\u5728\u8BFB\u53D6\u9875\u9762", "Reading page");
+  try {
+    const [tab] = await boundedRead(chrome.tabs.query({ active: true, currentWindow: true }));
+    if (generation !== tabGeneration) return;
+    host = pageHost(tab.url);
+    tabId = tab.id;
+    try {
+      site = siteFromUrl(tab.url);
+    } catch {
+      throw Error("E_PAGE");
+    }
+    $("site").textContent = site;
+    $("site").title = site;
+    $("site").setAttribute("aria-label", site);
+    $("authorize").title = t("\u5141\u8BB8\u540C\u6B65\u672C\u7AD9\u53CA\u5B50\u57DF\u7684\u767B\u5F55\u6001\uFF0C\u4EC5\u7528\u4E8E Ameow \u4E0B\u8F7D", "Allow this site and its subdomains for Ameow downloads");
+    if (host) {
+      $("page-tools").hidden = false;
+      void loadTools();
+    }
+    void loadSession();
+  } catch (error) {
+    if (generation !== tabGeneration) return;
+    connection("unknown");
+    lastError = error.message;
+    updateDiagnostic();
     $("site").textContent = t("\u5F53\u524D\u9875\u9762", "Current page");
+    $("session-loading").hidden = true;
     $("authorize").hidden = true;
     $("sync").hidden = true;
-    $("page-unavailable").hidden = false;
+    if (error.message === "E_PAGE") {
+      $("page-unavailable").hidden = false;
+      status(t("\u8BF7\u5728\u666E\u901A\u7F51\u7AD9\u9875\u9762\u6253\u5F00\u6269\u5C55", "Open the extension on a regular website"), "", true);
+      $("notice").hidden = true;
+    } else {
+      $("retry-status").hidden = false;
+      status(t("\u65E0\u6CD5\u8BFB\u53D6\u5F53\u524D\u9875\u9762", "Could not read the current page"), t("\u8BF7\u91CD\u8BD5\u3002", "Try again."), true);
+    }
   }
-  status(site ? t("\u6269\u5C55\u8FDE\u63A5\u4E0D\u53EF\u7528", "Extension connection unavailable") : t("\u8BF7\u5728\u666E\u901A\u7F51\u7AD9\u9875\u9762\u6253\u5F00\u6269\u5C55", "Open the extension on a regular website"), "", true);
-  if (!site) $("notice").hidden = true;
-} finally {
-  document.querySelector("main").getBoundingClientRect();
-  document.documentElement.removeAttribute("data-initializing");
 }
+chrome.storage?.onChanged?.addListener((changes, area) => {
+  if (area === "local" && site && (changes.grants || changes.source_id)) void loadSession();
+});
+void loadTab();

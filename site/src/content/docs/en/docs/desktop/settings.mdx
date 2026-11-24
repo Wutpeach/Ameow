@@ -28,19 +28,19 @@ An occupied combination or failed save keeps the previous preference. If the ori
 
 ## Browser sessions
 
-In Download settings, choose Set up extension and copy the displayed path. Follow [Install and connect](../../extension/#connection) to load the extension in your browser.
+In Components, select the Set up extension wrench on the first row and copy the displayed path. Follow [Install and connect](../../extension/#connection) to load the extension in your browser.
 
-Authorized sites appear as brand badges and names. Hover or focus a site to see its status. For help with a sync problem, expand diagnostics and copy the report. See [Browser session sync](../../extension/#sessions) for authorization and removal.
+Authorized sites appear as brand badges and names in Download settings. Hover or focus a site to see its status. For help with a sync problem, expand diagnostics and copy the report. See [Browser session sync](../../extension/#sessions) for authorization and removal.
 
 
 ## Update the app
 
-Check in About, then follow the download and restart prompts. You can enable automatic checks, background downloads, and automatic restart after tasks finish. Running tasks finish safely first.
+Check in About, then follow the download and restart prompts. With Automatic updates on, Ameow downloads in the background and restarts to install at a suitable idle time after tasks finish and resources are released. Turning it off keeps checks active and leaves downloading and installation to you. Update notifications independently controls the app update reminder at the lower-left of Full without changing automatic update policy. You can also download or restart an update directly from that popover.
 
 <details>
 <summary>Update and recovery details</summary>
 
-Windows launches the new version through the Launcher. Mac updates the complete `Ameow.app`, requesting system authorization when directory permissions require it. Cancelling authorization or failing verification leaves the update uninstalled. Follow recovery prompts if replacement or startup fails; user data is retained.
+Starting with 0.5.2, Windows launches a complete new version through the root Ameow.exe. Existing users should first [fully reinstall](../../downloads/#upgrade). Mac updates the complete `Ameow.app`, requesting system authorization when directory permissions require it. Cancelling authorization or failing verification leaves the update uninstalled. Follow recovery prompts if replacement or startup fails; user data is retained.
 
 </details>
 
@@ -48,7 +48,9 @@ Windows launches the new version through the Launcher. Mac updates the complete 
 
 ## Manage download components
 
-Ameow prepares components on first use. In Components, check stable yt-dlp versions and confirm a selection to download, verify, and switch. Checking alone does not change versions.
+Ameow prepares components on first use. The check icon at the top of Components checks both yt-dlp and gallery-dl. When an installable update is available, use that row’s update arrow to download, verify and switch; hover to see the target version. Each downloader’s more menu can restore Ameow’s recommended version. Checking or opening the page does not install anything.
+
+The navigation dot marks an unseen version and clears after viewing; a component-row dot means an update is still available. Optional downloader updates appear only in Settings. Other runtime components follow Ameow updates. The browser extension is the first row. After its files update, reload it in the browser and refresh your pages as prompted; Full’s extension entry opens that row directly.
 
 <details>
 <summary>Component preparation and recovery</summary>
@@ -72,7 +74,7 @@ Startup checks stay quiet with a healthy cache. If preparation fails, follow the
 <details>
 <summary>Login startup, moving the app, and data location</summary>
 
-Windows login startup points to `AmeowLauncher.exe`. Check shortcuts and startup after moving a portable folder. On Mac, manage system login items from the installed `Ameow.app` and approve in System Settings when prompted. Recheck after moving the app.
+Windows login startup points to `Ameow.exe`. Check shortcuts and startup after moving a portable folder. On Mac, manage system login items from the installed `Ameow.app` and approve in System Settings when prompted. Recheck after moving the app.
 
 | Platform | User data directory (not downloads) |
 | --- | --- |

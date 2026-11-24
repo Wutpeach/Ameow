@@ -37,7 +37,7 @@ Ameow 是面向后期和内容创作者的桌面素材下载工具。采集视�
 
 Intel Mac 和 Linux 没有对应构建。
 
-1. **安装并打开。** Windows 安装版从开始菜单启动；便携版完整解压后运行 `AmeowLauncher.exe`。Mac 将 `Ameow.app` 移入 `/Applications` 或 `~/Applications`，从 Finder 打开。
+1. **安装并打开。** Windows 安装版从开始菜单启动；便携版完整解压后运行 `Ameow.exe`。Mac 将 `Ameow.app` 移入 `/Applications` 或 `~/Applications`，从 Finder 打开。
 2. **选好保存位置。** 在设置中选择可写文件夹，也可把文件夹拖入浮窗。首次使用按提示联网准备下载组件。
 3. **粘贴媒体链接。** 在浮窗粘贴链接，打开队列查看进度；完成后到保存目录取文件。
 
@@ -76,7 +76,7 @@ Intel Mac 和 Linux 没有对应构建。
 同步复用浏览器已有会话，不会替你登录，也不验证网站是否仍接受该会话。页面工具开关与站点会话授权彼此独立。
 
 <p align="center">
-  <img src="docs/images/readme/session-sync.gif" alt="扩展显示当前网页 bilibili.com：页面工具保持开启，点击登录态同步按钮后显示已同步；诊断旁提供复制按钮。" width="560">
+  <img src="docs/images/readme/session-sync.gif" alt="扩展显示当前网页 bilibili.com：切片/下载 工具条保持开启，点击授权后显示已同步；诊断旁提供复制按钮。" width="560">
 </p>
 
 ## 常见问题

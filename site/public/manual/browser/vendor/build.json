@@ -1,5 +1,12 @@
 {
-  "version": "0.5.1",
+  "version": "0.5.2",
   "extensionId": "icedkidcbbbijndplfofcbhikohlcool",
-  "sourceSha256": "716ba16ea769dba633900f0ef6b5ba6b1365a72b74e8edee12dfa7b9facb8df8"
+  "sourceSha256": "6d276c363d0c3c8a74c0c9af5da5511f54c1f288d22dc1ed84fc3e94fbafd112",
+  "capabilities": [
+    "session_sync_v1",
+    "page_tools_v1",
+    "page_submit_v1",
+    "clip_v1",
+    "precise_clip_v1"
+  ]
 }

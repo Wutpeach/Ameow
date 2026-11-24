@@ -14,21 +14,21 @@ Download a whole video or select a clip on supported pages, and optionally autho
 ## Install and connect
 
 <Steps>
-1. In the desktop app, open Settings → Download → Browser sessions and choose Set up extension. When setup finishes, copy the displayed extension path.
+1. In the desktop app, open Settings → Components and select the Set up extension wrench on the browser extension row. When setup finishes, copy the displayed extension path.
 2. In the Edge or Chrome browser you want to use, open extension management, enable Developer mode, choose Load unpacked, paste the path, and select that folder.
 3. Open the Ameow extension on a regular website to enable page tools or authorize the current site.
 </Steps>
 
 The demo on the setup page shows how to load it. Use the extension supplied with your desktop app version.
 
-To update the extension and connection components, update the desktop app with the full installer or portable package, set up the extension again, reload Ameow in browser extension management, and refresh open video pages. Windows in-app updates replace only the main executable and do not update these components.
+Windows users upgrading from an older version to 0.5.2 should [fully reinstall](../downloads/#upgrade); Mac continues to update the complete App. Future Windows in-app updates from 0.5.2 update the complete set of files. After updating, set up the extension from Components, reload Ameow at the displayed current path in browser extension management, and refresh the pages you are using. Updating desktop files does not reload browser code.
 
 
 <span id="permissions"></span>
 
 ## Page tools and site authorization
 
-**Page tools** are on by default. Allow page access to show download and clip actions in the player. You can turn them off in the extension; your choice is remembered per site. Session sync needs separate authorization for the current site, so check the scope shown by the extension before confirming.
+The **Clip/download toolbar** is on by default. Allow page access to show download and clip actions in the player. You can turn them off in the extension; your choice is remembered per site. Session sync needs separate authorization for the current site, so check the scope shown by the extension before confirming.
 
 <ExtensionDemo lang="en" />
 
@@ -63,7 +63,7 @@ Move the playhead and press Marker to add a point. Drag either side to set the i
 
 <ClipDemo lang="en" />
 
-Check the range and choose Download clip (下载片段). Each submission contains one range from one work; fast cutting is the default and may place actual boundaries near keyframes. Enable Precise to re-encode, which takes longer. Reopening Peek on the same work retains the choice; changing works resets it to off.
+Check the range and select the Download (下载) button at the lower-right. Each submission contains one range from one work; fast cutting is the default and may place actual boundaries near keyframes. Enable Precise to re-encode, which takes longer. Reopening Peek on the same work retains the choice; changing works resets it to off.
 
 <details>
 <summary>More controls</summary>
