@@ -456,7 +456,7 @@ impl SettingsWindow {
             runtime_status(snapshot, l)
         };
         let show_status = danger || update_visible || self.projection.engine_command_pending
-            || ["yt-dlp", "gallery-dl", "deno", "ffmpeg"].iter()
+            || snapshot.is_some() && ["yt-dlp", "gallery-dl", "deno", "ffmpeg"].iter()
             .any(|name| verified_version(snapshot, name).is_none());
         let copied = self.projection.preparation_status.as_ref()
             .is_some_and(|(message, danger)| !danger && message == "已复制组件诊断");

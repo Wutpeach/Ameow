@@ -21,8 +21,15 @@ impl Scene {
 pub fn scenes() -> Vec<Scene> { serde_json::from_str(CATALOG).expect("embedded preview catalog") }
 pub fn find(name: &str) -> Result<Scene, String> {
     // Keep old automation addresses working without duplicating the visible Gallery entry.
-    let canonical = if name == "settings.browser-connect-demo" { "settings.browser-connect" } else { name };
+    let setup_state = match name {
+        "settings.browser-connect-pending" => Some("browser-connect-pending"),
+        "settings.browser-connect-failed" => Some("browser-connect-failed"),
+        "settings.browser-connect-copy-failed" => Some("browser-connect-copy-failed"),
+        _ => None,
+    };
+    let canonical = if name == "settings.browser-connect-demo" || setup_state.is_some() { "settings.browser-connect" } else { name };
     let mut scene = scenes().into_iter().find(|s| s.name == canonical).ok_or_else(|| format!("未知预览场景：{name}"))?;
+    if let Some(state) = setup_state { scene.state = state.into(); }
     scene.name = name.to_owned();
     Ok(scene)
 }
@@ -317,6 +324,11 @@ mod tests {
         let legacy = find("settings.browser-connect-demo").unwrap();
         assert_eq!(legacy.state, canonical.state);
         assert_eq!(legacy.name, "settings.browser-connect-demo");
+        for state in ["pending", "failed", "copy-failed"] {
+            let scene = find(&format!("settings.browser-connect-{state}")).unwrap();
+            assert_eq!(scene.surface, "settings");
+            assert_eq!(scene.state, format!("browser-connect-{state}"));
+        }
         let root = tempfile::tempdir().unwrap();
         let path = root.path().join("control.json");
         let mut session = Session::new(Some(path.clone()), &legacy.name).unwrap();

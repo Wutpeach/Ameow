@@ -42,6 +42,22 @@ impl BrowserUi {
         }
     }
     fn copy_path(&self) -> Option<&Path> { self.path.as_deref() }
+    fn observe_setup(&mut self, pending: bool, result: Option<&Result<(), String>>, directory: impl FnOnce() -> Result<PathBuf, String>) {
+        if self.guide != 1 || !self.setup_requested || pending { return; }
+        if let Some(result) = result {
+            self.setup_requested = false;
+            self.finish_setup(result.clone().and_then(|()| directory()));
+        }
+    }
+    pub(super) fn preview_setup(&mut self, state: &str) {
+        self.preview_path();
+        match state {
+            "browser-connect-pending" => { self.begin_setup(); self.setup_requested = true; },
+            "browser-connect-failed" => self.finish_setup(Err("E_SESSION_REGISTRATION".into())),
+            "browser-connect-copy-failed" => self.copy_error = true,
+            _ => {},
+        }
+    }
     fn advance_demo_clock(&mut self, now: Instant, run: bool) {
         if run {
             if let Some(previous) = self.tick { self.elapsed += now.saturating_duration_since(previous); }
@@ -116,15 +132,8 @@ impl SettingsWindow {
         cx.notify(); true
     }
     pub(super) fn browser_setup_observe(&mut self, next: &Projection) {
-        if self.browser_ui.guide != 1 || !self.browser_ui.setup_requested || next.bridge_config_pending { return; }
-        if let Some(result) = &next.bridge_config_result {
-            self.browser_ui.setup_requested = false;
-            let path = match result {
-                Ok(()) => ameow_next::browser_sessions::native::extension_directory(),
-                Err(error) => Err(error.clone()),
-            };
-            self.browser_ui.finish_setup(path);
-        }
+        self.browser_ui.observe_setup(next.bridge_config_pending, next.bridge_config_result.as_ref(),
+            ameow_next::browser_sessions::native::extension_directory);
     }
     pub(super) fn close_browser_guide(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.browser_ui.guide = 0;
@@ -244,7 +253,8 @@ impl SettingsWindow {
         if self.projection.preview { self.browser_ui.preview_path(); self.browser_ui.setup_requested = false; cx.notify(); return; }
         let accepted = self.main.update(cx, |main, cx| {
             let now = main.now();
-            let accepted = main.downloads.as_mut().is_some_and(|ui| ui.send(ameow_next::download::queue::QueueCommand::InstallBrowserBridge, now));
+            let accepted = main.downloads.as_mut().is_some_and(|ui| ui.bridge_config_pending
+                || ui.send(ameow_next::download::queue::QueueCommand::InstallBrowserBridge, now));
             cx.notify(); accepted
         }).unwrap_or(false);
         self.browser_ui.setup_requested = accepted;
@@ -254,33 +264,42 @@ impl SettingsWindow {
 
     pub(super) fn browser_guide(&self, cx: &mut Context<Self>) -> AnyElement {
         let p = Palette::new(self.projection.night); let l = self.projection.language;
-        let mut page = div().w_full().flex().flex_col()
+        let page = div().w_full().flex().flex_col()
             .child(div().flex().items_center().gap(px(8.))
                 .child(self.icon_button("browser-guide-back", "icons/chevron-left.svg", l.text("返回", "Back"), true, cx, |this, window, cx| this.close_browser_guide(window, cx)))
-                .child(div().flex_1().min_w(px(0.)).text_size(px(15.)).font_weight(FontWeight::MEDIUM).child(l.text("配置扩展", "Set up extension")))
-                .child(self.icon_button("browser-guide-close", "icons/x.svg", l.text("关闭引导", "Close guide"), true, cx, |this, window, cx| this.close_browser_guide(window, cx))));
-        if self.browser_ui.setup_requested || self.projection.bridge_config_pending {
-            page = page.child(div().mt(px(12.)).text_color(p.neutral).child(l.text("正在配置…", "Setting up…")));
-        }
-        if let Some(error) = self.browser_ui.setup_error.as_deref().filter(|e| *e != "E_COPY") {
-            page = page.child(div().mt(px(12.)).child(inline_notice(p, setup_error(error, l), true)))
+                .child(div().flex_1().min_w(px(0.)).text_size(px(15.)).font_weight(FontWeight::MEDIUM).child(l.text("配置扩展", "Set up extension"))));
+        let error = self.browser_ui.setup_error.as_deref();
+        let path = self.browser_ui.path.as_ref().map(|s| s.to_string_lossy().into_owned())
+            .unwrap_or_else(|| if error.is_some() { l.text("配置未完成", "Setup incomplete").into() } else { "—".into() });
+        let copied = self.copy_feedback.contains_key("browser-extension");
+        let mut path_row = div().mt(px(24.)).h(px(56.)).flex_none().px(px(12.)).rounded(px(8.)).bg(p.badge.opacity(0.55)).flex().items_center().gap(px(8.))
+            .child(div().id("browser-extension-path-preview").flex_1().min_w(px(0.)).text_size(px(12.)).font(tokens::ui_font())
+                .text_color(if error.is_some() || self.browser_ui.copy_error { error_text(p) } else { p.primary_text() })
+                .child(div().truncate().child(if self.browser_ui.copy_error { l.text("复制失败", "Copy failed").into() } else { path.clone() }))
+                .when(self.browser_ui.copy_path().is_some(), |s| s.tooltip_above(&self.tooltips, move |_, cx|
+                    cx.new(|_| ValueTooltip { path: path.clone(), night: p.night }).into())));
+        if let Some(error) = error {
+            path_row = path_row.child(self.help_button("browser-setup-error", l.text("配置失败详情", "Setup error details"), setup_error(error, l).into(), cx))
                 .child(self.button("browser-setup-retry", l.text("重试", "Retry"), !self.projection.bridge_config_pending, ButtonStyle::Standard, cx, |this, window, cx| {
+                    this.help_open = None;
                     if let Some(focus) = this.control_focus.borrow().get("browser-guide-back") { window.focus(focus, cx); } this.start_browser_setup(cx);
                 }));
-        }
-        let path = self.browser_ui.path.as_ref().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| l.text("扩展路径不可用", "Extension path unavailable").into());
-        let copied = self.copy_feedback.contains_key("browser-extension");
-        page = page.child(div().mt(px(24.)).p(px(12.)).rounded(px(8.)).bg(p.badge.opacity(0.55)).flex().flex_wrap().items_center().gap(px(8.))
-            .child(div().flex_1().min_w(px(0.)).text_size(px(12.)).font(tokens::ui_font()).child(break_long(&path)))
-            .child(self.button("browser-copy-path", if copied { l.text("已复制", "Copied") } else { l.text("复制路径", "Copy path") }, self.browser_ui.copy_path().is_some(), ButtonStyle::Standard, cx, |this, window, cx| {
+        } else {
+            if self.browser_ui.copy_error {
+                path_row = path_row.child(self.help_button("browser-copy-error", l.text("复制失败详情", "Copy error details"),
+                    l.text("无法复制路径，请重试。", "Cannot copy the path. Try again.").into(), cx));
+            }
+            path_row = path_row.child(self.button("browser-copy-path",
+                if self.browser_ui.copy_error { l.text("重试复制", "Retry copy") } else if copied { l.text("已复制", "Copied") } else { l.text("复制路径", "Copy path") },
+                self.browser_ui.copy_path().is_some(), ButtonStyle::Standard, cx, |this, window, cx| {
                 if let Some(path) = this.browser_ui.copy_path() {
                     let result = if this.projection.preview { Ok(()) } else { crate::tray::copy_text(hwnd(window), &path.to_string_lossy()) };
                     if result.is_ok() { this.browser_ui.copy_error = false; this.reset_copy_feedback_later("browser-extension", cx); }
                     else { this.browser_ui.copy_error = true; } cx.notify();
                 }
-            })));
-        if self.browser_ui.copy_error { page = page.child(div().mt(px(8.)).child(inline_notice(p, l.text("无法复制路径，请重试。", "Cannot copy the path. Try again."), true))); }
-        page.child(self.browser_demo(cx)).into_any_element()
+            }));
+        }
+        page.child(path_row).child(self.browser_demo(cx)).into_any_element()
     }
 
     fn browser_demo(&self, _cx: &mut Context<Self>) -> AnyElement {
@@ -292,7 +311,8 @@ impl SettingsWindow {
         let toggle = ((at - 0.12) / 0.025).clamp(0., 1.) * reset;
         let pasted = at >= 0.535 && at < 0.96;
         let selected = at >= 0.75 && at < 0.96;
-        let mock_path = self.browser_ui.path.as_ref().map(|path| path.to_string_lossy().into_owned()).unwrap_or_default();
+        let mock_path = self.browser_ui.path.as_ref().map(|path| path.to_string_lossy().into_owned())
+            .unwrap_or_else(|| l.text("扩展路径", "Extension path").into());
         let anchors = &self.browser_ui.anchors;
 
         let developer = div().flex().items_center().gap(px(6.)).child(pin("1", p))
@@ -422,6 +442,29 @@ fn demo_points(anchors: &[Option<Bounds<Pixels>>; 4], t: f32) -> Option<Point<Pi
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[::core::prelude::v1::test]
+    fn setup_waits_for_current_reply_and_ignores_results_after_leaving() {
+        let mut ui = BrowserUi::default();
+        ui.guide = 1; ui.begin_setup(); ui.setup_requested = true;
+        ui.observe_setup(true, Some(&Ok(())), || panic!("pending is not success"));
+        ui.observe_setup(false, None, || panic!("unknown is not failure"));
+        assert!(ui.setup_requested && ui.copy_path().is_none() && ui.setup_error.is_none());
+        ui.guide = 0; ui.setup_requested = false;
+        ui.observe_setup(false, Some(&Err("E_SESSION_REGISTRATION".into())), || panic!("left guide"));
+        assert!(ui.setup_error.is_none());
+        ui.guide = 1; ui.begin_setup(); ui.setup_requested = true;
+        ui.observe_setup(false, Some(&Err("E_SESSION_REGISTRATION".into())), || panic!("registration failed"));
+        assert_eq!(ui.setup_error.as_deref(), Some("E_SESSION_REGISTRATION"));
+        assert!(ui.copy_path().is_none() && !ui.setup_requested);
+        ui.begin_setup(); ui.setup_requested = true;
+        ui.observe_setup(false, Some(&Ok(())), || Err("E_SESSION_HOST_MISSING".into()));
+        assert!(ui.copy_path().is_none());
+        assert_eq!(ui.setup_error.as_deref(), Some("E_SESSION_HOST_MISSING"));
+        ui.begin_setup(); ui.setup_requested = true;
+        ui.observe_setup(false, Some(&Ok(())), || Ok(PathBuf::from("current-extension")));
+        assert_eq!(ui.copy_path(), Some(Path::new("current-extension")));
+        assert!(ui.setup_error.is_none() && !ui.setup_requested);
+    }
     #[::core::prelude::v1::test]
     fn copy_path_requires_successful_current_setup() {
         let mut ui = BrowserUi::default();

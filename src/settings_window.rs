@@ -707,10 +707,6 @@ impl SettingsWindow {
                 ),
                 true,
             )),
-            _ if self.startup_pending => Some((
-                l.text("正在读取系统状态…", "Reading system status…").into(),
-                false,
-            )),
             _ => None,
         };
         let group = div()
@@ -745,7 +741,6 @@ impl SettingsWindow {
             ))
         } else {
             match &self.projection.status {
-                SettingsStatus::Saving if !self.projection.shortcut_pending => Some((l.text("正在保存…", "Saving…").into(), false)),
                 SettingsStatus::Failed(message) if !self.projection.shortcut_failed_save => Some((settings_message(l, message), true)),
                 _ => None,
             }
@@ -1247,7 +1242,6 @@ impl SettingsWindow {
             read_error.is_none().then(|| (settings_message(l, error), true))
         } else {
             match &self.projection.status {
-                SettingsStatus::Saving => Some((l.text("正在保存…", "Saving…").into(), false)),
                 SettingsStatus::Failed(message) => Some((settings_message(l, message), true)),
                 _ => None,
             }
@@ -1555,9 +1549,8 @@ impl SettingsWindow {
                 s.child(div().mt(px(6.)).text_size(px(12.)).line_height(px(18.)).text_color(p.neutral).child(detail)))
             .child(div().mt(px(20.)).border_t_1().border_color(p.border).pt(px(8.))
                 .child(self.update_switch(0,cx)).child(self.update_switch(1,cx)))
-            .child(self.notice_bar("update-preferences", (v.saving || v.save_error.is_some()).then(|| (
-                if v.save_error.is_some() { l.text("保存失败，请重试", "Could not save. Try again") } else { l.text("正在保存…", "Saving…") }.into(),
-                v.save_error.is_some()))))
+            .child(self.notice_bar("update-preferences", v.save_error.as_ref().map(|_|
+                (l.text("保存失败，请重试", "Could not save. Try again").into(), true))))
             .into_any_element()
     }
 }
@@ -2296,10 +2289,10 @@ impl Prototype {
                 view.health = Some(Ok(()));
                 view.notice = None;
                 view.browser_ui = browser_sessions_ui::BrowserUi::default();
-                view.browser_ui.guide = match scene.state.as_str() { "browser-connect" => 1, _ => 0 };
+                view.browser_ui.guide = u8::from(scene.state.starts_with("browser-connect"));
                 view.browser_ui.guide_focus_pending = view.browser_ui.guide > 0;
                 view.browser_ui.details = scene.state == "browser-session-long";
-                if view.browser_ui.guide > 0 { view.browser_ui.preview_path(); }
+                if view.browser_ui.guide > 0 { view.browser_ui.preview_setup(&scene.state); }
                 view.open_pending = scene.state == "folder-opening";
                 view.help_open = match scene.state.as_str() {
                     "app-help" => Some("update-automatic-help"),
@@ -2317,7 +2310,7 @@ impl Prototype {
                 view.component_downloader = if scene.state == "gallery-update" { ameow_next::download::contract::Downloader::GalleryDl } else { Default::default() };
                 view.component_menu_open = matches!(scene.state.as_str(), "version-menu" | "restore-menu");
                 view.page = match scene.surface.as_str() {
-                    _ if scene.state == "browser-connect" => Page::Components,
+                    _ if scene.state.starts_with("browser-connect") => Page::Components,
                     _ if scene.state.starts_with("app-") || scene.state.starts_with("third-party-licenses") || scene.state == "about" => Page::About,
                     "components" | "diagnostics" => Page::Components,
                     _ if scene.state.starts_with("shortcut-") || matches!(scene.state.as_str(), "general" | "theme-menu" | "language-menu" | "tray-menu" | "startup-enabled" | "startup-unavailable" | "startup-pending") => Page::General,
