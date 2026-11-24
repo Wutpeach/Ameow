@@ -342,18 +342,25 @@ impl Handle {
                                 let (signed, m) = coordinator
                                     .install()
                                     .trust()
-                                    .verify(&envelope, Some(now()))?;
+                                    .verify_identity(&envelope, Some(now()))?;
                                 let state=coordinator.install().state()?;
+                                if Version::parse(&m.version)? <= Version::parse(BUILD_VERSION)? {
+                                    if checking_ready && let Some(pending) = state.pending.as_ref()
+                                        .filter(|pending| Some(pending.version.as_str()) == previous.version.as_deref()) {
+                                        coordinator.install().verify_release(pending)?;
+                                        coordinator.set_state(Phase::Ready, previous.version.clone(), previous.error.clone());
+                                    } else {
+                                        coordinator.no_update();
+                                        available = None;
+                                    }
+                                    return Ok(());
+                                }
+                                m.validate_for_target(Some(now()), coordinator.install().trust().target())?;
                                 let digest=m.bundle_sha256.clone().unwrap_or_else(|| super::hash(signed.payload.as_bytes()));
                                 if state.failed.contains(&digest) {
                                     coordinator.set_state(Phase::RolledBack,state.current.map(|r|r.version),state.last_error);available=None;return Ok(());
                                 }
                                 if m.sequence<state.highest_sequence || m.sequence==state.highest_sequence && digest!=state.highest_manifest {return Err("E_APP_UPDATE_REPLAY".into());}
-                                if Version::parse(&m.version)? <= Version::parse(BUILD_VERSION)? {
-                                    coordinator.no_update();
-                                    available = None;
-                                    return Ok(());
-                                }
                                 if let Some(pending) = state.pending.as_ref().filter(|pending| pending.version == m.version) {
                                     coordinator.install().verify_release(pending)?;
                                     available = Some((envelope, install_error.clone()));

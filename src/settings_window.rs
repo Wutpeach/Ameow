@@ -285,7 +285,7 @@ pub struct SettingsWindow {
     components_seen: Vec<String>,
     components_visible: bool,
     help_open: Option<&'static str>,
-    upstream_feedback: Option<(std::time::Instant, bool)>,
+    upstream_feedback: [Option<(std::time::Instant, bool)>; 2],
     title_language: Language,
     update_notice_deadline: Option<std::time::Instant>,
     notices_open: bool,
@@ -440,7 +440,7 @@ impl SettingsWindow {
             components_seen: Vec::new(),
             components_visible: false,
             help_open: None,
-            upstream_feedback: None,
+            upstream_feedback: [None; 2],
             update_notice_deadline: None,
             notices_open: false,
             notices_focus: cx.focus_handle().tab_index(0).tab_stop(true),
@@ -565,7 +565,7 @@ impl SettingsWindow {
             .child(gpui_base::Button::new(id).disabled(self.passive.get()).track_focus(&focus).accessibility_label(label)
                 .size(px(tokens::SMALL_ICON_BUTTON_SIZE)).flex().items_center().justify_center().rounded(px(4.))
                 .border_1().border_color(transparent_black()).cursor_pointer()
-                .bg(p.badge).hover(move |s| tokens::icon_hover(s, p)).active(move |s| s.bg(p.border))
+                .hover(move |s| tokens::icon_hover(s, p)).active(move |s| s.bg(p.border))
                 .focus(move |s| s.border_color(p.neutral))
                 .when(!open, |s| s.tooltip_above(&self.tooltips, move |_, cx| cx.new(|_| HelpTooltip {
                     text: tooltip.clone(), night: p.night,
@@ -1025,7 +1025,7 @@ impl SettingsWindow {
         } else if self.component_menu_open {
             let actions: Vec<_> = self.component_menu_action_ids().iter()
                 .filter_map(|id| self.control_focus.borrow().get(*id).cloned()).collect();
-            let trigger = self.control_focus.borrow().get("component-details").cloned();
+            let trigger = self.control_focus.borrow().get(self.component_trigger_id()).cloned();
             let stops: Vec<_> = trigger.iter().chain(actions.iter()).collect();
             let current = stops.iter().position(|f| f.is_focused(window)).unwrap_or(0);
             let next = if backwards { current.checked_sub(1) }
@@ -1173,8 +1173,8 @@ impl SettingsWindow {
                 if event.keystroke.key == "enter" || event.keystroke.key == "space" {
                     for select in &mut this.selects { select.open = false; }
                     this.page = page;
-                    if page == Page::Components { this.components_seen.clear(); this.mark_components_seen(cx); }
                     this.browser_ui.guide = 0;
+                    if page == Page::Components { this.components_seen.clear(); this.mark_components_seen(cx); }
                     this.browser_ui.clear_menu();
                     this.finish_shortcut(cx);
                     this.notices_open = false;
@@ -1188,8 +1188,8 @@ impl SettingsWindow {
             .on_click(cx.listener(move |this, _, _, cx| {
                 for select in &mut this.selects { select.open = false; }
                 this.page = page;
-                if page == Page::Components { this.components_seen.clear(); this.mark_components_seen(cx); }
                 this.browser_ui.guide = 0;
+                if page == Page::Components { this.components_seen.clear(); this.mark_components_seen(cx); }
                 this.browser_ui.clear_menu();
                 this.finish_shortcut(cx);
                 this.notices_open = false;
@@ -1628,8 +1628,8 @@ impl Render for SettingsWindow {
         let arrival = self.motion.change("settings-page", format!("{}:{}", self.page as u8, self.notices_open));
         if arrival >= 0.999 { self.previous_page = None; }
         let build = |this: &Self, page: Page, notices: bool, cx: &mut Context<Self>| {
-            match page { Page::General => this.general_page(cx), Page::Download if this.browser_ui.guide > 0 => this.browser_guide(cx), Page::Download => this.download_page(cx),
-                Page::Components => this.components_page(cx), Page::About if notices => this.notices_page(cx), Page::About => this.about_page(cx) }
+            match page { Page::General => this.general_page(cx), Page::Download => this.download_page(cx),
+                _ if browser_sessions_ui::guide_active(page, this.browser_ui.guide) => this.browser_guide(cx), Page::Components => this.components_page(cx), Page::About if notices => this.notices_page(cx), Page::About => this.about_page(cx) }
         };
         let forward = self.previous_page.is_none_or(|(page, notices)| (self.page as u8, self.notices_open) >= (page as u8, notices));
         let direction = if forward { 1. } else { -1. };
@@ -1643,14 +1643,14 @@ impl Render for SettingsWindow {
                 }); });
             }
         }
-        if self.page == Page::Download && self.browser_ui.guide > 0 && self.browser_ui.guide_focus_pending {
+        if browser_sessions_ui::guide_active(self.page, self.browser_ui.guide) && self.browser_ui.guide_focus_pending {
             self.browser_ui.guide_focus_pending = false;
             let guide = self.browser_ui.guide;
             if let Some(focus) = self.control_focus.borrow().get("browser-guide-back").cloned() {
                 let owner = cx.entity().downgrade();
                 window.on_next_frame(move |window, cx| {
                     let _ = owner.update(cx, |this, cx| {
-                        if this.page == Page::Download && this.browser_ui.guide == guide { window.focus(&focus, cx); }
+                        if browser_sessions_ui::guide_active(this.page, this.browser_ui.guide) && this.browser_ui.guide == guide { window.focus(&focus, cx); }
                     });
                 });
             }
@@ -1718,7 +1718,7 @@ impl Render for SettingsWindow {
                     match event.keystroke.key.as_str() {
                         "escape" => {
                             this.component_menu_open = false;
-                            if let Some(focus) = this.control_focus.borrow().get("component-details") {
+                            if let Some(focus) = this.control_focus.borrow().get(this.component_trigger_id()) {
                                 window.focus(focus, cx);
                             }
                             cx.notify();
@@ -1735,15 +1735,16 @@ impl Render for SettingsWindow {
                             cx.stop_propagation();
                             return;
                         }
-                        "enter" | "space" if this.can_check_upstream() && this.component_menu_focus.is_focused(window) => {
-                            this.check_upstream(window, cx);
+                        "enter" | "space" if this.engine_update_available() && this.component_menu_focus.is_focused(window) => {
+                            this.component_menu_open = false;
+                            this.select_engine_version(None, cx);
                             cx.stop_propagation();
                             return;
                         }
                         _ => {}
                     }
                 }
-                if event.keystroke.key == "escape" && this.browser_ui.guide > 0 {
+                if event.keystroke.key == "escape" && browser_sessions_ui::guide_active(this.page, this.browser_ui.guide) {
                     this.close_browser_guide(window, cx);
                     cx.stop_propagation();
                 } else if event.keystroke.key == "escape" {
@@ -2146,6 +2147,7 @@ impl Prototype {
                 let view = root.view().clone().downcast::<SettingsWindow>().expect("settings content");
                 view.update(cx, |view, cx| {
                     view.page = Page::Components;
+                    view.browser_ui.guide = 0; view.browser_ui.guide_focus_pending = false;
                     view.mark_components_seen(cx);
                     view.notices_open = false;
                     view.help_open = None;
@@ -2229,6 +2231,11 @@ impl Prototype {
                 "missing" => { snapshot.preparation.phase = PreparationPhase::Idle; snapshot.verified_runtime_versions.clear(); },
                 "preparing" => { snapshot.preparing = true; snapshot.preparation.phase = PreparationPhase::Preparing; },
                 "owner-lost" => snapshot.preparation_owner_lost = true,
+                "version-menu" | "restore-menu" => {
+                    snapshot.runtime_update.policy = ameow_next::download::runtime_update::RuntimeSelectionPolicy::UserSelected;
+                    snapshot.runtime_update.active_version = Some("2026.11.01".into());
+                    snapshot.verified_runtime_versions[0].1 = "2026.11.01".into();
+                },
                 "updating" => snapshot.runtime_update.phase = RuntimeUpdatePhase::Downloading,
                 "update-waiting" => snapshot.runtime_update.phase = RuntimeUpdatePhase::Waiting,
                 "update-failed" => snapshot.runtime_update.phase = RuntimeUpdatePhase::Failed,
@@ -2238,7 +2245,7 @@ impl Prototype {
             }
         }
         match scene.state.as_str() {
-            "checking" => upstream.pending = true,
+            "checking" | "mixed-checks" => upstream.pending = true,
             "check-failed" => { upstream.checked_at_ms = Some(ameow_next::download::progress::now_ms()); upstream.result = Some(Err(ameow_next::download::upstream::UpstreamError::Network)); },
             "update-available" => { upstream.checked_at_ms = Some(ameow_next::download::progress::now_ms()); upstream.result = Some(Ok("2026.11.01".into())); upstream.installability = ameow_next::download::upstream::Installability::Installable; },
             _ => {},
@@ -2252,6 +2259,11 @@ impl Prototype {
             projection.preview_gallery_upstream = Some(ameow_next::download::upstream::UpstreamSnapshot {
                 checked_at_ms: Some(ameow_next::download::progress::now_ms()), result: Some(Ok("1.33.0".into())),
                 installability: ameow_next::download::upstream::Installability::Installable, ..Default::default()
+            });
+        }
+        if scene.state == "mixed-checks" {
+            projection.preview_gallery_upstream = Some(ameow_next::download::upstream::UpstreamSnapshot {
+                result: Some(Err(ameow_next::download::upstream::UpstreamError::Network)), cooldown_remaining_ms: 5000, ..Default::default()
             });
         }
         if scene.state == "extension-reload" {
@@ -2303,8 +2315,9 @@ impl Prototype {
                     _ => None,
                 };
                 view.component_downloader = if scene.state == "gallery-update" { ameow_next::download::contract::Downloader::GalleryDl } else { Default::default() };
-                view.component_menu_open = matches!(scene.state.as_str(), "version-menu" | "update-available" | "checking" | "check-failed");
+                view.component_menu_open = matches!(scene.state.as_str(), "version-menu" | "restore-menu");
                 view.page = match scene.surface.as_str() {
+                    _ if scene.state == "browser-connect" => Page::Components,
                     _ if scene.state.starts_with("app-") || scene.state.starts_with("third-party-licenses") || scene.state == "about" => Page::About,
                     "components" | "diagnostics" => Page::Components,
                     _ if scene.state.starts_with("shortcut-") || matches!(scene.state.as_str(), "general" | "theme-menu" | "language-menu" | "tray-menu" | "startup-enabled" | "startup-unavailable" | "startup-pending") => Page::General,

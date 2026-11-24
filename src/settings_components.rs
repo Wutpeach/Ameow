@@ -187,6 +187,22 @@ fn version_preview(version: &str) -> String {
         chars[chars.len() - 12..].iter().collect::<String>()
     )
 }
+fn downloader_index(downloader: Downloader) -> usize { if downloader == Downloader::YtDlp { 0 } else { 1 } }
+fn component_check_status(query: &ameow_next::download::upstream::UpstreamSnapshot, feedback: Option<(std::time::Instant, bool)>, l: Language) -> Option<(String, bool)> {
+    if check_is_visible(query.pending, feedback) { return Some((l.text("正在检查…", "Checking…").into(), false)); }
+    if query.worker_running { return Some((l.text("检查已超时，仍在结束，请稍候。", "Check timed out; still finishing. Please wait.").into(), true)); }
+    let message = if query.cache_error { Some((l.text("更新记录不可用，请重新检查。", "Update history is unavailable. Check again.").into(), true)) }
+        else if let Some(Err(error)) = &query.result { Some((upstream_error(error, l), true)) }
+        else if feedback.is_some_and(|(_, accepted)| !accepted) { Some((l.text("检查未受理，请稍后重试。", "Check not accepted. Try again shortly.").into(), true)) }
+        else if query.installability == ameow_next::download::upstream::Installability::RequiresAmeow { Some((l.text("此新版需要更新 Ameow。", "Update Ameow to use this version.").into(), false)) }
+        else { None };
+    if query.cooldown_remaining_ms > 0 {
+        let cooldown = format!("{} {}s", l.text("再次检查需等待", "Check again in"), query.cooldown_remaining_ms.div_ceil(1000));
+        return Some(message.map_or_else(|| (cooldown.clone(), false), |(message, danger)| (format!("{message} · {cooldown}"), danger)));
+    }
+    message
+}
+
 impl SettingsWindow {
     pub(super) fn components_unread(&self) -> bool {
         self.projection.extension.unread || [Downloader::YtDlp, Downloader::GalleryDl].into_iter().any(|downloader|
@@ -194,7 +210,7 @@ impl SettingsWindow {
     }
 
     pub(super) fn mark_components_seen(&mut self, cx: &mut Context<Self>) {
-        if self.projection.preview || !self.components_visible || self.page != Page::Components { return; }
+        if self.projection.preview || !self.components_visible || self.page != Page::Components || self.browser_ui.guide > 0 { return; }
         for downloader in [Downloader::YtDlp, Downloader::GalleryDl] {
             let snapshot = self.projection.upstream.snapshot_for(downloader);
             if let Some(version) = upgrade_for(downloader, &snapshot, verified_version(self.projection.queue.as_deref(), downloader.label())) {
@@ -233,16 +249,8 @@ impl SettingsWindow {
                     .when(extension.pending, |s| s.child(component_dot(p, l.text("需要重载扩展", "Extension reload required"), "extension-update-dot"))))
                 .child(div().flex().items_center().gap(px(8.))
                     .child(div().text_size(px(12.)).text_color(p.neutral).child(version.to_owned()))
-                    .when(extension.pending, |s| s.child(self.button("component-extension-path",
-                        if self.copy_feedback.contains_key("component-extension-path") { l.text("已复制", "Copied") } else { l.text("复制路径", "Copy path") },
-                        self.projection.extension_location.is_some(), ButtonStyle::Standard, cx, |this, window, cx| {
-                            if this.projection.preview { this.reset_copy_feedback_later("component-extension-path", cx); return; }
-                            if let Some((_, directory)) = &this.projection.extension_location {
-                                if crate::tray::copy_text(hwnd(window), &directory.to_string_lossy()).is_ok() {
-                                    this.reset_copy_feedback_later("component-extension-path", cx);
-                                } else { this.notice = Some((this.projection.language.text("无法复制路径，请重试", "Cannot copy the path. Try again.").into(), true)); }
-                            }
-                        })))));
+                    .child(self.button("component-extension-setup", l.text("配置扩展", "Set up extension"), true,
+                        ButtonStyle::Standard, cx, |this, _, cx| this.open_browser_guide(cx)))));
         if extension.needs_reload {
             row = row.child(div().pb(px(8.)).child(inline_notice(p,
                 l.text("请在浏览器扩展管理页重新加载 Ameow，再刷新正在使用的网页。", "Reload Ameow in your browser’s extension manager, then refresh the pages you are using."), false)));
@@ -250,12 +258,23 @@ impl SettingsWindow {
         row.into_any_element()
     }
 
-    fn component_upstream(&self) -> ameow_next::download::upstream::UpstreamSnapshot {
-        if self.component_downloader == Downloader::YtDlp { self.projection.upstream_snapshot() }
-        else { self.projection.preview_gallery_upstream.clone().unwrap_or_else(|| self.projection.upstream.snapshot_for(self.component_downloader)) }
+    fn component_upstream_for(&self, downloader: Downloader) -> ameow_next::download::upstream::UpstreamSnapshot {
+        if downloader == Downloader::YtDlp { self.projection.upstream_snapshot() }
+        else { self.projection.preview_gallery_upstream.clone().unwrap_or_else(|| self.projection.upstream.snapshot_for(downloader)) }
     }
-
-    fn select_engine_version(&mut self, selection: Option<String>, cx: &mut Context<Self>) {
+    fn component_upstream(&self) -> ameow_next::download::upstream::UpstreamSnapshot {
+        self.component_upstream_for(self.component_downloader)
+    }
+    pub(super) fn component_trigger_id(&self) -> &'static str {
+        if self.component_downloader == Downloader::YtDlp { "component-details" } else { "gallery-component-details" }
+    }
+    fn component_has_restore(&self, downloader: Downloader) -> bool {
+        self.projection.queue.as_deref().is_some_and(|snapshot| {
+            let update = snapshot.component_update(downloader);
+            update.policy == RuntimeSelectionPolicy::UserSelected || update.phase == RuntimeUpdatePhase::RecoveryRequired
+        })
+    }
+    pub(super) fn select_engine_version(&mut self, selection: Option<String>, cx: &mut Context<Self>) {
         if self.projection.preview { cx.notify(); return; }
         // The version named on the clicked button must still be current and verified.
         if let Some(version) = &selection {
@@ -275,316 +294,139 @@ impl SettingsWindow {
         cx.notify();
     }
 
-    fn engine_update_available(&self) -> bool {
+    pub(super) fn engine_update_available(&self) -> bool {
         self.projection.upstream_available && !self.projection.engine_command_pending
             && self.projection.queue.as_deref().is_some_and(|s| !s.stopping && !s.stopped && !update_busy(s.runtime_update.phase))
     }
 
     pub(super) fn component_menu_action_ids(&self) -> Vec<&'static str> {
-        let mut actions = Vec::new();
-        if self.can_check_upstream() { actions.push("check-yt-dlp-release"); }
-        if self.engine_update_available() && let Some(snapshot) = self.projection.queue.as_deref() {
-            if upgrade_for(self.component_downloader, &self.component_upstream(), verified_version(Some(snapshot), self.component_downloader.label())).is_some() {
-                actions.push("upgrade-yt-dlp");
-            }
-            if snapshot.component_update(self.component_downloader).policy == RuntimeSelectionPolicy::UserSelected || snapshot.runtime_update.phase == RuntimeUpdatePhase::RecoveryRequired {
-                actions.push("restore-recommended");
-            }
-        }
-        actions
+        if self.engine_update_available() && self.component_has_restore(self.component_downloader) { vec!["restore-recommended"] }
+        else { Vec::new() }
     }
-
-    fn engine_update_actions(&self, cx: &mut Context<Self>) -> AnyElement {
-        let l = self.projection.language;
-        let p = Palette::new(self.projection.night);
-        let Some(snapshot) = self.projection.queue.as_deref() else { return div().into_any_element(); };
-        let update = snapshot.component_update(self.component_downloader);
-        let query = self.component_upstream();
-        let available = !self.passive.get() && self.engine_update_available() && !query.pending && !query.worker_running;
-        let candidate = upgrade_for(self.component_downloader, &self.component_upstream(), verified_version(Some(snapshot), self.component_downloader.label()));
-        let restore = update.policy == RuntimeSelectionPolicy::UserSelected || update.phase == RuntimeUpdatePhase::RecoveryRequired;
-        if candidate.is_none() && !restore {
-            return div().into_any_element();
-        }
-        let mut actions = div().border_t_1().border_color(p.border).p(px(4.)).flex().flex_col().gap(px(2.));
-        if let Some(version) = candidate {
-            let (container, focus) = self.control_container("upgrade-yt-dlp", available, cx);
-            let label = format!("{} {version}", l.text("升级至", "Upgrade to"));
-            let color = if available { p.neutral } else { p.disabled_text() };
-            actions = actions.child(container.flex_none().child(
-                gpui_base::Button::new("upgrade-yt-dlp").track_focus(&focus).disabled(!available)
-                    .accessibility_label(label.clone())
-                    .w_full().min_h(px(36.)).h_auto().px(px(8.)).py(px(6.))
-                    .flex().items_center().gap(px(8.)).rounded(px(5.))
-                    .border_1().border_color(transparent_black())
-                    .text_size(px(12.)).line_height(px(18.)).text_color(color)
-                    .child(svg().path("icons/circle-arrow-up.svg").size(px(14.)).flex_none().text_color(color))
-                    .child(div().flex_1().min_w(px(0.)).truncate().font(tokens::ui_font()).child(version.clone()))
-                    .child(div().flex_none().text_color(if available { p.primary_text() } else { p.disabled_text() })
-                        .child(l.text("升级", "Upgrade")))
-                    .when(available, |s| s.cursor_pointer().hover(move |s| s.bg(p.badge))
-                        .active(move |s| s.bg(p.border))
-                        .when(self.keyboard_focus, |s| s.focus(move |s| s.border_color(p.blue)))
-                        .on_click(cx.listener(move |this, _, _, cx| this.select_engine_version(Some(version.clone()), cx)))),
-            ));
-        }
-        if restore {
-            actions = actions.child(self.button("restore-recommended", l.text("恢复推荐版本", "Restore recommended"), available, ButtonStyle::Menu, cx, |this, _, cx| this.select_engine_version(None, cx)));
-        }
-        actions.into_any_element()
-    }
-
-    fn component_version_menu(&self, trigger_bounds: Rc<Cell<Option<Bounds<Pixels>>>>, cx: &mut Context<Self>) -> AnyElement {
-        let l = self.projection.language;
-        let p = Palette::new(self.projection.night);
-        let snapshot = self.projection.queue.as_deref();
-        let upstream = self.component_upstream();
-        let checking = check_is_visible(upstream.pending, self.upstream_feedback);
-        let owner_available = self.projection.upstream_available
-            && snapshot.is_some_and(|s| !s.stopping && !s.stopped);
-        let fields = if let Some(snapshot) = snapshot {
-            let update = snapshot.component_update(self.component_downloader);
-            let version_value = |id: &'static str, version: &str| div().id(id)
-                .font(tokens::ui_font()).text_color(p.primary_text())
-                .when(version_preview(version) != version, |value| value.tooltip_above(&self.tooltips, {
-                    let full_version = version.to_owned();
-                    move |_, cx| cx.new(|_| ValueTooltip {
-                        path: full_version.clone(), night: p.night,
-                    }).into()
-                }))
-                .child(version_preview(version));
-            let current_version = verified_version(Some(snapshot), self.component_downloader.label());
-            let mut fields = div().flex_1().min_w(px(0.))
-                .text_size(px(12.)).line_height(px(18.)).flex().flex_col().gap(px(4.))
-                .child(div().text_color(p.neutral).child(match update.policy {
-                    RuntimeSelectionPolicy::FollowAmeow => l.text("推荐版本", "Recommended"),
-                    RuntimeSelectionPolicy::UserSelected => l.text("自选版本", "User selected"),
-                }));
-            if let Some(version) = &update.active_version && current_version != Some(version.as_str()) {
-                fields = fields.child(div().flex().flex_wrap().gap(px(6.))
-                    .child(div().text_color(p.neutral).child(l.text("保留版本：", "Retained version:")))
-                    .child(version_value("component-detail-retained-version", version)));
-            }
-            if let Some(version) = &update.requested_version {
-                fields = fields.child(div().flex().flex_wrap().gap(px(6.))
-                    .child(div().text_color(p.neutral).child(l.text("目标版本：", "Target version:")))
-                    .child(version_value("component-detail-target-version", version)));
-            }
-            fields
-        } else {
-            div().flex_1().min_w(px(0.)).text_size(px(12.)).text_color(p.neutral)
-                .child(l.text("正在读取组件状态…", "Reading component status…"))
-        };
-        let mut menu = div().id("component-version-menu").w(px(248.)).max_h(px(320.))
-            .overflow_y_scroll().rounded(px(6.)).bg(p.surface)
-            .border_1().border_color(p.control_border())
-            .occlude().flex().flex_col()
+    fn component_restore_menu(&self, bounds: Rc<Cell<Option<Bounds<Pixels>>>>, cx: &mut Context<Self>) -> AnyElement {
+        let l = self.projection.language; let p = Palette::new(self.projection.night);
+        div().id("component-restore-menu").w(px(208.)).p(px(4.)).rounded(px(6.)).bg(p.surface)
+            .border_1().border_color(p.control_border()).occlude()
             .on_click(|_, _, cx| cx.stop_propagation())
             .on_mouse_down_out(cx.listener(move |this, event: &MouseDownEvent, _, cx| {
-                if trigger_bounds.get().is_some_and(|bounds| bounds.contains(&event.position)) { return; }
-                this.component_menu_open = false;
-                cx.notify();
+                if bounds.get().is_some_and(|bounds| bounds.contains(&event.position)) { return; }
+                this.component_menu_open = false; cx.notify();
             }))
-            .on_scroll(|_, _, cx| cx.stop_propagation())
-            .child(div().px(px(10.)).py(px(6.)).flex().items_center().gap(px(8.))
-                .child(fields)
-                .child(self.icon_button("check-yt-dlp-release",
-                    if checking { "icons/loader-circle.svg" } else { "icons/refresh-cw.svg" },
-                    if checking { l.text("检查中…", "Checking…").to_owned() }
-                    else if upstream.cooldown_remaining_ms > 0 { format!("{} ({}s)", l.text("检查更新", "Check updates"), upstream.cooldown_remaining_ms.div_ceil(1000)) }
-                    else { l.text("检查更新", "Check updates").to_owned() },
-                    self.can_check_upstream(), cx,
-                    |this, window, cx| this.check_upstream(window, cx))));
-        let feedback = if checking {
-            None
-        } else if !self.projection.upstream_available && snapshot.is_some() {
-            Some((
-                l.text(
-                    "此模式下无法检查更新。",
-                    "Update checks unavailable in this mode.",
-                )
-                .to_owned(),
-                false,
-            ))
-        } else if !owner_available {
-            Some((
-                l.text("组件服务不可用。", "Component service unavailable.")
-                    .to_owned(),
-                true,
-            ))
-        } else if upstream.cache_error {
-            Some((l.text("更新记录不可用，请重新检查。", "Update history is unavailable. Check again.").to_owned(), true))
-        } else if upstream.worker_running {
-            Some((
-                l.text(
-                    "检查已超时，仍在结束，请稍候。",
-                    "Check timed out; still finishing. Please wait.",
-                )
-                .to_owned(),
-                true,
-            ))
-        } else if upstream.cooldown_remaining_ms > 0 {
-            None
-        } else if self
-            .upstream_feedback
-            .is_some_and(|(_, accepted)| !accepted)
-        {
-            Some((
-                l.text(
-                    "检查未受理，请稍后重试。",
-                    "Check not accepted. Try again shortly.",
-                )
-                .to_owned(),
-                true,
-            ))
-        } else {
-            None
-        };
-        let show_result = upstream.result.as_ref().is_some_and(|result| result.is_err()
-            || upgrade_for(self.component_downloader, &upstream, verified_version(snapshot, self.component_downloader.label())).is_none());
-        if feedback.is_some() || (!checking && show_result) {
-            let mut result_panel = div()
-                .px(px(12.))
-                .pt(px(4.))
-                .pb(px(12.))
-                .text_size(px(12.))
-                .line_height(px(20.))
-                .flex()
-                .flex_col()
-                .gap(px(4.));
-            if let Some((message, danger)) = feedback {
-                result_panel = result_panel.child(
-                    inline_notice(p, message, danger),
-                );
-            }
-            if !checking && show_result {
-                if let Some(result) = &upstream.result {
-                    let message = match result {
-                        Ok(version) => format!(
-                            "{} {version}",
-                            l.text("最新稳定版本：", "Latest stable release:")
-                        ),
-                        Err(error) => upstream_error(error, l),
-                    };
-                    let mut message_row = div().id("upstream-result")
-                        .when(result.is_ok(), |s| s.text_color(p.primary_text()).child(message.clone()))
-                        .when(result.is_err(), |s| s.child(inline_notice(p, message, true)));
-                    if let Err(error) = result {
-                        let detail = format!("{} {error:?}", l.text("检查详情：", "Check details:"));
-                        message_row = message_row.tooltip_above(&self.tooltips, move |_, cx| cx.new(|_| HelpTooltip { text: detail.clone(), night: p.night }).into());
-                    }
-                    result_panel = result_panel.child(message_row);
-                }
-            }
-            menu = menu.child(result_panel);
-        }
-        menu.child(self.engine_update_actions(cx)).into_any_element()
+            .child(self.button("restore-recommended", l.text("恢复推荐版本", "Restore recommended"),
+                !self.passive.get() && self.engine_update_available() && self.component_has_restore(self.component_downloader),
+                ButtonStyle::Menu, cx, |this, window, cx| {
+                    this.component_menu_open = false;
+                    this.select_engine_version(None, cx);
+                    if let Some(focus) = this.control_focus.borrow().get(this.component_trigger_id()) { window.focus(focus, cx); }
+                })).into_any_element()
     }
-
+    fn can_check_downloader(&self, downloader: Downloader) -> bool {
+        let upstream = self.component_upstream_for(downloader);
+        check_enabled(self.projection.upstream_available
+            && self.projection.queue.as_deref().is_some_and(|s| !s.stopping && !s.stopped),
+            check_is_visible(upstream.pending, self.upstream_feedback[downloader_index(downloader)]),
+            upstream.worker_running, upstream.cooldown_remaining_ms)
+    }
     pub(super) fn can_check_upstream(&self) -> bool {
-        let upstream = self.component_upstream();
-        check_enabled(
-            self.projection.upstream_available
-                && self.projection.queue.as_deref().is_some_and(|s| !s.stopping && !s.stopped),
-            check_is_visible(upstream.pending, self.upstream_feedback),
-            upstream.worker_running,
-            upstream.cooldown_remaining_ms,
-        )
+        [Downloader::YtDlp, Downloader::GalleryDl].into_iter().any(|downloader| self.can_check_downloader(downloader))
     }
-
     pub(super) fn check_upstream(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.projection.preview || !self.can_check_upstream() { return; }
-        let downloader = self.component_downloader;
-        let accepted = self
-            .main
-            .update(cx, |main, _| {
-                main.downloads
-                    .as_ref()
-                    .is_some_and(|ui| ui.request_downloader_check(downloader, true))
-            })
-            .unwrap_or(false);
-        self.upstream_feedback = Some((std::time::Instant::now(), accepted));
-        window.focus(if self.component_menu_open { &self.component_menu_focus } else { &self.focus }, cx);
+        if self.projection.preview { return; }
+        for downloader in [Downloader::YtDlp, Downloader::GalleryDl] {
+            if !self.can_check_downloader(downloader) { continue; }
+            let accepted = self.main.update(cx, |main, _| main.downloads.as_ref()
+                .is_some_and(|ui| ui.request_downloader_check(downloader, true))).unwrap_or(false);
+            self.upstream_feedback[downloader_index(downloader)] = Some((std::time::Instant::now(), accepted));
+        }
+        if let Some(focus) = self.control_focus.borrow().get("check-component-updates") { window.focus(focus, cx); }
+        cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(std::time::Duration::from_millis(710)).await;
+            let _ = this.update(cx, |_, cx| cx.notify());
+        }).detach();
         cx.notify();
     }
     pub(super) fn components_page(&self, cx: &mut Context<Self>) -> AnyElement {
-        let l = self.projection.language;
-        let p = Palette::new(self.projection.night);
+        let l = self.projection.language; let p = Palette::new(self.projection.night);
         let snapshot = self.projection.queue.as_deref();
-        let mut content = div().flex().flex_col().child(self.extension_component(cx));
-        for (index, (name, label)) in [
-            ("yt-dlp", "yt-dlp"), ("gallery-dl", "gallery-dl"), ("deno", "Deno"), ("ffmpeg", "FFmpeg / ffprobe"),
-        ].into_iter().enumerate() {
+        let mut content = div().flex().flex_col()
+            .child(div().flex().justify_end().pb(px(8.)).child(self.button("check-component-updates",
+                l.text("检查更新", "Check updates"), self.can_check_upstream(), ButtonStyle::Standard, cx,
+                |this, window, cx| this.check_upstream(window, cx))))
+            .child(self.extension_component(cx));
+        let components = [("yt-dlp", "yt-dlp"), ("gallery-dl", "gallery-dl"), ("deno", "Deno"), ("ffmpeg", "FFmpeg / ffprobe")];
+        for (index, (name, label)) in components.into_iter().enumerate() {
             let version = verified_version(snapshot, name).unwrap_or(l.text("不可用", "Unavailable"));
-            let version_value = div().text_size(px(12.)).text_color(p.neutral)
-                .font(tokens::ui_font()).child(version_preview(version));
+            let version_value = div().id(("component-version", index)).text_size(px(12.)).text_color(p.neutral)
+                .when(version_preview(version) != version, |s| s.tooltip_above(&self.tooltips, {
+                    let full = version.to_owned(); move |_, cx| cx.new(|_| ValueTooltip { path: full.clone(), night: p.night }).into()
+                })).child(version_preview(version));
             let downloader = if name == "gallery-dl" { Downloader::GalleryDl } else { Downloader::YtDlp };
-            let control = if matches!(name, "yt-dlp" | "gallery-dl") {
-                let was_open = self.component_menu_open && self.component_downloader == downloader;
-                let trigger_bounds = Rc::new(Cell::new(None::<Bounds<Pixels>>));
-                let measured_trigger = trigger_bounds.clone();
-                let trigger = self.button(if downloader == Downloader::YtDlp { "component-details" } else { "gallery-component-details" },
-                    div().px(px(6.)).flex().items_center().gap(px(6.))
-                        .child(version_value)
-                        .child(svg().path("icons/chevron-down.svg").size(px(12.)).text_color(p.neutral)),
-                    true, ButtonStyle::Quiet, cx, move |this, window, cx| {
-                        if this.component_downloader != downloader { this.upstream_feedback = None; }
-                        this.component_downloader = downloader;
-                        this.component_menu_open = !was_open;
-                        if let Some(focus) = this.control_focus.borrow().get(if downloader == Downloader::YtDlp { "component-details" } else { "gallery-component-details" }) {
-                            window.focus(focus, cx);
-                        }
-                        cx.notify();
-                    });
-                let mut anchor = div().relative().flex_none()
-                    .on_children_prepainted(move |children, _, _| measured_trigger.set(children.first().copied()))
-                    .when(!self.passive.get() && self.component_downloader == downloader, |s| s.track_focus(&self.component_menu_focus))
-                    .child(trigger);
-                let presence = self.motion.presence(if downloader == Downloader::YtDlp { "video-component-menu" } else { "gallery-component-menu" }, self.component_menu_open && self.component_downloader == downloader && !self.passive.get());
-                if presence.visible() && self.component_downloader == downloader {
-                    let passive = self.passive.replace(!self.component_menu_open || self.passive.get());
-                    let menu = self.component_version_menu(trigger_bounds, cx);
-                    self.passive.set(passive);
-                    anchor = anchor.child(div().absolute().right_0().top(px(36.))
-                        .child(deferred(anchored().anchor(gpui::Anchor::TopRight)
-                            .snap_to_window_with_margin(Edges::all(px(12.))).child(div().relative().top(px(presence.travel(-4.))).opacity(presence.alpha)
-                                .when(!self.component_menu_open, |s| s.capture_any_mouse_down(|_, _, cx| cx.stop_propagation()))
-                                .child(menu)))));
-                }
-                anchor.into_any_element()
-            } else {
-                div().id(("component-version", index)).flex_none()
-                    .when(version_preview(version) != version, |s| s.tooltip_above(&self.tooltips, {
-                        let full_version = version.to_owned();
-                        move |_, cx| cx.new(|_| ValueTooltip {
-                            path: full_version.clone(), night: p.night,
-                        }).into()
-                    })).child(version_value).into_any_element()
-            };
-            let upstream = if downloader == Downloader::YtDlp { self.projection.upstream_snapshot() }
-                else { self.projection.preview_gallery_upstream.clone().unwrap_or_else(|| self.projection.upstream.snapshot_for(downloader)) };
-            let candidate = if matches!(name, "yt-dlp" | "gallery-dl") {
-                upgrade_for(downloader, &upstream, verified_version(snapshot, name))
-            } else { None };
-            let mut controls = div().flex_none().flex().items_center().gap(px(8.)).child(control);
+            let updatable = matches!(name, "yt-dlp" | "gallery-dl");
+            let upstream = self.component_upstream_for(downloader);
+            let candidate = updatable.then(|| upgrade_for(downloader, &upstream, verified_version(snapshot, name))).flatten();
+            let mut controls = div().flex_none().flex().items_center().gap(px(8.)).child(version_value);
             if let Some(version) = &candidate {
                 let version = version.clone();
-                let label = format!("{} {version}", l.text("更新至", "Update to"));
                 controls = controls.child(self.button(if downloader == Downloader::YtDlp { "update-video-downloader" } else { "update-gallery-downloader" },
-                    label, self.engine_update_available() && !upstream.pending && !upstream.worker_running, ButtonStyle::Standard, cx, move |this, _, cx| {
-                        this.component_downloader = downloader;
-                        this.select_engine_version(Some(version.clone()), cx);
+                    format!("{} {version}", l.text("更新至", "Update to")),
+                    self.engine_update_available() && !upstream.pending && !upstream.worker_running,
+                    ButtonStyle::Standard, cx, move |this, _, cx| {
+                        this.component_downloader = downloader; this.select_engine_version(Some(version.clone()), cx);
                     }));
             }
-            let section = div().flex().flex_col().border_b_1().border_color(p.border)
+            if updatable && self.component_has_restore(downloader) {
+                let was_open = self.component_menu_open && self.component_downloader == downloader;
+                let bounds = Rc::new(Cell::new(None::<Bounds<Pixels>>)); let measured = bounds.clone();
+                let id = if downloader == Downloader::YtDlp { "component-details" } else { "gallery-component-details" };
+                let trigger = self.icon_button(id, "icons/ellipsis.svg", format!("{} · {}", label, l.text("更多", "More")),
+                    self.engine_update_available(), cx, move |this, window, cx| {
+                        this.component_downloader = downloader; this.component_menu_open = !was_open;
+                        if let Some(focus) = this.control_focus.borrow().get(id) { window.focus(focus, cx); } cx.notify();
+                    });
+                let mut anchor = div().relative()
+                    .on_children_prepainted(move |children, _, _| measured.set(children.first().copied()))
+                    .id(("component-anchor", index))
+                    .when(!self.passive.get() && self.component_downloader == downloader, |s| s.track_focus(&self.component_menu_focus))
+                    .child(trigger);
+                let presence = self.motion.presence(if downloader == Downloader::YtDlp { "component-version-menu" } else { "gallery-component-menu" }, was_open && !self.passive.get());
+                if presence.visible() && self.component_downloader == downloader {
+                    let passive = self.passive.replace(!was_open || self.passive.get());
+                    let menu = self.component_restore_menu(bounds, cx); self.passive.set(passive);
+                    anchor = anchor.child(div().absolute().left(px(0.)).top(px(36.)).w(px(208.))
+                        .child(deferred(anchored().anchor(gpui::Anchor::TopRight).snap_to_window_with_margin(Edges::all(px(12.)))
+                            .child(div().relative().top(px(presence.travel(-4.))).opacity(presence.alpha).child(menu)))));
+                }
+                controls = controls.child(anchor);
+            } else if !updatable { controls = controls.child(div().text_size(px(12.)).text_color(p.neutral).child(l.text("随 Ameow", "With Ameow"))); }
+            let mut section = div().flex().flex_col().border_b_1().border_color(p.border)
                 .child(div().min_h(px(tokens::SETTINGS_ROW_HEIGHT)).flex().items_center().justify_between().gap(px(12.))
                     .child(div().flex().items_center().gap(px(6.)).text_size(px(13.)).child(label)
-                        .when(candidate.is_some(), |s| s.child(component_dot(p, l.text("有可用更新", "Update available"), if downloader == Downloader::YtDlp { "video-update-dot" } else { "gallery-update-dot" }))))
-                    .child(controls))
-                .when(matches!(name, "yt-dlp" | "gallery-dl") && upstream.installability == ameow_next::download::upstream::Installability::RequiresAmeow, |s|
-                    s.child(div().pb(px(8.)).text_size(px(12.)).text_color(p.neutral)
-                        .child(l.text("此新版需要更新 Ameow。", "Update Ameow to use this version."))));
+                        .when(candidate.is_some(), |s| s.child(component_dot(p, l.text("有可用更新", "Update available"),
+                            if downloader == Downloader::YtDlp { "video-update-dot" } else { "gallery-update-dot" }))))
+                    .child(controls));
+            if updatable {
+                let feedback = self.upstream_feedback[downloader_index(downloader)];
+                let message = component_check_status(&upstream, feedback, l);
+                if let Some((message, danger)) = message {
+                    section = section.child(div().pb(px(8.)).text_size(px(12.)).text_color(p.neutral)
+                        .when(!danger, |s| s.child(message.clone()))
+                        .when(danger, |s| s.child(inline_notice(p, message, true))));
+                }
+                if let Some(snapshot) = snapshot {
+                    let update = snapshot.component_update(downloader);
+                    let message = update_status(update.phase, l);
+                    if !message.is_empty() { section = section.child(div().pb(px(8.)).text_size(px(12.)).text_color(p.neutral).child(message)); }
+                }
+            }
             content = content.child(section);
+        }
+        #[cfg(target_os = "macos")]
+        if let Some(snapshot) = snapshot {
+            for (name, version) in snapshot.verified_runtime_versions.iter().filter(|(name, _)| !["yt-dlp", "gallery-dl", "deno", "ffmpeg"].contains(&name.as_str())) {
+                content = content.child(div().min_h(px(tokens::SETTINGS_ROW_HEIGHT)).flex().items_center().justify_between()
+                    .border_b_1().border_color(p.border).text_size(px(13.)).child(name.clone())
+                    .child(div().text_size(px(12.)).text_color(p.neutral).child(format!("{version} · {}", l.text("随 Ameow", "With Ameow")))));
+            }
         }
         content.child(self.component_diagnostics(cx)).into_any_element()
     }
@@ -812,5 +654,24 @@ mod tests {
         assert!(
             upstream_error(&UpstreamError::Http(429), Language::English).contains("rate-limited")
         );
+    }
+}
+
+#[cfg(test)]
+mod independent_check_feedback_tests {
+    use super::*;
+    #[::core::prelude::v1::test]
+    fn each_downloader_keeps_its_own_busy_failure_and_cooldown_feedback() {
+        let video=ameow_next::download::upstream::UpstreamSnapshot { pending:true, ..Default::default() };
+        let gallery=ameow_next::download::upstream::UpstreamSnapshot { result:Some(Err(UpstreamError::Network)),cooldown_remaining_ms:5000,..Default::default() };
+        for language in [Language::Chinese,Language::English] {
+            let feedback=[Some((std::time::Instant::now(),true)),None];
+            assert_eq!(component_check_status(&video,feedback[downloader_index(Downloader::YtDlp)],language).unwrap().0,language.text("正在检查…","Checking…"));
+            let(message,danger)=component_check_status(&gallery,feedback[downloader_index(Downloader::GalleryDl)],language).unwrap();
+            assert!(danger && message.contains("5s"));assert!(message.contains(language.text("网络","network")));
+            assert!(!check_enabled(true,video.pending,video.worker_running,0));
+            assert!(check_enabled(true,false,false,0));
+            assert!(!check_enabled(true,false,false,gallery.cooldown_remaining_ms));
+        }
     }
 }

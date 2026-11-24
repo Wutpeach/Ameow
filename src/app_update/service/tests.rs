@@ -485,3 +485,54 @@ fn queued_ready_check_blocks_duplicate_checks_and_restart_until_the_owner_handle
     assert!(matches!(receiver.try_recv(),Ok(Action::Check)));
     assert!(receiver.try_recv().is_err());
 }
+
+#[test]
+fn authenticated_current_or_older_legacy_feed_is_quiet_without_acquiring_a_package() {
+    for version in [BUILD_VERSION, "0.5.0"] {
+        let root=tempfile::tempdir().unwrap();let source=root.path().join("source");fs::create_dir(&source).unwrap();
+        let(mut m,_,_)=super::super::tests::fixture(version,1,&[("Ameow.exe",b"legacy")]);
+        m.schema=1;m.bundle_sha256=None;
+        m.url=format!("https://github.com/Wutpeach/Ameow/releases/download/v{version}/Ameow-{version}-windows-x64.zip");
+        fs::write(source.join("manifest.json"),super::super::fixture_envelope(&m)).unwrap();
+        let install=Install::fixture(root.path().join("install")).unwrap();
+        let before=serde_json::to_value(install.state().unwrap()).unwrap();
+        let h=Handle::start_with(root.path().join("ui-settings.json"),None,Some(source),Some(install.clone()));
+        h.send(Action::Check);wait(||h.snapshot().update.phase==Phase::NoUpdate);
+        let view=h.snapshot();assert!(view.update.error.is_none() && view.check_error.is_none());assert!(!view.full_attention());
+        assert_eq!(serde_json::to_value(install.state().unwrap()).unwrap(),before);
+    }
+}
+#[test]
+fn discovery_authenticates_identity_even_when_a_legacy_release_is_not_newer() {
+    for (mutation,error) in [(0,"SIGNATURE"),(1,"IDENTITY"),(2,"IDENTITY"),(3,"IDENTITY"),(4,"VERSION")] {
+        let root=tempfile::tempdir().unwrap();let source=root.path().join("source");fs::create_dir(&source).unwrap();
+        let(mut m,_,_)=super::super::tests::fixture(BUILD_VERSION,1,&[("Ameow.exe",b"legacy")]);m.schema=1;m.bundle_sha256=None;
+        match mutation {1=>m.product="Other".into(),2=>m.channel="nightly".into(),3=>m.target=super::super::package::MACOS_ARM_TARGET.into(),4=>m.version="0.5.01".into(),_=>{}}
+        let mut envelope=super::super::fixture_envelope(&m);
+        if mutation==0 {let mut signed:super::super::SignedManifest=serde_json::from_slice(&envelope).unwrap();signed.payload.push(' ');envelope=serde_json::to_vec(&signed).unwrap();}
+        fs::write(source.join("manifest.json"),envelope).unwrap();let(h,install)=owner(root.path(),Some(source));
+        h.send(Action::Check);wait(||h.snapshot().update.phase==Phase::Failed);
+        assert!(h.snapshot().update.error.as_ref().unwrap().contains(error));assert!(install.state().unwrap().pending.is_none());
+    }
+}
+#[test]
+fn newer_release_still_requires_the_complete_supported_package_contract() {
+    for (schema,error) in [(1,"E_APP_UPDATE_FORMAT"),(2,"E_APP_UPDATE_BUNDLE_IDENTITY")] {
+        let root=tempfile::tempdir().unwrap();let source=root.path().join("source");fs::create_dir(&source).unwrap();
+        let(mut m,_,_)=super::super::tests::fixture("9.0.1",1,&[("Ameow.exe",b"candidate")]);m.schema=schema;m.bundle_sha256=None;
+        fs::write(source.join("manifest.json"),super::super::fixture_envelope(&m)).unwrap();let(h,install)=owner(root.path(),Some(source));
+        h.send(Action::Check);wait(||h.snapshot().update.phase==Phase::Failed);
+        assert_eq!(h.snapshot().update.error.as_deref(),Some(error));assert!(install.state().unwrap().pending.is_none());
+    }
+}
+#[test]
+fn old_legacy_recheck_preserves_verified_ready_and_its_install_barrier() {
+    let root=tempfile::tempdir().unwrap();let(h,install,source)=ready_owner(root.path());
+    h.shared.coordinator.lock().unwrap().as_ref().unwrap().set_state(Phase::Ready,Some("9.0.1".into()),Some("E_APP_UPDATE_AUTHORIZATION_CANCELLED".into()));
+    let(mut m,_,_)=super::super::tests::fixture(BUILD_VERSION,1,&[("Ameow.exe",b"legacy")]);m.schema=1;m.bundle_sha256=None;
+    fs::write(source.join("manifest.json"),super::super::fixture_envelope(&m)).unwrap();fs::remove_file(source.join("package.zip")).unwrap();
+    let before=serde_json::to_value(install.state().unwrap()).unwrap();h.send(Action::Check);
+    wait(||h.snapshot().check_retry_secs>0 && h.snapshot().update.phase==Phase::Ready);
+    assert_eq!(h.snapshot().update.error.as_deref(),Some("E_APP_UPDATE_AUTHORIZATION_CANCELLED"));assert!(h.snapshot().check_error.is_none());
+    assert_eq!(serde_json::to_value(install.state().unwrap()).unwrap(),before);install.verify_release(&install.state().unwrap().pending.unwrap()).unwrap();
+}

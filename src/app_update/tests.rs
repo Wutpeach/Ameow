@@ -430,3 +430,13 @@ fn native_state_lock_excludes_writers() {
     drop(lock);
     assert!(install.state().is_ok());
 }
+
+#[cfg(windows)]
+#[test]
+fn published_051_identity_is_authentic_even_though_its_windows_package_format_is_older() {
+    // Frozen public v0.5.1 release asset: ameow-update-windows-x64.json.
+    let bytes=include_bytes!("../../assets/test/app-update-v0.5.1-windows.json");
+    let trust=Trust::production().unwrap();let(_,manifest)=trust.verify_identity(bytes,None).unwrap();
+    assert_eq!(manifest.version,"0.5.1");assert_eq!(manifest.schema,1);
+    assert_eq!(trust.verify(bytes,None).unwrap_err(),"E_APP_UPDATE_FORMAT");
+}

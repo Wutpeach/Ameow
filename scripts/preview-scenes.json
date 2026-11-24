@@ -59,9 +59,9 @@
   {"name": "settings.third-party-licenses-copy-failed", "surface": "settings", "state": "third-party-licenses-copy-failed", "description": "许可全文复制失败与重试入口"},
   {"name": "settings.download", "surface": "settings", "state": "download", "description": "下载页面：路径框内统一圆形复制按钮与原位勾选反馈"},
   {"name": "settings.browser-sessions", "surface": "settings", "state": "browser-sessions", "description": "合成多站徽章与站名，状态提示及按需管理/诊断"},
-  {"name": "settings.browser-connect", "surface": "settings", "state": "browser-connect", "description": "配置扩展：单页路径与快速通用演示，可见失焦继续播放"},
+  {"name": "settings.browser-connect", "surface": "settings", "state": "browser-connect", "description": "组件首行配置扩展：复用路径与快速通用演示，返回组件页"},
   {"name": "settings.browser-session-error", "surface": "settings", "state": "browser-session-error", "description": "浏览器会话存储读取失败；不显示凭据原文"},
-  {"name": "settings.browser-session-empty", "surface": "settings", "state": "browser-session-empty", "description": "空授权列表，保留配置扩展入口"},
+  {"name": "settings.browser-session-empty", "surface": "settings", "state": "browser-session-empty", "description": "下载页空授权列表，不重复扩展配置入口"},
   {"name": "settings.browser-session-failed", "surface": "settings", "state": "browser-session-failed", "description": "最近同步失败与旧快照并存，合成状态"},
   {"name": "settings.browser-session-partitioned", "surface": "settings", "state": "browser-session-partitioned", "description": "无可用会话角标，按需诊断核对零条与分区排除"},
   {"name": "settings.browser-session-long", "surface": "settings", "state": "browser-session-long", "description": "未知站点短标签，完整域提示与长 ID 按需诊断"},
@@ -82,7 +82,7 @@
   {"name": "settings.startup-unavailable", "surface": "settings", "state": "startup-unavailable", "description": "开机启动状态不可用"},
   {"name": "settings.startup-pending", "surface": "settings", "state": "startup-pending", "description": "开机启动读取中"},
   {"name": "components.ready", "surface": "components", "state": "ready", "description": "组件版本与固定诊断信息区"},
-  {"name": "components.version-menu", "surface": "components", "state": "version-menu", "description": "组件版本弹窗：重复点击版本收起/展开，推荐来源与检查图标"},
+  {"name": "components.version-menu", "surface": "components", "state": "version-menu", "description": "原版本菜单场景兼容为更多恢复；当前版本为文本"},
   {"name": "components.missing", "surface": "components", "state": "missing", "description": "组件尚未准备"},
   {"name": "components.preparing", "surface": "components", "state": "preparing", "description": "组件准备中"},
   {"name": "components.checking", "surface": "components", "state": "checking", "description": "检查更新中"},
@@ -165,5 +165,8 @@
   {"name": "components.extension-reload", "surface": "components", "state": "extension-reload", "description": "扩展首行待重载，查看只清导航未读"},
   {"name": "components.gallery-update", "surface": "components", "state": "gallery-update", "description": "图库下载器可更新与独立恢复入口"},
   {"name": "components.requires-ameow", "surface": "components", "state": "requires-ameow", "description": "上游新版不适配，无可更新橙点"},
-  {"name": "full.extension-update-popover", "surface": "full", "state": "extension-update", "description": "应用提醒关闭时扩展待重载入口仍可见"}
+  {"name": "full.extension-update-popover", "surface": "full", "state": "extension-update", "description": "应用提醒关闭时扩展待重载入口仍可见"},
+  {"name": "components.mixed-checks", "surface": "components", "state": "mixed-checks", "description": "视频下载器检查中，图库检查失败并冷却；两个结果独立"},
+  {"name": "components.restore-menu", "surface": "components", "state": "restore-menu", "description": "行内更多只恢复推荐，不重复升级"},
+  {"name": "settings.app-format-unsupported", "surface": "settings", "state": "app-format-unsupported", "description": "真实新版格式不支持：与签名安全失败区别，不下载旧载荷"}
 ]

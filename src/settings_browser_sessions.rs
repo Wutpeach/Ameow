@@ -99,6 +99,13 @@ fn setup_error(code: &str, l: Language) -> &'static str {
 }
 
 impl SettingsWindow {
+    pub(super) fn open_browser_guide(&mut self, cx: &mut Context<Self>) {
+        self.page = Page::Components;
+        self.browser_ui.guide = 1; self.browser_ui.guide_focus_pending = true;
+        self.browser_ui.selected = None; self.browser_ui.details = false;
+        self.browser_ui.elapsed = Duration::ZERO; self.browser_ui.tick = None; self.browser_ui.copy_error = false;
+        self.scroll.set_offset(point(px(0.), px(0.))); self.start_browser_setup(cx);
+    }
     pub(super) fn close_browser_site_menu(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
         let Some(id) = self.browser_ui.selected.take() else { return false; };
         self.browser_ui.clear_menu();
@@ -124,12 +131,13 @@ impl SettingsWindow {
         self.browser_ui.guide_focus_pending = false;
         self.browser_ui.setup_requested = false;
         self.browser_ui.tick = None;
-        if let Some(focus) = self.control_focus.borrow().get("browser-connect").cloned() {
+        if let Some(focus) = self.control_focus.borrow().get("component-extension-setup").cloned() {
             let reveal = self.reveal_focus.clone();
             let owner = cx.entity().downgrade();
             window.on_next_frame(move |window, cx| {
                 let _ = owner.update(cx, |this, cx| {
-                    if this.page == Page::Download && this.browser_ui.guide == 0 {
+                    if this.page == Page::Components && this.browser_ui.guide == 0 {
+                        this.mark_components_seen(cx);
                         reveal.set(true); window.focus(&focus, cx);
                     }
                 });
@@ -141,14 +149,7 @@ impl SettingsWindow {
         let p = Palette::new(self.projection.night); let l = self.projection.language;
         let status = self.projection.queue.as_ref().map(|q| q.browser_sessions.clone()).unwrap_or_default();
         let mut body = div().mt(px(24.)).border_t_1().border_color(p.border).pt(px(20.))
-            .child(div().flex().flex_wrap().items_center().justify_between().gap(px(12.))
-                .child(div().text_size(px(15.)).font_weight(FontWeight::MEDIUM).child(l.text("浏览器会话", "Browser sessions")))
-                .child(self.button("browser-connect", l.text("配置扩展", "Set up extension"), true, ButtonStyle::Standard, cx, |this, _, cx| {
-                    this.browser_ui.guide = 1; this.browser_ui.guide_focus_pending = true;
-                    this.browser_ui.selected = None; this.browser_ui.details = false;
-                    this.browser_ui.elapsed = Duration::ZERO; this.browser_ui.tick = None; this.browser_ui.copy_error = false;
-                    this.scroll.set_offset(point(px(0.), px(0.))); this.start_browser_setup(cx);
-                })));
+            .child(div().text_size(px(15.)).font_weight(FontWeight::MEDIUM).child(l.text("浏览器会话", "Browser sessions")));
         if status.error.is_some() {
             body = body.child(div().mt(px(12.)).child(inline_notice(p, l.text("会话暂不可用，请重试。", "Sessions are unavailable. Try again."), true)));
         } else if status.notice.as_ref().is_some_and(|s| s != "installed") {
@@ -347,7 +348,7 @@ impl SettingsWindow {
     }
 
     pub(super) fn browser_demo_tick(&mut self, window: &mut Window) {
-        let run = demo_should_run(self.page == Page::Download && self.browser_ui.guide > 0, self.projection.reduced, self.browser_ui.visible.get(), window.is_visible());
+        let run = demo_should_run(guide_active(self.page, self.browser_ui.guide), self.projection.reduced, self.browser_ui.visible.get(), window.is_visible());
         self.browser_ui.advance_demo_clock(Instant::now(), run);
         if run { window.request_animation_frame(); }
     }
@@ -355,6 +356,7 @@ impl SettingsWindow {
         if !visible { self.browser_ui.advance_demo_clock(Instant::now(), false); }
     }
 }
+pub(super) fn guide_active(page: Page, step: u8) -> bool { page == Page::Components && step > 0 }
 fn demo_should_run(guide: bool, reduced: bool, on_screen: bool, window_visible: bool) -> bool {
     guide && !reduced && on_screen && window_visible
 }
@@ -508,5 +510,21 @@ mod tests {
         assert!(report.contains(&ameow_next::browser_sessions::utc_timestamp(2)));
         assert!(report.contains(&site.source_id));
         assert!(!report.contains(&site.source_name));
+    }
+}
+
+#[cfg(test)]
+mod component_guide_navigation_tests {
+    use super::*;
+    #[::core::prelude::v1::test]
+    fn only_the_component_configuration_page_owns_the_demo() {
+        for step in [1, 2] {
+            assert!(guide_active(Page::Components, step));
+            for page in [Page::Download, Page::About, Page::General] { assert!(!guide_active(page, step)); }
+        }
+        assert!(!guide_active(Page::Components, 0));
+        assert!(!demo_should_run(guide_active(Page::Download, 2), false, true, true));
+        assert!(demo_should_run(guide_active(Page::Components, 2), false, true, true));
+        assert!(!demo_should_run(guide_active(Page::Components, 2), true, true, true));
     }
 }

@@ -74,6 +74,8 @@ pub fn headline(view: &View, l: Language) -> String {
         Phase::Ready => ready_error_headline(view, l).unwrap_or_else(|| l.text("新版本已就绪", "Update ready")),
         Phase::WaitingForTasks => l.text("新版本已就绪", "Update ready"),
         Phase::Switching => l.text("正在安全重启", "Restarting safely"),
+        Phase::Failed if view.update.error.as_deref() == Some("E_APP_UPDATE_FORMAT") =>
+            l.text("此版本暂不支持自动更新", "Automatic update unavailable"),
         Phase::Failed => l.text("更新未完成，请重试", "Update failed. Try again"),
         Phase::RolledBack => l.text("已恢复到可用版本", "Restored the working version"),
         Phase::Unavailable => {
@@ -103,7 +105,8 @@ pub fn detail(view: &View, l: Language) -> String {
         Phase::RolledBack=>l.text("新版启动失败，数据已保留。", "The new version could not start. Your data was preserved.").into(),
         Phase::Failed=>{
             let e=view.update.error.as_deref().unwrap_or("");
-            if e.contains("MACOS_INSTALL_UNAVAILABLE") {l.text("更新已验证，但暂时无法自动安装。", "The update was verified, but automatic installation is not available yet.").into()}
+            if e == "E_APP_UPDATE_FORMAT" {l.text("更新包格式不受支持，请使用完整安装包更新。", "This update format is unsupported. Update using the complete installer.").into()}
+            else if e.contains("MACOS_INSTALL_UNAVAILABLE") {l.text("更新已验证，但暂时无法自动安装。", "The update was verified, but automatic installation is not available yet.").into()}
             else if e.contains("AUTHORIZATION_REQUIRED") {l.text("安装目录没有足够权限，当前版本未更改。", "The installation folder is not writable. The current version was not changed.").into()}
             else if e.contains("BUNDLE_IMMUTABLE") {l.text("应用或安装目录已锁定，当前版本未更改。", "The app or installation folder is locked. The current version was not changed.").into()}
             else if e.contains("HELPER_MISSING") {l.text("更新包不完整，原版本仍可使用。", "The update package is incomplete. The current version is still available.").into()}
@@ -124,7 +127,7 @@ pub fn preview_view(state: &str) -> View {
         "app-waiting" => Phase::WaitingForTasks,
         "app-update-feedback" => Phase::WaitingForTasks,
         "app-switching" => Phase::Switching,
-        "app-failed" | "app-authorization-required" | "app-immutable" => Phase::Failed,
+        "app-failed" | "app-format-unsupported" | "app-authorization-required" | "app-immutable" => Phase::Failed,
         "app-rollback" => Phase::RolledBack,
         "app-unavailable" => Phase::Unavailable,
         "app-current" => Phase::NoUpdate,
@@ -138,6 +141,7 @@ pub fn preview_view(state: &str) -> View {
             total: Some(40_000_000),
             error: match state {
                 "app-failed" => Some("E_APP_UPDATE_SIGNATURE".into()),
+                "app-format-unsupported" => Some("E_APP_UPDATE_FORMAT".into()),
                 "app-authorization-required" => Some("E_APP_UPDATE_AUTHORIZATION_REQUIRED".into()),
                 "app-immutable" => Some("E_APP_UPDATE_BUNDLE_IMMUTABLE".into()),
                 "app-retry" => Some("E_APP_UPDATE_PATH_OPEN: No such file or directory (os error 2)".into()),
@@ -277,5 +281,20 @@ mod tests {
             assert!(super::check_feedback(&failed,language).is_none());
         }
         assert!(matches!(popup_action(&view),Some(Action::Restart)));
+    }
+}
+
+#[cfg(test)]
+mod unsupported_format_feedback_tests {
+    use super::*;
+    #[::core::prelude::v1::test]
+    fn unsupported_format_does_not_claim_a_security_failure() {
+        let mut view=preview_view("app-failed");view.update.error=Some("E_APP_UPDATE_FORMAT".into());
+        for language in [Language::Chinese,Language::English] {
+            assert!(detail(&view,language).contains(language.text("格式不受支持","format is unsupported")));
+            assert!(!detail(&view,language).contains(language.text("安全验证","security checks")));
+        }
+        view.update.error=Some("E_APP_UPDATE_SIGNATURE".into());
+        assert!(detail(&view,Language::English).contains("security checks"));
     }
 }

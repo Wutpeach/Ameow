@@ -203,6 +203,15 @@ impl Trust {
         bytes: &[u8],
         acquisition_time: Option<u64>,
     ) -> Result<(SignedManifest, Manifest), String> {
+        let (envelope, manifest) = self.verify_identity(bytes, acquisition_time)?;
+        manifest.validate_package(self.target)?;
+        Ok((envelope, manifest))
+    }
+    pub(crate) fn verify_identity(
+        &self,
+        bytes: &[u8],
+        acquisition_time: Option<u64>,
+    ) -> Result<(SignedManifest, Manifest), String> {
         if self.keys.is_empty() {
             return Err("E_APP_UPDATE_TRUST_NOT_CONFIGURED".into());
         }
@@ -222,7 +231,7 @@ impl Trust {
         }
         let manifest: Manifest =
             serde_json::from_str(&envelope.payload).map_err(|_| "E_APP_UPDATE_MANIFEST")?;
-        manifest.validate_for_target(acquisition_time, self.target)?;
+        manifest.validate_identity(acquisition_time, self.target)?;
         Ok((envelope, manifest))
     }
 }
@@ -231,13 +240,27 @@ impl Manifest {
         self.validate_for_target(now, WINDOWS_TARGET)
     }
     pub(crate) fn validate_for_target(&self, now: Option<u64>, target: &str) -> Result<(), String> {
+        self.validate_identity(now, target)?;
+        self.validate_package(target)
+    }
+    fn validate_identity(&self, now: Option<u64>, target: &str) -> Result<(), String> {
         Version::parse(&self.version)?;
-        if self.schema != if target == WINDOWS_TARGET { 2 } else { 1 }
-            || self.product != "Ameow"
+        if self.product != "Ameow"
             || self.channel != "stable"
             || self.target != target
+            || !matches!(target, WINDOWS_TARGET | MACOS_ARM_TARGET)
         {
             return Err("E_APP_UPDATE_IDENTITY".into());
+        }
+        if self.sequence == 0 { return Err("E_APP_UPDATE_SIZE".into()); }
+        if now.is_some_and(|now| self.issued > now.saturating_add(300)) {
+            return Err("E_APP_UPDATE_ISSUED_IN_FUTURE".into());
+        }
+        Ok(())
+    }
+    fn validate_package(&self, target: &str) -> Result<(), String> {
+        if self.schema != if target == WINDOWS_TARGET { 2 } else { 1 } {
+            return Err("E_APP_UPDATE_FORMAT".into());
         }
         let platform = match target {
             WINDOWS_TARGET => "windows-x64-portable",
@@ -264,9 +287,6 @@ impl Manifest {
         if target == WINDOWS_TARGET {
             unhex(self.bundle_sha256.as_deref().ok_or("E_APP_UPDATE_BUNDLE_IDENTITY")?, 32)?;
         } else if self.bundle_sha256.is_some() { return Err("E_APP_UPDATE_IDENTITY".into()); }
-        if now.is_some_and(|now| self.issued > now.saturating_add(300)) {
-            return Err("E_APP_UPDATE_ISSUED_IN_FUTURE".into());
-        }
         Ok(())
     }
     pub(crate) fn newer_than(&self, current: &str) -> Result<(), String> {

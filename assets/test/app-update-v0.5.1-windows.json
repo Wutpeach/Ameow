@@ -1,0 +1,4 @@
+{
+  "payload": "{\"schema\":1,\"product\":\"Ameow\",\"channel\":\"stable\",\"target\":\"x86_64-pc-windows-msvc\",\"version\":\"0.5.1\",\"sequence\":6,\"issued\":1795345190,\"url\":\"https://github.com/Wutpeach/Ameow/releases/download/v0.5.1/Ameow-0.5.1-windows-x64.zip\",\"package_bytes\":10769858,\"package_sha256\":\"166bddda7e35cbb64def4ba02a6525e99ca7d7a359b14d4ba6f35ad8e1d8f4f0\",\"exe_bytes\":31451136,\"exe_sha256\":\"fe4eccb492c7465b8cb5635b3819ad30244a75ae06a7660d0bb4f17f4c3694e2\"}",
+  "signature": "fa68e04baf08a01cf57f0038f0e219ba11b1a8e9546e7876047cd35acc77e7ed569023c68f65ca1c9786835be9b71bad54f86dfe3d99db95457854885c39e004"
+}
