@@ -14,7 +14,7 @@ python .agents/skills/ameow-release-prep/scripts/check_release_readiness.py --ph
 
 开发来源通常从 windows.* / mac.* 记录名确定平台；user-acceptance 可用 source.platform 声明本人实际平台。Mac 固定开发 App 的 package_macos.sh 与 logo 图标仍是其实际输入，不能当普通站点文档忽略；它们不改变 Windows cargo run 的证据身份。未指定平台的共同记录按双平台输入处理。原生 bundle/安装流程仍按实际改动追加验证。
 
-发行阶段 ASSETS.json 复用现有格式：顶层 version/commit/tree、assets 数组，每项 name/relativePath/bytes/sha256/target，以及 ci.rust、ci.docs 的准确 run URL。relativePath 相对 ASSETS.json，忽略历史绝对 path。只有该阶段检查本版 Windows installer/portable/update ZIP/feed 与 Mac App ZIP/feed 六项；源码功能阶段不以它们为前置。
+发行阶段 ASSETS.json 复用现有格式：顶层 version/commit/tree、assets 数组，每项 name/relativePath/bytes/sha256/target，以及 ci.rust、ci.docs 的准确 run URL。relativePath 相对 ASSETS.json，忽略历史绝对 path。0.5.2 起该阶段检查 Windows installer/完整 portable ZIP/feed 与 Mac App ZIP/feed 五项，Windows portable 兼作更新载荷；已发布旧版仍按其历史六项清单核对。源码功能阶段不以它们为前置。
 
 Rust 完整 CI 在用户说准备发 Tag 后、实际打 Tag 前，从最终 main 手动运行一次，不随日常 push/PR 或 Tag 自动触发。`ci.rust` 接受本仓库 `.github/workflows/rust.yml` 的 `workflow_dispatch` 回执，也兼容既有 `push` 回执；两者都必须来自本仓库 main，`head_sha` 精确等于产品 commit，状态 completed 且 conclusion=success。`ci.docs` 仍要求 `.github/workflows/deploy-docs.yml` 的 main push，SHA 对应 docs.commit；站点自动部署不变。URL、返回仓库及 head_repository 身份均须匹配 origin，其他分支/事件、旧 SHA、未完成或失败不能算 PASS。修订期间只按影响补验，最终完整回执仍须绑定最终候选，不把每个修订变成完整验证循环。
 
