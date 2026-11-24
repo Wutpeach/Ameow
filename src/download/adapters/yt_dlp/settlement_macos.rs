@@ -46,6 +46,10 @@ impl ManagedCompletion {
         matches!(self.phase, InvocationPhase::Resolve | InvocationPhase::Transfer)
     }
 
+    pub(crate) fn supports_interrupt(&self) -> bool {
+        self.phase == InvocationPhase::Resolve
+    }
+
     pub(crate) fn complete(&self, workspace: &Path, exit_code: u32) -> bool {
         match self.phase {
             InvocationPhase::Resolve => true,

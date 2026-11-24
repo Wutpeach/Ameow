@@ -196,8 +196,10 @@ unsafe extern "C" {
 
 const NOTE_FORK: u32 = 0x4000_0000;
 const NOTE_EXIT: u32 = 0x8000_0000;
+const SIGINT: c_int = 2;
 const SIGKILL: c_int = 9;
 const SIGCONT: c_int = 19;
+const INTERRUPT_GRACE: Duration = Duration::from_secs(2);
 
 fn lock<T>(value: &Mutex<T>) -> MutexGuard<'_, T> {
     value
@@ -324,6 +326,7 @@ struct Owner {
     trusted_rejected: bool,
     observation_lost: bool,
     terminate_sent: bool,
+    interrupted_at: Option<Instant>,
     termination_retry_required: bool,
     cleanup: bool,
     failure: Option<String>,
@@ -363,6 +366,7 @@ impl Owner {
             trusted_rejected: false,
             observation_lost: false,
             terminate_sent: false,
+            interrupted_at: None,
             termination_retry_required: false,
             cleanup: false,
             failure: None,
@@ -678,6 +682,32 @@ impl Owner {
         Ok(())
     }
 
+    fn request_cancellation(&mut self) -> Result<(), String> {
+        if !self.cleanup
+            && !self.observation_lost
+            && !self.trusted_rejected
+        {
+            if self.trusted_exit_proven {
+                return Ok(());
+            }
+            if self.trusted_contract.as_ref().is_some_and(ManagedCompletion::supports_interrupt)
+                && self.resumed && !self.facts.root_waited
+            {
+                if self.interrupted_at.is_none() {
+                    if unsafe { kill(self.pid.ok_or("missing owned root")?, SIGINT) } != 0 {
+                        return Err(syscall_error("interrupt owned resolve root"));
+                    }
+                    self.interrupted_at = Some(Instant::now());
+                }
+                if self.interrupted_at.is_some_and(|began| began.elapsed() < INTERRUPT_GRACE) {
+                    return Ok(());
+                }
+            }
+        }
+        self.cleanup = true;
+        Ok(())
+    }
+
     fn snapshot_root_exit(&mut self) -> Result<bool, String> {
         let Some(pid) = self.pid else { return Ok(true) };
         if self.facts.root_waited {
@@ -880,6 +910,17 @@ impl Owner {
                 true
             }
         };
+        if control.is_cancelled() && !self.trusted_completion {
+            if let Err(reason) = self.request_cancellation() {
+                self.held(reason);
+            }
+        }
+        if self.cleanup && !self.termination_retry_required {
+            if let Err(reason) = self.terminate() {
+                self.termination_retry_required = true;
+                self.held(reason);
+            }
+        }
         if wait_ready || self.root_exited || self.observation_lost || !self.resumed {
             if let Err(reason) = self.wait_root() {
                 self.held(reason);
@@ -903,9 +944,6 @@ impl Owner {
                     self.report_held(reason);
                 }
             }
-        }
-        if control.is_cancelled() && !self.trusted_completion {
-            self.cleanup = true;
         }
         if self.facts.root_waited
             && self.descendants_unproven
@@ -1299,11 +1337,29 @@ mod macos_tests {
                 );
                 println!("CWD={}", std::env::current_dir().unwrap().display());
             }
-            "fork" => {
+            "fork" | "fork-ignore-interrupt" => {
+                if mode == "fork-ignore-interrupt" {
+                    let action = Sigaction { handler: 1, mask: 0, flags: 0 };
+                    assert_eq!(unsafe { sigaction(SIGINT, &action, ptr::null_mut()) }, 0);
+                }
                 let mut child = Command::new("/bin/sleep").arg("30").spawn().unwrap();
                 println!("AMEOW_FORK_RUNNING");
                 io::stdout().flush().unwrap();
                 child.wait().unwrap();
+            }
+            "fork-interrupt-complete" => {
+                static INTERRUPTED: AtomicBool = AtomicBool::new(false);
+                extern "C" fn interrupted(_: c_int) {
+                    INTERRUPTED.store(true, Ordering::Release);
+                }
+                let action = Sigaction { handler: interrupted as *const () as usize, mask: 0, flags: 0 };
+                assert_eq!(unsafe { sigaction(SIGINT, &action, ptr::null_mut()) }, 0);
+                let mut child = Command::new("/bin/sleep").arg("0.1").spawn().unwrap();
+                child.wait().unwrap();
+                while !INTERRUPTED.load(Ordering::Acquire) {
+                    thread::sleep(Duration::from_millis(5));
+                }
+                std::process::exit(1);
             }
             "fork-short" => {
                 let mut child = Command::new("/bin/sleep").arg("0.3").spawn().unwrap();
@@ -1811,7 +1867,25 @@ mod macos_tests {
                 false,
             ),
             (
-                "multiple-selections",
+                "current-and-recovery",
+                "fork-complete",
+                Some(valid.as_slice()),
+                true,
+            ),
+            (
+                "unsupported-current-valid-recovery",
+                "fork-complete",
+                Some(valid.as_slice()),
+                false,
+            ),
+            (
+                "invalid-current-valid-recovery",
+                "fork-complete",
+                Some(valid.as_slice()),
+                false,
+            ),
+            (
+                "third-selection",
                 "fork-complete",
                 Some(valid.as_slice()),
                 false,
@@ -1847,11 +1921,23 @@ mod macos_tests {
             if let Some(metadata) = metadata {
                 fs::write(workspace.join("media.info.json"), metadata).unwrap();
                 if case_name != "missing-selection" {
-                    let mut record = b"AMEOW_SELECTION=".to_vec();
-                    record.extend_from_slice(metadata);
-                    record.push(b'\n');
-                    if case_name == "multiple-selections" {
-                        record.extend_from_within(..);
+                    let selection_count = match case_name {
+                        "current-and-recovery"
+                        | "unsupported-current-valid-recovery"
+                        | "invalid-current-valid-recovery" => 2,
+                        "third-selection" => 3,
+                        _ => 1,
+                    };
+                    let mut record = Vec::new();
+                    for selection_index in 0..selection_count {
+                        let selection = match (case_name, selection_index) {
+                            ("unsupported-current-valid-recovery", 0) => unsupported.as_slice(),
+                            ("invalid-current-valid-recovery", 0) => b"{broken}".as_slice(),
+                            _ => metadata,
+                        };
+                        record.extend_from_slice(b"AMEOW_SELECTION=");
+                        record.extend_from_slice(selection);
+                        record.push(b'\n');
                     }
                     if case_name == "incomplete-selection" {
                         record.pop();
@@ -1903,10 +1989,10 @@ mod macos_tests {
             );
             assert_eq!(owner.facts.resources_releasable(), settles, "{case_name}");
             assert!(!owner.terminate_sent);
+            let exit_code = if mode == "fork-failure" { 1 } else { 0 };
+            assert_eq!(owner.root_wait_status, Some((exit_code as c_int) << 8), "{case_name}");
             if settles {
-                let exit_code = if mode == "fork-failure" { 1 } else { 0 };
                 assert_eq!(outcome.unwrap().exit_code, exit_code);
-                assert_eq!(owner.root_wait_status, Some((exit_code as c_int) << 8));
                 assert_eq!(owner.root_wait_status, owner.trusted_wait_status);
                 assert!(owner.trusted_completion);
             } else {
@@ -1920,7 +2006,7 @@ mod macos_tests {
     #[test]
     fn trusted_managed_call_cancelled_during_fork_reaps_and_joins_but_remains_held() {
         for phase in [InvocationPhase::Resolve, InvocationPhase::Transfer] {
-            let spec = spec("fork");
+            let spec = spec("fork-ignore-interrupt");
             let control = Control::default();
             let mut owner = Owner::new(Arc::new(|_| {}), Arc::new(AtomicBool::new(false)));
             owner.trusted_contract = Some(ManagedCompletion::fixture(phase));
@@ -1944,6 +2030,61 @@ mod macos_tests {
             assert!(!owner.trusted_completion && !owner.facts.resources_releasable());
             assert_eq!(owner.root_wait_status, Some(SIGKILL));
         }
+    }
+
+    #[test]
+    fn interrupted_resolve_settles_only_after_normal_exit_group_snapshot_wait_and_joins() {
+        let spec = spec("fork-interrupt-complete");
+        let control = Control::default();
+        let mut owner = Owner::new(Arc::new(|_| {}), Arc::new(AtomicBool::new(false)));
+        owner.trusted_contract = Some(ManagedCompletion::fixture(InvocationPhase::Resolve));
+        owner.initialize(&Launch::new(&spec).unwrap(), &spec, &control).unwrap();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while !owner.descendants_unproven {
+            assert!(owner.tick(&spec, &control).unwrap().is_none());
+            assert!(Instant::now() < deadline);
+            thread::sleep(Duration::from_millis(5));
+        }
+        control.cancel();
+        let outcome = loop {
+            if let Some(outcome) = owner.tick(&spec, &control).unwrap() {
+                break outcome.unwrap();
+            }
+            assert!(Instant::now() < deadline);
+            thread::sleep(Duration::from_millis(5));
+        };
+        assert!(control.is_cancelled() && owner.interrupted_at.is_some());
+        assert!(owner.trusted_completion && owner.trusted_exit_proven);
+        assert_eq!(owner.root_wait_status, Some(1 << 8));
+        assert_eq!(owner.root_wait_status, owner.trusted_wait_status);
+        assert!(!owner.cleanup && !owner.terminate_sent);
+        assert_eq!(outcome.exit_code, 1);
+        assert!(outcome.facts.resources_releasable());
+    }
+
+    #[test]
+    fn interrupted_resolve_with_signal_exit_reaps_and_joins_but_remains_held() {
+        let spec = spec("fork");
+        let control = Control::default();
+        let mut owner = Owner::new(Arc::new(|_| {}), Arc::new(AtomicBool::new(false)));
+        owner.trusted_contract = Some(ManagedCompletion::fixture(InvocationPhase::Resolve));
+        owner.initialize(&Launch::new(&spec).unwrap(), &spec, &control).unwrap();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while !owner.descendants_unproven {
+            assert!(owner.tick(&spec, &control).unwrap().is_none());
+            assert!(Instant::now() < deadline);
+            thread::sleep(Duration::from_millis(5));
+        }
+        control.cancel();
+        while !owner.facts.root_waited || !owner.facts.callback_consumer_joined {
+            assert!(owner.tick(&spec, &control).unwrap().is_none());
+            assert!(Instant::now() < deadline);
+            thread::sleep(Duration::from_millis(5));
+        }
+        assert!(owner.interrupted_at.is_some() && owner.trusted_rejected);
+        assert!(owner.facts.stdout_reader_joined && owner.facts.stderr_reader_joined);
+        assert_eq!(owner.root_wait_status, Some(SIGINT));
+        assert!(!owner.trusted_completion && !owner.facts.resources_releasable());
     }
 
     #[test]
