@@ -10,8 +10,13 @@ async function reportLoadedIdentity() {
   identityReporting = true;
   try {
     const { source_id } = await sessions.state();
-    await chrome.runtime.sendNativeMessage('org.ameow.browser_sessions', { version: 1, request_id: crypto.randomUUID(),
+    const token = `${source_id}:${loadedIdentity.sourceSha256}`;
+    if ((await chrome.storage.session.get('reported_extension_identity')).reported_extension_identity === token) return;
+    const reply = await chrome.runtime.sendNativeMessage('org.ameow.browser_sessions', { version: 1, request_id: crypto.randomUUID(),
       operation: { operation: 'report_extension_identity', source_id, identity: loadedIdentity } });
+    if (reply?.version === 1 && reply.ok && Array.isArray(reply.sites)) {
+      await chrome.storage.session.set({ reported_extension_identity:token });
+    }
   } catch { /* An older or unavailable host must not change session/page behavior. */ }
   finally { identityReporting = false; }
 }
@@ -67,7 +72,8 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     if (needsPermission && siteFromUrl(`https://${message.site}/`) !== message.site) throw Error('E_PAGE');
     permission = needsPermission ? chrome.permissions.request({ origins: scope(message.site) }) : Promise.resolve(true);
   } catch { respond({ ok: false, error: 'E_PERMISSION' }); return false; }
-  permission.catch(() => false).then(allowed => allowed ? enqueue(action) : { [message.site]: 'E_PERMISSION' })
+  const read = message.action === 'pages-status' || message.action === 'status';
+  permission.catch(() => false).then(allowed => allowed ? read ? action() : enqueue(action) : { [message.site]: 'E_PERMISSION' })
     .then(value => respond({ ok: true, value }), () => respond({ ok: false, error: 'E_BRIDGE' }));
   return true;
 });

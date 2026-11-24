@@ -18,6 +18,8 @@ async function openPopup(sessions) {
   let diagnostic;
   const svg=Object.fromEntries(['copyIcon','checkIcon','refreshIcon','alertIcon','infoIcon','chevronIcon'].map(name=>[name,'<svg></svg>']));
   await vm.runInNewContext('(async()=>{' + popup + '})()', {...svg,document,chrome,navigator:{userAgent:'Edg/156',clipboard:{writeText:async text=>{diagnostic=text;}}},siteFromUrl,scope,SYNC_ERRORS,PAGE_ORIGINS,pageHost,Date,setTimeout:()=>0,clearTimeout(){},requestAnimationFrame:callback=>callback()});
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(elements.get('session-loading').hidden,true,'the session region must finish reading before copying its diagnostic');
   await elements.get('copy-diagnostic').handlers.get('click')();
   return {status:elements.get('notice'),diagnostic,sync:elements.get('sync')};
 }

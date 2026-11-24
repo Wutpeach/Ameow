@@ -33,49 +33,88 @@ export function nativeClient(api) {
   const port = api.runtime.connectNative(HOST);
   const pending = new Map();
   let disconnected = false;
+  const fail = code => {
+    disconnected = true;
+    for (const entry of pending.values()) { clearTimeout(entry.timer); entry.reject(Error(code)); }
+    pending.clear();
+  };
+  const close = (code = 'E_BRIDGE') => { fail(code); port.disconnect(); };
   port.onMessage.addListener(response => {
     if (!response.request_id && response.error === 'E_SESSION_PROTOCOL') {
-      for (const entry of pending.values()) { clearTimeout(entry.timer); entry.reject(Error('E_SESSION_PROTOCOL')); }
-      pending.clear(); return;
+      close('E_SESSION_PROTOCOL'); return;
     }
     const entry = pending.get(response.request_id);
     if (!entry) return;
     pending.delete(response.request_id); clearTimeout(entry.timer);
-    if (response.version !== 1) entry.reject(Error('E_SESSION_PROTOCOL'));
+    if (response.version !== 1) { entry.reject(Error('E_SESSION_PROTOCOL')); close('E_SESSION_PROTOCOL'); }
     else if (!response.ok) entry.reject(Error(response.error || 'E_SESSION_PROTOCOL'));
-    else if (!Array.isArray(response.sites)) entry.reject(Error('E_SESSION_PROTOCOL'));
+    else if (!Array.isArray(response.sites)) { entry.reject(Error('E_SESSION_PROTOCOL')); close('E_SESSION_PROTOCOL'); }
     else entry.resolve(response.sites);
   });
   port.onDisconnect.addListener(() => {
     // Reading lastError acknowledges it; its vendor text is never persisted.
-    const message = api.runtime.lastError?.message || ''; disconnected = true;
+    const message = api.runtime.lastError?.message || '';
     const code = message.includes('not found') ? 'E_BRIDGE_NOT_REGISTERED' : message.includes('forbidden') ? 'E_BRIDGE_FORBIDDEN' : message.includes('start') ? 'E_BRIDGE_START' : message.includes('exited') ? 'E_BRIDGE_EXIT' : message.includes('communicating') ? 'E_BRIDGE_IO' : 'E_BRIDGE';
-    for (const entry of pending.values()) { clearTimeout(entry.timer); entry.reject(Error(code)); }
-    pending.clear();
+    fail(code);
   });
   return {
+    get connected() { return !disconnected; },
     request(operation) {
       if (disconnected) return Promise.reject(Error('E_BRIDGE'));
       return new Promise((resolve, reject) => {
         const request_id = crypto.randomUUID();
         const message = { version: 1, request_id, operation };
         if (new TextEncoder().encode(JSON.stringify(message)).length > 512 * 1024) { reject(Error('E_SESSION_LIMIT')); return; }
-        const timer = setTimeout(() => { pending.delete(request_id); reject(Error('E_BRIDGE')); }, 10000);
+        const timer = setTimeout(() => close(), 10000);
         pending.set(request_id, { resolve, reject, timer });
-        port.postMessage(message);
+        try { port.postMessage(message); } catch { close(); }
       });
     },
-    close() { port.disconnect(); },
+    close,
   };
 }
 export class Sessions {
   constructor(api, connect = () => nativeClient(api)) { this.api = api; this.connect = connect; }
   async state() {
     const state = await this.api.storage.local.get(['source_id', 'grants']);
-    if (!state.source_id) { state.source_id = crypto.randomUUID().replaceAll('-', ''); await this.api.storage.local.set({ source_id: state.source_id }); }
+    if (!state.source_id) {
+      this.initializingSource ||= (async () => {
+        const current = await this.api.storage.local.get(['source_id']);
+        if (current.source_id) return current.source_id;
+        const source_id = crypto.randomUUID().replaceAll('-', '');
+        await this.api.storage.local.set({ source_id });
+        return source_id;
+      })().finally(() => { this.initializingSource = null; });
+      state.source_id = await this.initializingSource;
+    }
     return { ...state, grants: state.grants || {} };
   }
-  async withClient(action) { const client = this.connect(); try { await client.request({operation:'ping'}); return await action(client); } finally { client.close(); } }
+  close() {
+    const lease = this.lease;
+    if (!lease) return;
+    this.lease = null; clearTimeout(lease.idle); clearTimeout(lease.limit); lease.client.close();
+  }
+  async withClient(action, ping = true) {
+    if (this.lease?.client.connected === false) this.close();
+    if (!this.lease) {
+      const lease = this.lease = { client:this.connect(), users:0 };
+      // A native port keeps its Worker alive, so even active reuse has a hard end.
+      lease.limit = setTimeout(() => { if (this.lease === lease) this.close(); }, 30000);
+      lease.limit.unref?.();
+    }
+    const lease = this.lease; clearTimeout(lease.idle); lease.users++;
+    try { if (ping) await lease.client.request({operation:'ping'}); return await action(lease.client); }
+    catch (error) {
+      if (this.lease === lease && /^E_BRIDGE(?:_|$)|^E_SESSION_PROTOCOL$/.test(error.message)) this.close();
+      throw error;
+    } finally {
+      lease.users--;
+      if (this.lease === lease && !lease.users) {
+        lease.idle = setTimeout(() => { if (this.lease === lease) this.close(); }, 1500);
+        lease.idle.unref?.();
+      }
+    }
+  }
   async collect(site) {
     if (!await this.api.permissions.contains({ origins: scope(site) })) throw Error('E_PERMISSION');
     // A single normal cookie store is bound at authorization; incognito is excluded in the manifest.
@@ -92,7 +131,7 @@ export class Sessions {
         const grant = state.grants[site];
         if (grant?.error && !grant.pending) { try { await this.reportFailure(client, state, site, grant); } catch {} }
         return { sites: await client.request({ operation: 'list' }), source_id: state.source_id, grant };
-      });
+      }, false);
     } catch (error) { return { sites: [], source_id: state.source_id, grant: state.grants[site], error: safeError(error) }; }
   }
   async reportFailure(client, state, site, grant) {
