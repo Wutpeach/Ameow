@@ -7,6 +7,8 @@ pub struct Pose {
     /// Offsets in the 60 px artwork coordinate space.
     pub gaze: [f32; 2],
     pub head: [f32; 2],
+    /// Head tilt in radians around the resting lower edge.
+    pub head_tilt: f32,
     /// Ear rotations in radians.
     pub ears: [f32; 2],
 }
@@ -90,16 +92,18 @@ impl Idle {
             self.ear = None;
             self.ear_due = now + self.random(18_000, 35_000);
         }
-        if self.blink.is_none() && now >= self.blink_due {
+        if self.blink.is_none() && self.look.is_none() && self.ear.is_none() && now >= self.blink_due {
             self.blink = Some(Act { start: now, direction: 1. });
         }
-        if self.look.is_none() && now >= self.look_due {
+        if self.blink.is_none() && self.look.is_none() && self.ear.is_none() && now >= self.look_due {
             let direction = if self.random(0, 1) == 0 { -1. } else { 1. };
             self.look = Some(Act { start: now, direction });
+            self.ear_due = self.ear_due.max(now + 4_000);
         }
-        if self.ear.is_none() && now >= self.ear_due {
+        if self.blink.is_none() && self.look.is_none() && self.ear.is_none() && now >= self.ear_due {
             let direction = if self.random(0, 1) == 0 { -1. } else { 1. };
             self.ear = Some(Act { start: now, direction });
+            self.look_due = self.look_due.max(now + 1_560);
         }
 
         let mut pose = Pose::default();
@@ -113,13 +117,14 @@ impl Idle {
             let head = pulse(t, 650, 1_150, 2_200, 3_000);
             pose.gaze = [act.direction * 0.6 * eye, -0.12 * eye];
             pose.head = [act.direction * 0.3 * head, -0.06 * head];
+            pose.head_tilt = act.direction * 0.075 * head;
         }
         if let Some(act) = self.ear {
             let t = now.saturating_sub(act.start);
             let first = pulse(t, 0, 120, 170, 390);
             let second = pulse(t, 110, 230, 280, 560);
-            if act.direction > 0. { pose.ears = [0.05 * first, -0.04 * second]; }
-            else { pose.ears = [0.04 * second, -0.05 * first]; }
+            if act.direction > 0. { pose.ears = [0.14 * first, -0.045 * second]; }
+            else { pose.ears = [0.045 * second, -0.14 * first]; }
         }
         self.last_pose = pose;
         let moving = self.blink.is_some() || self.look.is_some() || self.ear.is_some();
@@ -160,7 +165,8 @@ mod tests {
             peak = peak.max(p.blink);
             assert!(p.gaze[0].abs() <= 0.6 && p.gaze[1].abs() <= 0.6);
             assert!(p.head[0].abs() <= 0.3 && p.head[1].abs() <= 0.3);
-            assert!(p.ears.iter().all(|x| x.abs() <= 0.06));
+            assert!(p.head_tilt.abs() <= 0.075);
+            assert!(p.ears.iter().all(|x| x.abs() <= 0.14));
         }
         assert_eq!(peak, 1.);
         assert!(starts.len() >= 4 && starts.len() <= 15);
@@ -195,16 +201,48 @@ mod tests {
     }
 
     #[test]
+    fn ear_and_look_do_not_overlap_and_resume_after_hidden_or_reduced() {
+        let mut idle = Idle::new(7);
+        idle.sample(0, true, false);
+        idle.blink_due = u64::MAX;
+        idle.look_due = 100;
+        idle.ear_due = 100;
+        idle.sample(100, true, false);
+        let peak = idle.sample(1_300, true, false).0;
+        assert!(peak.head_tilt.abs() > 0.07);
+        assert_eq!(peak.ears, [0., 0.]);
+        assert_eq!(idle.sample(1_310, false, false), (peak, None));
+        assert_eq!(idle.sample(20_000, true, false).0, peak);
+        assert_eq!(idle.sample(20_010, true, true), (Pose::default(), None));
+
+        let mut idle = Idle::new(7);
+        idle.sample(0, true, false);
+        idle.blink_due = u64::MAX;
+        idle.look_due = u64::MAX;
+        idle.ear_due = 100;
+        idle.sample(100, true, false);
+        let first = idle.sample(200, true, false).0;
+        assert!(first.ears.iter().any(|v| v.abs() > 0.1));
+        assert!(first.ears.iter().any(|v| *v == 0.));
+        let later = idle.sample(340, true, false).0;
+        assert!(later.ears.iter().all(|v| v.abs() > 0.));
+        assert_eq!(idle.sample(660, true, false).0, Pose::default());
+    }
+
+    #[test]
     fn look_moves_eyes_first_then_head_and_settles() {
         let mut idle = Idle::new(1);
         idle.sample(0, true, false);
+        idle.blink_due = u64::MAX;
+        idle.ear_due = u64::MAX;
         idle.sample(25_000, true, false);
         let early = idle.sample(25_160, true, false).0;
-        assert!(early.gaze[0].abs() > 0. && early.head == [0., 0.]);
+        assert!(early.gaze[0].abs() > 0. && early.head == [0., 0.] && early.head_tilt == 0.);
         let following = idle.sample(25_900, true, false).0;
-        assert!(following.gaze[0].abs() > 0. && following.head[0].abs() > 0.);
+        assert!(following.gaze[0].abs() > 0. && following.head[0].abs() > 0. && following.head_tilt.abs() > 0.);
         let settled = idle.sample(28_000, true, false).0;
         assert_eq!(settled.gaze, [0., 0.]);
         assert_eq!(settled.head, [0., 0.]);
+        assert_eq!(settled.head_tilt, 0.);
     }
 }

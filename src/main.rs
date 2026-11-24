@@ -663,15 +663,17 @@ impl Prototype {
         if let Some(period) = self.probe_period_ms {
             self.model.set_target((now / period).is_multiple_of(2), now);
         } else {
-            let fixture_directory = self.preview.as_ref().is_some_and(|p| p.scene().directory_feedback().is_some());
-            self.model.pointer(!fixture_directory && self.native.as_ref().is_some_and(Native::inside), now);
+            let feedback_replay = self.preview.as_ref().is_some_and(|p| p.scene().directory_feedback().is_some()
+                || (p.scene().surface == "full" && p.scene().state == "success"));
+            self.model.pointer(!feedback_replay && self.native.as_ref().is_some_and(Native::inside), now);
         }
         self.model.tick(now);
         if let Some(preview) = &self.preview {
-            let directory_replay = preview.scene().directory_feedback().is_some() && !self.model.reduced;
-            if !directory_replay { self.model.set_target(preview.scene().surface != "compact", now); }
+            let success_replay = preview.scene().surface == "full" && preview.scene().state == "success" && !self.model.reduced;
+            let feedback_replay = (preview.scene().directory_feedback().is_some() && !self.model.reduced) || success_replay;
+            if !feedback_replay { self.model.set_target(preview.scene().surface != "compact", now); }
             match preview.scene().state.as_str() {
-                "success" => self.model.stage = Stage::Success,
+                "success" if !success_replay => self.model.stage = Stage::Success,
                 "failure" => self.model.stage = Stage::Failure,
                 "cancelled" => self.model.stage = Stage::Cancelled,
                 _ => {}
@@ -816,7 +818,9 @@ impl Render for Prototype {
                 "type":"mascot", "ms":now, "visible":mascot_visible, "delay":mascot_delay,
                 "reveal":self.mascot_reveal.progress,"reveal_delay":reveal_delay,"alpha":mascot_alpha,
                 "local_side":mascot_reveal::local_side(g.surface),"local_origin":mascot_reveal::local_origin(g.native,g.surface),
-                "blink":pose.blink, "gaze":pose.gaze, "head":pose.head, "ears":pose.ears,
+                "blink":pose.blink, "gaze":pose.gaze, "head":pose.head, "head_tilt":pose.head_tilt, "ears":pose.ears,
+                "success_alpha":self.model.success_alpha(now),
+                "directory_alpha":self.model.directory.map(|d| d.alpha(now, self.model.reduced)),
                 "raster_us":self.mascot.raster_us, "prepare_us":self.mascot.prepare_us,
                 "scale":scale, "night":self.night, "reduced":self.model.reduced
             }));
@@ -993,7 +997,7 @@ impl Render for Prototype {
             .top(px(g.gutter + 61.))
             .w(px(96.))
             .h(px(99.))
-            .opacity(alpha)
+            .opacity(alpha * if directory_feedback.is_none() { self.model.success_alpha(now) } else { 1. })
             .when_some(directory_feedback, |s, feedback| s.child(indicator::directory_feedback(p, feedback, self.language, now, self.model.reduced)))
             .when(directory_feedback.is_none(), |s| s
                 .child(indicator::ring(frame))
