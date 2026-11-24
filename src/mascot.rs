@@ -165,7 +165,7 @@ fn rounded_path(origin: f32, side: f32, radius: f32) -> tiny_skia::Path {
 fn rig(p: Pose, night: bool) -> String {
     let mut svg = if night { NIGHT } else { LIGHT }.to_owned();
     svg = svg.replace("id=\"head\" transform=\"translate(0 0)\"",
-        &format!("id=\"head\" transform=\"translate({} {})\"", p.head[0], p.head[1]));
+        &format!("id=\"head\" transform=\"translate({} {}) rotate({} 30 40)\"", p.head[0], p.head[1], p.head_tilt.to_degrees()));
     for (side, pivot, angle) in [("left", 17, p.ears[0]), ("right", 43, p.ears[1])] {
         svg = svg.replace(&format!("id=\"ear-{side}\" transform=\"rotate(0 {pivot} 28)\""),
             &format!("id=\"ear-{side}\" transform=\"rotate({} {pivot} 28)\"", angle.to_degrees()));
@@ -183,8 +183,8 @@ fn rig(p: Pose, night: bool) -> String {
 pub fn preview_pose(state: &str) -> Option<Pose> {
     match state {
         "mascot-blink" => Some(Pose { blink: 1., ..Pose::default() }),
-        "mascot-observe" => Some(Pose { gaze: [-0.6, -0.12], head: [-0.3, -0.06], ..Pose::default() }),
-        "mascot-ears" => Some(Pose { ears: [0.05, -0.02], ..Pose::default() }),
+        "mascot-observe" => Some(Pose { gaze: [-0.6, -0.12], head: [-0.3, -0.06], head_tilt: -0.075, ..Pose::default() }),
+        "mascot-ears" => Some(Pose { ears: [0.14, -0.02], ..Pose::default() }),
         _ => None,
     }
 }
@@ -413,7 +413,7 @@ mod tests {
     fn native_rig_preserves_foreground_and_closes_both_eyes_without_glints() {
         for night in [false, true] {
             let rest = rig(Pose::default(), night);
-            let closed = rig(Pose { blink: 1., gaze: [0.6, -0.12], head: [0.3, -0.06], ears: [0.05, -0.04] }, night);
+            let closed = rig(Pose { blink: 1., gaze: [0.6, -0.12], head: [0.3, -0.06], head_tilt: 0.075, ears: [0.14, -0.045] }, night);
             for side in ["left", "right"] {
                 assert!(closed.contains(&format!("id=\"glint-{side}\" opacity=\"0\"")));
             }
@@ -429,7 +429,13 @@ mod tests {
                 let open = open_image.as_bytes(0).unwrap();
                 let shut = closed_image.as_bytes(0).unwrap();
                 assert_ne!(open, shut, "eyes must visibly change");
-                assert_eq!(&open[(42 * scale * width * 4) as usize..], &shut[(42 * scale * width * 4) as usize..], "foreground must stay fixed");
+                let foreground = (42 * scale * width * 4) as usize;
+                // Rotated SVG group bounds can round Night's gradient red channel by 2/255.
+                // Keep exact coverage and the unchanged foreground source, including transforms.
+                for (a, b) in open[foreground..].chunks_exact(4).zip(shut[foreground..].chunks_exact(4)) {
+                    assert_eq!(a[3], b[3], "foreground coverage must stay fixed");
+                    assert!(a[..3].iter().zip(&b[..3]).all(|(a,b)| a.abs_diff(*b) <= 2), "foreground color changed beyond raster rounding");
+                }
                 assert_eq!(shut[3], 0, "circular clip excludes the corner");
                 if let Some(directory) = std::env::var_os("AMEOW_MASCOT_RASTER_DIR") {
                     let directory = std::path::PathBuf::from(directory);

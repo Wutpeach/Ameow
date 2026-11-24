@@ -351,6 +351,16 @@
         "purpose": "无越界；反向从当前可见值继续。"
       },
       {
+        "name": "success-exit",
+        "value": "180ms",
+        "purpose": "下载和目录保存成功保留1500ms后原位纯淡出，再交原owner收起；Reduced到期直接撤下，新任务/提示即时替换。"
+      },
+      {
+        "name": "mascot-idle-trial",
+        "value": "ear 8deg / follower 2.6deg / stagger 110ms / tilt 4.3deg",
+        "purpose": "#86仅试调现有耳动与偏头，保留低频并错开眨眼；爪与沿口稳定，60px效果待本人审阅。"
+      },
+      {
         "name": "mascot-reveal",
         "value": "mascot_reveal / mascot",
         "purpose": "f520抓沿承重拉头已双端验收，Mac c1启动稳定获用户确认。普通新实例首次可见隐藏态播放同一入场，不加窗口变形，同实例恢复不重播。Windows首个有效native apply/show完成前忽略临时Rect hover，完成后真实命中立即正常；不调弹性/延时。Full同帧隐藏、真实收起原末段触发、隐藏暂停/Reduced保持；Windows首显修复待人工确认。"
@@ -470,7 +480,7 @@
     "rules": [
       {
         "name": "Full 文件夹拖入反馈",
-        "body": "Full 目录反馈复用原状态槽的中心构图、50px 图形载体与下方 96×16px、8px 字级信息胶囊。合法目录悬浮为浅灰文件夹与柔和光晕、无环，胶囊“松开设为目录”／“Drop to set folder”；仅该次 SettingsSaved 后呈现绿色文件夹、成功环与光晕，胶囊“目录已更新”／“Folder updated”，不换成下载完成勾形或百分比。图标与环沿既有4px模糊/0.3光晕。目录事件交src/model.rs的表现层时钟、唤醒与自动收起仲裁：悬浮180ms进入/110ms退出，快速反向连续；ACK成功复用src/indicator.rs的220ms补环、110ms转色、标签与图形收尾，按Success retention保留1500ms（替代旧独立2000ms），撤下后在指针外且无其他owner时经原80ms宽限收起。Reduced直接终态仍遵守生产停留；新业务阶段、主动隐藏/Compact清旧表现，原下载业务/spring/原生几何不改，无独立计时器或全局交互锁。Gallery full.directory-hover/full.directory-saved复用同一绘制与生命周期：Reduced稳定看，动态播放入场/停留/收起，再选重播；主题/语言可切，投影不做候选IO/生产保存。",
+        "body": "Full 目录反馈复用原状态槽的中心构图、50px 图形载体与下方 96×16px、8px 字级信息胶囊。合法目录悬浮为浅灰文件夹与柔和光晕、无环，胶囊“松开设为目录”／“Drop to set folder”；仅该次 SettingsSaved 后呈现绿色文件夹、成功环与光晕，胶囊“目录已更新”／“Folder updated”，不换成下载完成勾形或百分比。图标与环沿既有4px模糊/0.3光晕。目录事件交src/model.rs的表现层时钟、唤醒与自动收起仲裁：悬浮180ms进入/110ms退出，快速反向连续；ACK成功复用src/indicator.rs的220ms补环、110ms转色、标签与图形收尾，按Success retention保留1500ms（替代旧独立2000ms），以180ms纯淡出撤下（无位移/缩放），之后在指针外且无其他owner时经原80ms宽限收起。Reduced直接终态仍遵守生产停留；新业务阶段、主动隐藏/Compact清旧表现，原下载业务/spring/原生几何不改，无独立计时器或全局交互锁。Gallery full.directory-hover/full.directory-saved复用同一绘制与生命周期：Reduced稳定看，动态播放入场/停留/纯淡出/收起，再选重播；主题/语言可切，投影不做候选IO/生产保存。",
         "section": "components"
       },
       {

@@ -792,7 +792,8 @@ impl DownloadUi {
                     now,
                 );
             }
-        } else if self.selected_job.take().is_some() {
+        } else if self.selected_job.is_some() && !model.success_feedback_pending(now) {
+            self.selected_job = None;
             self.selected_presentation = None;
             self.selected_fraction = None;
             model.state(Stage::Idle, 0., now);
@@ -4023,7 +4024,34 @@ mod tests {
         // Repeated production polls must not restart the terminal retention.
         ui.present(&mut model, &mut indicator, 2900);
         ui.present(&mut model, &mut indicator, 3000);
+        model.tick(3000);
+        assert_eq!(model.stage, Stage::Success);
+        ui.present(&mut model, &mut indicator, 3090);
+        model.tick(3090);
+        assert!(model.success_alpha(3090) < 1.);
+        ui.present(&mut model, &mut indicator, 3180);
         assert_eq!(model.stage, Stage::Idle);
+    }
+    #[test]
+    fn fresh_task_preempts_success_fade_at_the_existing_foreground_handoff() {
+        use super::*;
+        let mut ui = DownloadUi::controlled_preview();
+        let mut model = crate::model::Model::new(0, false);
+        let mut indicator = indicator::Indicator::default();
+        let mut s = crate::queue_fixture::snapshot(vec![crate::queue_fixture::job(3, JobPhase::Downloading, Some(3), Some(0.6))]);
+        ui.snapshot = Some(Arc::new(s.clone()));
+        ui.present(&mut model, &mut indicator, 0);
+        s.jobs[0].phase = JobPhase::Success;
+        ui.snapshot = Some(Arc::new(s.clone()));
+        ui.present(&mut model, &mut indicator, 100);
+        ui.present(&mut model, &mut indicator, 1600); model.tick(1600);
+        assert_eq!(model.stage, Stage::Success);
+        s.jobs.push(crate::queue_fixture::job(4, JobPhase::Downloading, Some(4), Some(0.2)));
+        ui.snapshot = Some(Arc::new(s));
+        ui.present(&mut model, &mut indicator, 1650); model.tick(1780);
+        assert_eq!(ui.selected_job, Some(4));
+        assert_eq!(model.stage, Stage::Downloading);
+        assert_eq!(model.success_alpha(1780), 1.);
     }
     use super::badge_counts;
     use super::{ExitAction, ExitIntent, ExitIssue, cleanup_targets, exit_issue};

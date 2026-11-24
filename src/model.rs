@@ -11,6 +11,7 @@ pub fn label_mix_at(stage:Stage, at:u64, now:u64, reduced:bool) -> f32 {
 use crate::repair_motion::Motion;
 pub const ENTER_MS: u64 = 180;
 pub const EXIT_MS: u64 = 110;
+pub const SUCCESS_EXIT_MS: u64 = 180;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Scalar { from: f32, target: f32, at: u64, duration: u64 }
@@ -47,8 +48,10 @@ impl DirectoryPresentation {
         if reduced { if self.exit_at.is_some() { 0. } else { 1. } } else { self.opacity.sample(now) }
     }
     pub fn receiving(self) -> bool { self.feedback == DirectoryFeedback::Receiving && self.exit_at.is_none() }
+    pub fn exiting(self) -> bool { self.exit_at.is_some() }
+    fn exit_ms(self) -> u64 { if self.feedback == DirectoryFeedback::Saved { SUCCESS_EXIT_MS } else { EXIT_MS } }
     fn deadline(self) -> Option<u64> {
-        if self.latched { None } else if let Some(at) = self.exit_at { Some(at + EXIT_MS) }
+        if self.latched { None } else if let Some(at) = self.exit_at { Some(at + self.exit_ms()) }
         else if self.feedback == DirectoryFeedback::Saved { Some(self.at + Stage::Success.retention()) }
         else { None }
     }
@@ -276,7 +279,7 @@ impl Model {
     }
     pub fn directory_saved(&mut self, now:u64) { self.start_directory(DirectoryFeedback::Saved, now); }
     fn start_directory(&mut self, feedback:DirectoryFeedback, now:u64) {
-        let mut opacity = self.directory.map_or(Scalar::new(0.), |d| Scalar::new(d.alpha(now, self.reduced)));
+        let mut opacity = self.directory.map_or(Scalar::new(0.), |d| Scalar::new(if d.feedback == DirectoryFeedback::Saved && d.exiting() { 1. } else { d.alpha(now, self.reduced) }));
         opacity.set(1., now, ENTER_MS, self.reduced);
         self.directory = Some(DirectoryPresentation { feedback, at:now, opacity, exit_at:None, latched:false });
         self.collapse = None;
@@ -308,6 +311,7 @@ impl Model {
         self.fullness = self.window_motion.x;
         self.velocity = self.window_motion.v;
         self.reduced = reduced;
+        if reduced { self.tick(now); }
     }
     fn schedule_leave(&mut self, now: u64) {
         if !self.pointer && !self.blocked() && self.target_full {
@@ -417,8 +421,13 @@ impl Model {
         }
     }
     pub fn tick(&mut self, now: u64) {
-        if self.directory.and_then(DirectoryPresentation::deadline).is_some_and(|at| now >= at) {
-            self.clear_directory(now);
+        if let Some(d) = &mut self.directory
+            && let Some(at) = d.deadline() && (now >= at || (self.reduced && d.exiting())) {
+            if d.feedback == DirectoryFeedback::Saved && !d.exiting() && !self.reduced {
+                d.opacity.set(0., at, SUCCESS_EXIT_MS, false);
+                d.exit_at = Some(at);
+            }
+            if self.reduced || d.deadline().is_some_and(|at| now >= at) { self.clear_directory(now); }
         }
         if let Some((deadline, percent)) = self.pending_transcode
             && now >= deadline.at
@@ -433,7 +442,7 @@ impl Model {
             self.progress = Progress::new(percent.clamp(0., 1.), now);
         }
         if let Some(deadline) = self.terminal
-            && now >= deadline.at
+            && now >= deadline.at + if self.stage == Stage::Success && !self.reduced { SUCCESS_EXIT_MS } else { 0 }
             && deadline.epoch == self.epoch
         {
             self.terminal = None;
@@ -461,6 +470,14 @@ impl Model {
     pub fn geometry(&self) -> Geometry {
         self.window_motion.geometry()
     }
+    pub fn success_feedback_pending(&self, now: u64) -> bool {
+        self.stage == Stage::Success && self.terminal.is_some_and(|d|
+            now < d.at + if self.reduced { 0 } else { SUCCESS_EXIT_MS })
+    }
+    pub fn success_alpha(&self, now: u64) -> f32 {
+        if self.stage != Stage::Success || self.reduced { return 1.; }
+        self.terminal.map_or(1., |d| (1. - now.saturating_sub(d.at) as f32 / SUCCESS_EXIT_MS as f32).clamp(0., 1.).powi(3))
+    }
     pub fn indeterminate_animation(&self, unknown: bool) -> bool {
         unknown && self.stage == Stage::Downloading && !self.reduced
     }
@@ -474,6 +491,7 @@ impl Model {
             || self.locks.drag
             || self.locks.drop
             || (self.target_full && self.directory.is_some_and(|d| d.animating(now, self.reduced)))
+            || (self.target_full && !self.reduced && self.stage == Stage::Success && self.terminal.is_some_and(|d| now >= d.at))
             || (!self.reduced && self.progress.moving(now))
             || (!self.reduced
                 && (self.stage == Stage::Resolving
@@ -484,7 +502,10 @@ impl Model {
         }
         [
             self.collapse,
-            self.terminal,
+            self.terminal.map(|mut d| {
+                if self.stage == Stage::Success && !self.reduced && now >= d.at { d.at += SUCCESS_EXIT_MS; }
+                d
+            }),
             self.pending_transcode.map(|p| p.0),
             self.directory.and_then(DirectoryPresentation::deadline).map(|at| Deadline { at, epoch:self.epoch }),
         ]
@@ -597,10 +618,12 @@ mod tests {
             assert!(model.directory.is_some());
             assert_eq!(model.next_wake_ms(2099), Some(1));
             model.tick(2100);
+            let end = 2100 + if reduced { 0 } else { super::SUCCESS_EXIT_MS };
+            if !reduced { assert!(model.directory.unwrap().exiting()); model.tick(end); }
             assert!(model.directory.is_none());
             assert!(model.target_full);
-            assert_eq!(model.next_wake_ms(2100), Some(super::LEAVE_MS));
-            model.tick(2180);
+            assert_eq!(model.next_wake_ms(end), Some(super::LEAVE_MS));
+            model.tick(end + super::LEAVE_MS);
             assert!(!model.target_full);
         }
     }
@@ -623,8 +646,10 @@ mod tests {
         assert!(model.target_full);
         assert!(model.directory.is_some());
         model.tick(2600);
+        assert!(model.directory.unwrap().exiting());
+        model.tick(2600 + super::SUCCESS_EXIT_MS);
         assert!(model.directory.is_none());
-        model.tick(2680);
+        model.tick(2680 + super::SUCCESS_EXIT_MS);
         assert!(!model.target_full);
     }
     #[test]
@@ -676,7 +701,7 @@ mod tests {
         assert!(model.target_full);
         assert!((model.fullness - before).abs() < 0.03);
         for now in (700..2200).step_by(16) { model.tick(now); assert!(model.target_full); }
-        model.tick(2200); assert!(model.directory.is_none());
+        model.tick(2200 + super::SUCCESS_EXIT_MS); assert!(model.directory.is_none());
     }
     #[test]
     fn directory_preview_latches_reduced_but_replays_dynamic_retention_and_collapse() {
@@ -688,8 +713,9 @@ mod tests {
         let mut dynamic = super::Model::new(0, false);
         dynamic.preview_directory(super::DirectoryFeedback::Saved, 0);
         for now in (0..1500).step_by(16) { dynamic.tick(now); assert!(dynamic.target_full); }
-        dynamic.tick(1500); assert!(dynamic.directory.is_none());
-        dynamic.tick(1580); assert!(!dynamic.target_full);
+        dynamic.tick(1500); assert!(dynamic.directory.unwrap().exiting());
+        dynamic.tick(1500 + super::SUCCESS_EXIT_MS); assert!(dynamic.directory.is_none());
+        dynamic.tick(1580 + super::SUCCESS_EXIT_MS); assert!(!dynamic.target_full);
         dynamic.preview_directory(super::DirectoryFeedback::Saved, 2000);
         assert_eq!(dynamic.directory.unwrap().at, 2000);
         assert!(dynamic.target_full);
@@ -709,6 +735,69 @@ mod tests {
         assert!(!model.indeterminate_animation(true));
     }
     use super::*;
+    #[test]
+    fn success_fades_after_retention_then_hands_back_to_leave_grace() {
+        for reduced in [false, true] {
+            let mut model = directory_full(reduced);
+            model.state(Stage::Success, 1., 600);
+            model.pointer(false, 601);
+            model.tick(2099);
+            assert_eq!(model.success_alpha(2099), 1.);
+            model.tick(2100);
+            if !reduced {
+                assert_eq!(model.stage, Stage::Success);
+                assert_eq!(model.success_alpha(2100), 1.);
+                model.tick(2190);
+                assert!((model.success_alpha(2190) - 0.125).abs() < 0.001);
+                assert_eq!(model.next_wake_ms(2190), Some(16));
+                model.tick(2280);
+            }
+            assert_eq!(model.stage, Stage::Idle);
+            assert!(model.target_full);
+            let end = 2100 + if reduced { 0 } else { SUCCESS_EXIT_MS };
+            model.tick(end + LEAVE_MS);
+            assert!(!model.target_full);
+        }
+    }
+    #[test]
+    fn fading_success_yields_to_replacement_and_reduced_motion_without_stale_clears() {
+        let mut model = directory_full(false);
+        model.directory_saved(600); model.tick(2100); model.tick(2190);
+        assert!((model.directory.unwrap().alpha(2190, false) - 0.125).abs() < 0.001);
+        model.directory_saved(2190);
+        assert_eq!(model.directory.unwrap().alpha(2190, false), 1.);
+        model.tick(2280); assert_eq!(model.directory.unwrap().at, 2190);
+        model.state(Stage::Success, 1., 2300);
+        model.tick(3800); model.state(Stage::Downloading, 0.2, 3850);
+        model.tick(3980);
+        assert_eq!(model.stage, Stage::Downloading); assert!(model.target_full);
+        assert_eq!(model.success_alpha(3980), 1.);
+        model.state(Stage::Success, 1., 4000); model.tick(5500);
+        model.set_reduced(true, 5550); assert_eq!(model.stage, Stage::Idle);
+        model.set_reduced(false, 5600); model.directory_saved(5600); model.tick(7100);
+        model.set_reduced(true, 7150); assert!(model.directory.is_none());
+        model.directory_saved(7200); model.clear_directory(7210);
+        model.tick(9000); assert!(model.directory.is_none());
+        for stage in [Stage::Failure, Stage::Partial, Stage::Cancelled] {
+            model.state(stage, 0., 10_000);
+            model.tick(10_000 + stage.retention());
+            assert_eq!(model.stage, Stage::Idle);
+        }
+    }
+    #[test]
+    fn compact_during_success_exit_sleeps_until_retirement() {
+        let mut model = directory_full(false);
+        model.state(Stage::Success, 1., 600);
+        model.request_compact(1000);
+        for now in (1000..2100).step_by(16) { model.tick(now); }
+        model.tick(2200);
+        // Once Compact is settled, an expired hold deadline must not become a 1ms spin.
+        assert_eq!(model.fullness, 0.);
+        assert_eq!(model.next_wake_ms(2200), Some(80));
+        model.tick(2280);
+        assert_eq!(model.stage, Stage::Idle);
+        assert_eq!(model.next_wake_ms(2280), None);
+    }
     #[test]
     fn explicit_compact_survives_menu_dismiss_and_job_updates_until_real_reentry() {
         let mut model = Model::new(0, true);

@@ -83,6 +83,7 @@ pub fn idle_pose(mut pose: Pose, weight: f32) -> Pose {
     pose.blink *= weight;
     pose.gaze = pose.gaze.map(|v| v * weight);
     pose.head = pose.head.map(|v| v * weight);
+    pose.head_tilt *= weight;
     pose.ears = pose.ears.map(|v| v * weight);
     pose
 }

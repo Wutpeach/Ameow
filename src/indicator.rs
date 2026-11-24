@@ -38,7 +38,8 @@ pub fn directory_feedback(p: Palette, state: DirectoryPresentation, language: cr
     let alpha = state.alpha(now, reduced);
     let color = if feedback == DirectoryFeedback::Saved { frame.color }
         else { p.neutral.opacity(if p.night { 1. } else { 0.8 }) };
-    div().absolute().top(px((1. - alpha) * 5.)).w(px(96.)).h(px(75.)).opacity(alpha)
+    let offset = if feedback == DirectoryFeedback::Saved && state.exiting() { 0. } else { (1. - alpha) * 5. };
+    div().absolute().top(px(offset)).w(px(96.)).h(px(75.)).opacity(alpha)
         .when_some(feedback.ring_frame(p, state.at, now, reduced), |s, frame| s.child(ring(frame)))
         .child(div().absolute().left(px(23.)).top_0().size(px(50.))
             .flex().items_center().justify_center()
