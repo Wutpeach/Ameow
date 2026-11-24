@@ -6,11 +6,13 @@
 
 核实际版本：Cargo 包与锁文件、扩展 manifest/package/lock、生成的 Windows 版本资源/安装器及 Mac plist。按 [documentation.md](documentation.md) 核中英 README、手册、演示及未发布 Changelog，逐项记录更新或无需更新理由。历史记录保留原版本；真实资源发布前，公开链接继续指向现有资源。
 
+冻结产品候选、触发完整 CI 前，先按 [acceptance.md](acceptance.md) 完成两平台最小回归及受影响流程，复用仍适用的结果，并列明环境受限或待人工事项。真实缺陷先修并收敛候选，再集中完整验证，避免把平台专属失败留到已冻结输入之后处理。
+
 在已有同步授权下将批准的产品及配套文档同步 main，确定远端完整 commit/tree。本人先在主线验功能；仅实际安装、打包或正式发行需要时，从同一确定源码的干净检出准备 Win x64/MSVC 与 Mac arm64 资产，保留输入、工具链、二进制及签名/包回执。纯文档/工具提交不自动要求重打，比较实际构建输入，未知先核清。
 
 复用 `scripts/package_portable.ps1`、`scripts/package_windows.ps1`、`scripts/package_macos.sh`、ameow-release 和现有 CI。它们负责构建、离线签名、包成员校验；不重复实现或生成新密钥。遵守既有密钥/sequence、独立可信根、新输出目录和本地温和构建要求。`test_release_preparation.ps1` 仅有三项工具测试，不证明发行就绪。
 
-按 [acceptance.md](acceptance.md) 完成本版两平台最小回归及受影响流程。源码手验与发行包自检分别记录来源、实际 exe/哈希与覆盖；不能声称尚未制作的资产已齐。证据格式、五项资产（0.5.2 起）和只读检查见 [evidence.md](evidence.md)。
+发行资产制成后补核实际包的安装/启动与受影响流程；源码手验与发行包自检分别记录来源、实际 exe/哈希与覆盖，不能声称尚未制作的资产已齐。证据格式、五项资产（0.5.2 起）和只读检查见 [evidence.md](evidence.md)。
 
 ## 完整验证的时机
 

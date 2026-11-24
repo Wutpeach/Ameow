@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-21T17:09:42.094394Z",
+  "generatedAt": "2026-11-24T09:20:37.766493Z",
   "title": "Design System: Ameow",
   "extensions": {
     "colorMeta": {
@@ -358,7 +358,7 @@
       {
         "name": "mascot-idle-trial",
         "value": "ear 8deg / follower 2.6deg / stagger 110ms / tilt 4.3deg",
-        "purpose": "#86仅试调现有耳动与偏头，保留低频并错开眨眼；爪与沿口稳定，60px效果待本人审阅。"
+        "purpose": "本轮已接受的现有耳动与偏头参数；保持60px下可辨、安静低频并错开眨眼，爪与沿口稳定。"
       },
       {
         "name": "mascot-reveal",
@@ -408,7 +408,7 @@
       "name": "设置图标操作",
       "kind": "button",
       "refersTo": "button-settings-icon",
-      "description": "32px 圆角矩形；复制等常规操作复用此密度，无光晕。",
+      "description": "32px透明底圆角矩形，16px中性图标；检查、配置、复制等明确动作复用此密度，悬停、按下与键盘焦点就地反馈，无光晕。",
       "html": "<button type=\"button\" class=\"ds-settings-copy\" aria-label=\"复制\"><svg width=\"16\" height=\"16\" aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.92\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"6\" y=\"6\" width=\"8\" height=\"8\" rx=\"1.333\"/><path d=\"M3.333 10H2.667A1.333 1.333 0 0 1 1.333 8.667v-6A1.333 1.333 0 0 1 2.667 1.333h6A1.333 1.333 0 0 1 10 2.667v.666\"/></svg></button>",
       "css": ".ds-settings-copy { display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; box-sizing:border-box; padding:0; border:1px solid transparent; border-radius:6px; background:transparent; color:#62656b; cursor:pointer; transition:background-color 150ms,color 150ms; } .ds-settings-copy:hover { background:#f2f2f3; } .ds-settings-copy:focus-visible { outline:1px solid #0285ff; outline-offset:1px; } .ds-settings-copy:active { background:#ecedef; } @media (prefers-color-scheme:dark) { .ds-settings-copy { color:#a5a8ad; } .ds-settings-copy:hover { background:#2b2c2f; } .ds-settings-copy:active { background:#2e3033; } .ds-settings-copy:focus-visible { outline-color:#3d9aff; } }"
     },
@@ -469,7 +469,7 @@
   ],
   "narrative": {
     "northStar": "安静地呈现下载",
-    "overview": "Ameow 的界面用圆环、图标、短标签和稳定的布局呈现下载。操作靠近对象，状态反馈发生在原位；已经由图形、标题或当前值表达的信息，不再堆成副标题、长按钮或说明段落。Compact 只承担收起外观，下载信息集中在 Full；设置与诊断按需提供完整信息。\n\n本文记录截至 2026-11-22 的用户确认边界与现行代码配置。设计边界约束后续修改；具体实现值以 [tokens.rs](src/tokens.rs)、[download_ui.rs](src/download_ui.rs)、[settings_window.rs](src/settings_window.rs) 和对应 owner 为准。发现差异时先查用户最新决定与受影响实现，不能把偶发现象或旧证据中的废弃样式重新立为规则。",
+    "overview": "Ameow 的界面用圆环、图标、短标签和稳定的布局呈现下载。操作靠近对象，状态反馈发生在原位；已经由图形、标题或当前值表达的信息，不再堆成副标题、长按钮或说明段落。Compact 只承担收起外观，下载信息集中在 Full；设置与诊断按需提供完整信息。\n\n本文记录截至 2026-11-24 的用户确认边界与现行代码配置。设计边界约束后续修改；具体实现值以 [tokens.rs](src/tokens.rs)、[download_ui.rs](src/download_ui.rs)、[settings_window.rs](src/settings_window.rs)、[settings_components.rs](src/settings_components.rs)、[settings_browser_sessions.rs](src/settings_browser_sessions.rs) 和对应 owner 为准。发现差异时先查用户最新决定与受影响实现，不能把偶发现象或旧证据中的废弃样式重新立为规则。",
     "keyCharacteristics": [
       "密度紧凑，标题、状态、操作各司其职。",
       "按容器选择形状，同类同密度操作保持一致。",
@@ -494,6 +494,11 @@
         "section": "typography"
       },
       {
+        "name": "The Stable Settings Rule",
+        "body": "设置页的内部读取、配置和偏好保存使用原控件禁用或中性占位，不插入短暂过程行。对会影响后续内容位置的状态区域预留空间；真实失败、权限及主动更新进度继续就近表达，保留详情与恢复操作。",
+        "section": "layout"
+      },
+      {
         "name": "The One Halo Rule",
         "body": "只有下载状态环下方的操作按钮保留光晕，包括下载中取消和失败后复制。例外由 state_action_shadow 显式添加：纵向偏移 2.4px，模糊 4.8px，扩散 0，角色色透明度 0.3；取消使用红色，复制使用中性色。",
         "section": "elevation"
@@ -507,6 +512,11 @@
         "name": "The Hit Target Rule",
         "body": "点击范围与可见底色分开。Full 右上关闭点击范围 28px，队列 X 点击范围 24px；二者可见圆底均为 18px，图标不随点击范围缩放。保留键盘焦点以及可见底色外、点击范围内的悬停和按压反馈。",
         "section": "shapes"
+      },
+      {
+        "name": "The Contextual Icon Rule",
+        "body": "设置中的检查更新、配置扩展、复制、打开链接及下载/重启更新等明确动作使用熟悉的图标，保留动作提示、可访问名称和键盘操作。菜单选项、恢复推荐版本、错误重试及“更改目录”等需要说明意图的操作保留短文字；图标化以动作是否容易辨识为依据。",
+        "section": "components"
       },
       {
         "name": "The Anchored Tooltip Rule",
