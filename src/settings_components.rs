@@ -240,7 +240,7 @@ impl SettingsWindow {
         let p = Palette::new(self.projection.night);
         let extension = &self.projection.extension;
         let version = extension.available.as_ref().map(|identity| identity.version.as_str())
-            .unwrap_or(l.text("随 Ameow 提供", "Included with Ameow"));
+            .unwrap_or_default();
         let mut row = div().flex().flex_col().border_b_1().border_color(p.border)
             .child(div().min_h(px(tokens::SETTINGS_ROW_HEIGHT)).flex().items_center().justify_between().gap(px(12.))
                 .child(div().flex().items_center().gap(px(6.)).text_size(px(13.))
@@ -400,7 +400,7 @@ impl SettingsWindow {
                             .child(div().relative().top(px(presence.travel(-4.))).opacity(presence.alpha).child(menu)))));
                 }
                 controls = controls.child(anchor);
-            } else if !updatable { controls = controls.child(div().text_size(px(12.)).text_color(p.neutral).child(l.text("随 Ameow", "With Ameow"))); }
+            }
             let mut section = div().flex().flex_col().border_b_1().border_color(p.border)
                 .child(div().min_h(px(tokens::SETTINGS_ROW_HEIGHT)).flex().items_center().justify_between().gap(px(12.))
                     .child(div().flex().items_center().gap(px(6.)).text_size(px(13.)).child(label)
@@ -428,7 +428,7 @@ impl SettingsWindow {
             for (name, version) in snapshot.verified_runtime_versions.iter().filter(|(name, _)| !["yt-dlp", "gallery-dl", "deno", "ffmpeg"].contains(&name.as_str())) {
                 content = content.child(div().min_h(px(tokens::SETTINGS_ROW_HEIGHT)).flex().items_center().justify_between()
                     .border_b_1().border_color(p.border).text_size(px(13.)).child(name.clone())
-                    .child(div().text_size(px(12.)).text_color(p.neutral).child(format!("{version} · {}", l.text("随 Ameow", "With Ameow")))));
+                    .child(div().text_size(px(12.)).text_color(p.neutral).child(version.clone())));
             }
         }
         content.child(self.component_diagnostics(cx)).into_any_element()
