@@ -6,6 +6,7 @@
   "scripts": {
     "build": "node build.mjs",
     "test": "node --test tests/*.test.mjs",
+    "test:popup": "node tests/popup.e2e.mjs && node tests/popup-loading.e2e.mjs",
     "preview": "node preview/server.mjs",
     "test:preview": "node tests/preview.e2e.mjs"
   },

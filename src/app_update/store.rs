@@ -2,6 +2,9 @@ use super::{
     Manifest, Phase, SignedManifest, Trust,
     package::{hash, hash_reader},
 };
+#[cfg(all(test, windows))]
+#[path = "component_launch_tests.rs"]
+mod component_launch_tests;
 use serde::{Deserialize, Serialize};
 use std::{
     fs::{self, File, OpenOptions},
@@ -286,6 +289,7 @@ impl Install {
         Ok(manifest)
     }
     pub fn verify_release(&self, release: &Release) -> Result<File, String> {
+        #[cfg(target_os = "macos")]
         let dir = self.release_dir(&release.version)?;
         #[cfg(target_os = "macos")]
         if self.trust.target() != super::package::WINDOWS_TARGET {
@@ -299,12 +303,17 @@ impl Install {
             return Ok(archive);
             }
         }
+        self.verify_windows_release(release, None).map(|(app, _)| app)
+    }
+    fn verify_windows_release(&self, release: &Release, component: Option<&str>) -> Result<(File, Option<File>), String> {
+        let dir = self.release_dir(&release.version)?;
         let bundle = self.windows_bundle(release)?;
         let expected: std::collections::BTreeSet<_> = bundle.files.iter().map(|f| f.path.clone())
             .chain(["bundle.json".into(), "manifest.json".into()]).collect();
         let actual = tree_files(&dir)?;
         if actual.iter().any(|p| !expected.contains(p)) { return Err("E_APP_UPDATE_ZIP_MEMBERS".into()); }
         let mut app = None;
+        let mut selected = None;
         for record in &bundle.files {
         let path = dir.join(&record.path);
         plain(&path)?;
@@ -323,19 +332,32 @@ impl Install {
         if bytes != record.bytes || digest != record.sha256 {
             return Err("E_APP_UPDATE_EXECUTABLE_HASH".into());
         }
+        // Keep the same verified file open through spawn; reopening would need another hash.
+        if component == Some(record.path.as_str()) { selected = Some(guard.try_clone().map_err(|e| e.to_string())?); }
         if record.path == "Ameow.exe" { app = Some(guard); }
         }
-        app.ok_or_else(|| "E_APP_UPDATE_BUNDLE_INCOMPLETE".into())
+        Ok((app.ok_or("E_APP_UPDATE_BUNDLE_INCOMPLETE")?, selected))
     }
     #[cfg(windows)]
     pub(crate) fn component_release(&self) -> Result<(Release, File), String> {
+        let release = self.selected_component_release()?;
+        let guard = self.verify_release(&release)?;
+        Ok((release, guard))
+    }
+    #[cfg(windows)]
+    fn selected_component_release(&self) -> Result<Release, String> {
         let state = self.state()?;
         // An accepted version always wins. Only a first install uses its bootstrap slot.
         let release = state.current.or(state.trial).or(state.pending)
             .ok_or("E_APP_UPDATE_NO_CURRENT_VERSION")?;
         if state.failed.contains(&release.manifest_hash) { return Err("E_APP_UPDATE_FAILED_TRIAL".into()); }
-        let guard = self.verify_release(&release)?;
-        Ok((release, guard))
+        Ok(release)
+    }
+    #[cfg(windows)]
+    pub(crate) fn component_launch(&self, name: &str) -> Result<(Release, File, File), String> {
+        let release = self.selected_component_release()?;
+        let (app, component) = self.verify_windows_release(&release, Some(name))?;
+        Ok((release, app, component.ok_or("E_APP_UPDATE_BUNDLE_INCOMPLETE")?))
     }
     #[cfg(windows)]
     pub(crate) fn verify_component(&self, release: &Release, name: &str) -> Result<File, String> {

@@ -13,6 +13,13 @@ const t = (zh, en) => english ? en : zh;
 document.documentElement.lang = english ? 'en' : 'zh-CN';
 let site, current, sourceId, lastGrant, lastError, connectionState = 'unknown', host, tabId, toolsEnabled = false;
 let copiedTimer, feedbackTimer, diagnosticReport = '', authorized = false, pending = false, busy = '', syncedFeedback = false, stateKnown = false;
+let tabGeneration = 0, sessionGeneration = 0, toolsGeneration = 0, pendingTimer;
+const READ_TIMEOUT_MS = 5000;
+async function boundedRead(promise) {
+  let timer;
+  try { return await Promise.race([promise, new Promise((_, reject) => { timer = setTimeout(() => reject(Error('E_BRIDGE')), READ_TIMEOUT_MS); })]); }
+  finally { clearTimeout(timer); }
+}
 const sourceName = navigator.userAgent.includes('Edg/') ? 'Microsoft Edge' : 'Chrome / Chromium';
 const errorEn = { E_COOKIE_READ:'Could not read browser cookies', E_BRIDGE:'Browser connection failed', E_SESSION_STORAGE:'Session storage failed', E_SESSION_LIMIT:'Session exceeds the sync limit', E_SESSION_INVALID:'Session data was not accepted', E_SESSION_PROTOCOL:'Browser bridge is incompatible', E_SESSION_STALE:'Sync message expired', E_PERMISSION:'Site permission was removed', E_SESSION_REVOKED:'Site authorization was removed', E_SESSION_SOURCE_CHANGED:'Site source changed', E_BRIDGE_NOT_REGISTERED:'Browser bridge registration was not found', E_BRIDGE_FORBIDDEN:'Browser denied the connection', E_BRIDGE_START:'Browser bridge could not start', E_BRIDGE_EXIT:'Browser bridge exited', E_BRIDGE_IO:'Browser connection failed' };
 const errorText = code => { const messages = english ? errorEn : SYNC_ERRORS; return typeof code === 'string' && Object.hasOwn(messages, code) ? messages[code] : t('原因未知', 'Reason unknown'); };
@@ -21,11 +28,11 @@ const safeId = value => typeof value === 'string' && /^[a-zA-Z0-9_-]{1,80}$/.tes
 const safeSource = value => ['Microsoft Edge', 'Chrome / Chromium'].includes(value) ? value : t('未知来源', 'Unknown source');
 function connection(kind) {
   connectionState = kind;
-  const full = kind === 'ready' ? t('扩展连接就绪','Extension connection ready') : kind === 'unavailable' ? t('扩展连接不可用','Extension connection unavailable') : t('扩展连接未知','Extension connection unknown');
-  $('connection').textContent = kind === 'ready' ? t('就绪','Ready') : kind === 'unavailable' ? t('未连接','Disconnected') : t('未知','Unknown');
+  const full = kind === 'ready' ? t('扩展连接就绪','Extension connection ready') : kind === 'unavailable' ? t('扩展连接不可用','Extension connection unavailable') : kind === 'checking' ? t('正在检查扩展连接','Checking extension connection') : t('扩展连接未知','Extension connection unknown');
+  $('connection').textContent = kind === 'ready' ? t('就绪','Ready') : kind === 'unavailable' ? t('未连接','Disconnected') : kind === 'checking' ? t('连接中','Connecting') : t('未知','Unknown');
   $('connection').setAttribute('aria-label', full);
   $('connection-title').textContent = full;
-  $('connection-detail').textContent = kind === 'ready' ? t('可同步本站登录态。','Site session sync is available.') : t('请检查扩展配置后重试。','Check extension setup and retry.');
+  $('connection-detail').textContent = kind === 'ready' ? t('可同步本站登录态。','Site session sync is available.') : kind === 'checking' ? t('正在检查扩展连接。','Checking extension connection.') : t('请检查扩展配置后重试。','Check extension setup and retry.');
   $('connection').toggleAttribute('data-ready', kind === 'ready'); $('connection').toggleAttribute('data-error', kind === 'unavailable');
 }
 function status(text, detail = '', error = false) {
@@ -120,7 +127,9 @@ function render(state) {
   const grant = state.grant, own = current ? current.source_id === sourceId : Boolean(grant);
   lastGrant = grant;
   authorized = own; stateKnown = valid || own; pending = Boolean(own && grant?.pending);
+  clearTimeout(pendingTimer);
   $('page-unavailable').hidden = true;
+  $('session-loading').hidden = true;
   $('authorize').hidden = !valid || own; $('sync').hidden = !own; $('revoke').hidden = !own;
   $('site-actions').hidden = !own;
   if (!own && $('site-menu').matches(':popover-open')) $('site-menu').hidePopover();
@@ -135,17 +144,33 @@ function render(state) {
   else status(valid ? '' : t('会话状态暂不可确认','Session status unavailable'));
   controls();
   updateDiagnostic();
+  if (pending && !lastError) pendingTimer = setTimeout(() => {
+    if (!pending || lastError || busy) return;
+    $('sync').hidden = true; $('retry-status').hidden = false;
+    status(t('同步尚未完成','Sync is still pending'), t('点击重试以读取最新状态。','Retry to read the latest status.'));
+  }, READ_TIMEOUT_MS);
 }
-async function refresh() { render(await send('status')); }
+async function refresh() {
+  const generation = ++sessionGeneration;
+  try {
+    const state = await boundedRead(send('status'));
+    if (generation === sessionGeneration) render(state);
+  } catch (error) { if (generation === sessionGeneration) throw error; }
+}
 $('retry-status').addEventListener('click', async () => {
+  if (!site) { void loadTab(); return; }
+  $('session-loading').hidden = false; $('retry-status').hidden = true;
+  connection('checking'); updateDiagnostic();
   $('retry-status').disabled = true;
   try { await refresh(); }
   catch (error) {
+    $('session-loading').hidden = true; $('retry-status').hidden = false;
     connection('unavailable'); lastError = error.message; updateDiagnostic();
     status(t('扩展连接不可用','Extension connection unavailable'), t('请重试。','Try again.'), true);
   }
   finally { $('retry-status').disabled = false; }
 });
+$('retry-tools').addEventListener('click', () => { void loadTools(); });
 $('copy-diagnostic').addEventListener('click', async () => {
   clearTimeout(copiedTimer);
   try {
@@ -199,6 +224,7 @@ for (const action of ['authorize','sync','revoke']) $(action).addEventListener('
 for (const [id, zh, en] of [
   ['revoke','移除授权','Remove access'], ['session-title','登录态同步','Session sync'],
   ['diagnostics-title','诊断','Diagnostics'], ['retry-status','重试','Retry'],
+  ['retry-tools','重试','Retry'],
   ['tools-title','切片/下载 工具条','Clip/download toolbar']
 ]) $(id).textContent = t(zh,en);
 $('tools-info').setAttribute('aria-label',t('工具条说明','About the toolbar'));
@@ -219,41 +245,73 @@ const hideFullSite=() => {if ($('site-full').matches(':popover-open')) $('site-f
 $('site').addEventListener('blur',hideFullSite);
 $('site').addEventListener('keydown',event=>{if(event.key==='Escape')hideFullSite();});
 paintButton($('retry-status'), t('重试','Retry'), 'refresh');
+paintButton($('retry-tools'), t('重试','Retry'), 'refresh');
+$('site').textContent = t('正在读取页面','Reading page');
+$('tools-loading').textContent = $('session-loading').textContent = t('读取中','Loading');
 controls();
-connection('unknown');
+connection('checking');
 updateDiagnostic();
-try {
-  const [tab] = await chrome.tabs.query({ active:true, currentWindow:true });
-  host = pageHost(tab.url); tabId = tab.id;
-  site = siteFromUrl(tab.url); $('site').textContent = site; $('site').title = site; $('site').setAttribute('aria-label',site);
-  $('authorize').title = t('允许同步本站及子域的登录态，仅用于 Ameow 下载','Allow this site and its subdomains for Ameow downloads');
-  const [pageResult, sessionResult] = await Promise.allSettled([
-    host ? chrome.runtime.sendMessage({ action:'pages-status', host }) : null,
-    send('status'),
-  ]);
-  if (host) {
-    $('page-tools').hidden = false;
-    if (pageResult.status === 'fulfilled' && pageResult.value?.ok && typeof pageResult.value.value?.enabled === 'boolean') {
-      toolsEnabled = pageResult.value.value.enabled;
-      $('toggle-tools').setAttribute('aria-pressed', String(toolsEnabled));
-      $('toggle-tools').setAttribute('aria-label', toolsEnabled ? t('关闭页面工具','Turn off page tools') : t('启用页面工具','Enable page tools'));
-      $('toggle-tools').disabled = false;
+document.querySelector('main').getBoundingClientRect();
+document.documentElement.removeAttribute('data-initializing');
+
+async function loadTools() {
+  const generation = ++toolsGeneration;
+  $('tools-loading').hidden = false; $('retry-tools').hidden = true; $('toggle-tools').hidden = true;
+  $('page-status').textContent = '';
+  try {
+    const reply = await boundedRead(chrome.runtime.sendMessage({ action:'pages-status', host }));
+    if (generation !== toolsGeneration) return;
+    if (!reply?.ok || typeof reply.value?.enabled !== 'boolean') throw Error('E_BRIDGE');
+    toolsEnabled = reply.value.enabled;
+    $('toggle-tools').setAttribute('aria-pressed', String(toolsEnabled));
+    $('toggle-tools').setAttribute('aria-label', toolsEnabled ? t('关闭页面工具','Turn off page tools') : t('启用页面工具','Enable page tools'));
+    $('toggle-tools').disabled = false; $('toggle-tools').hidden = false;
+    $('toggle-tools').getBoundingClientRect(); $('toggle-tools').removeAttribute('data-initial-value');
+  } catch {
+    if (generation !== toolsGeneration) return;
+    $('page-status').textContent = t('页面工具状态不可用，请重试。','Page tools status unavailable. Try again.');
+    $('retry-tools').hidden = false;
+  } finally { if (generation === toolsGeneration) $('tools-loading').hidden = true; }
+}
+
+async function loadSession() {
+  try { await refresh(); }
+  catch (error) {
+    $('session-loading').hidden = true; $('retry-status').hidden = false;
+    connection('unavailable'); lastError = error.message; updateDiagnostic();
+    status(t('扩展连接不可用','Extension connection unavailable'), t('请重试。','Try again.'), true);
+  }
+}
+
+async function loadTab() {
+  const generation = ++tabGeneration;
+  $('retry-status').hidden = true; $('page-unavailable').hidden = true; $('session-loading').hidden = false;
+  connection('checking'); updateDiagnostic();
+  $('site').textContent = t('正在读取页面','Reading page');
+  try {
+    const [tab] = await boundedRead(chrome.tabs.query({ active:true, currentWindow:true }));
+    if (generation !== tabGeneration) return;
+    host = pageHost(tab.url); tabId = tab.id;
+    try { site = siteFromUrl(tab.url); } catch { throw Error('E_PAGE'); }
+    $('site').textContent = site; $('site').title = site; $('site').setAttribute('aria-label',site);
+    $('authorize').title = t('允许同步本站及子域的登录态，仅用于 Ameow 下载','Allow this site and its subdomains for Ameow downloads');
+    if (host) { $('page-tools').hidden = false; void loadTools(); }
+    void loadSession();
+  } catch (error) {
+    if (generation !== tabGeneration) return;
+    connection('unknown'); lastError = error.message; updateDiagnostic();
+    $('site').textContent=t('当前页面','Current page'); $('session-loading').hidden=true;
+    $('authorize').hidden=true; $('sync').hidden=true;
+    if (error.message === 'E_PAGE') {
+      $('page-unavailable').hidden=false;
+      status(t('请在普通网站页面打开扩展','Open the extension on a regular website'), '', true); $('notice').hidden=true;
     } else {
-      $('page-status').textContent = t('页面工具状态不可用，请重新打开扩展。','Page tools status unavailable. Reopen the extension.');
-      $('toggle-tools').setAttribute('aria-label', t('页面工具状态不可用','Page tools status unavailable'));
+      $('retry-status').hidden=false;
+      status(t('无法读取当前页面','Could not read the current page'), t('请重试。','Try again.'), true);
     }
   }
-  if (sessionResult.status === 'rejected') throw sessionResult.reason;
-  render(sessionResult.value);
-} catch (error) {
-  connection(site && /^E_BRIDGE|^E_SESSION_PROTOCOL/.test(error.message) ? 'unavailable' : 'unknown');
-  lastError = error.message; updateDiagnostic();
-  $('retry-status').hidden = !site || authorized;
-  $('authorize').hidden=true; $('sync').hidden=!authorized;
-  if (!site) { $('site').textContent=t('当前页面','Current page'); $('authorize').hidden=true; $('sync').hidden=true; $('page-unavailable').hidden=false; }
-  status(site ? t('扩展连接不可用','Extension connection unavailable') : t('请在普通网站页面打开扩展','Open the extension on a regular website'), '', true);
-  if (!site) $('notice').hidden=true;
-} finally {
-  document.querySelector('main').getBoundingClientRect();
-  document.documentElement.removeAttribute('data-initializing');
 }
+chrome.storage?.onChanged?.addListener((changes, area) => {
+  if (area === 'local' && site && (changes.grants || changes.source_id)) void loadSession();
+});
+void loadTab();

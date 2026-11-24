@@ -214,8 +214,7 @@ pub fn forward_component(name: &str) -> Result<Option<i32>, String> {
     let install = Install::fixture(root.to_path_buf())?;
     #[cfg(not(all(feature = "app-update-fixture", debug_assertions)))]
     let install = Install::production(root.to_path_buf())?;
-    let (release, _guard) = install.component_release()?;
-    let _component_guard = install.verify_component(&release, name)?;
+    let (release, _guard, _component_guard) = install.component_launch(name)?;
     let path = install.release_dir(&release.version)?.join(name);
     store::plain(&path)?;
     let status = std::process::Command::new(path).args(std::env::args_os().skip(1))

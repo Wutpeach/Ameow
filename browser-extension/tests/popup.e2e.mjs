@@ -89,18 +89,17 @@ try {for(const scenario of cases){
     requestAnimationFrame(sample);
   },scenario);
   await page.goto(origin+'/popup.html');
-  await page.waitForFunction(()=>!document.documentElement.hasAttribute('data-initializing'));
+  await page.waitForFunction(()=>!document.documentElement.hasAttribute('data-initializing') && document.querySelector('#session-loading').hidden && (document.querySelector('#page-tools').hidden || document.querySelector('#tools-loading').hidden));
   await page.evaluate(()=>new Promise(done=>requestAnimationFrame(()=>requestAnimationFrame(done))));
   const paints=await page.evaluate(()=>{window.__stopPaints=true;return window.__paints;});
   assert(paints.length>0,'Popup never revealed');
-  if(!scenario.name.startsWith('restricted'))assert(paints.every(frame=>frame.done),'provisional startup information was visible');
-  assert.equal(new Set(paints.map(frame=>JSON.stringify(frame))).size,1,'first-open UI changed after becoming visible');
+  assert(paints.every(frame=>frame.done || !['authorize','sync'].includes(frame.action)),'unconfirmed session action was visible');
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth),240);
   assert.equal(await page.locator('.actions button:visible').count(),scenario.name.startsWith('restricted')?0:1);
   assert.equal(await page.locator('pre,details,#diagnostic-report,#scope,#replace-copy').count(),0);
   const startupCalls=await page.evaluate(()=>window.__calls);
   assert(startupCalls.every(call=>['status','pages-status'].includes(call.action)),'open changed authorization or preference');
-  if(scenario.tools&&!scenario.statusFailure)assert.equal(paints[0].thumb,'matrix(1, 0, 0, 1, 16, 0)');
+  if(scenario.tools&&!scenario.statusFailure)assert.equal(paints.at(-1).thumb,'matrix(1, 0, 0, 1, 16, 0)');
   await page.locator('main').screenshot({path:resolve(evidence,scenario.name+'.png')});
   await page.locator('#copy-diagnostic').click();
   const diagnostic=await page.evaluate(()=>window.__copy.at(-1));
@@ -142,7 +141,7 @@ try {for(const scenario of cases){
     await page.locator('#toggle-tools').click();assert.equal(await page.locator('#toggle-tools').getAttribute('aria-pressed'),'false');
     assert(!(await page.evaluate(()=>window.__calls)).some(call=>['authorize','sync','revoke'].includes(call.action)));
   }
-  if(scenario.toolsFailure){assert(await page.locator('#toggle-tools').isDisabled());assert.match(await page.locator('#page-status').innerText(),/页面工具状态不可用/);assert(await page.locator('#authorize').isEnabled());}
+  if(scenario.toolsFailure){assert(await page.locator('#retry-tools').isVisible());assert.match(await page.locator('#page-status').innerText(),/页面工具状态不可用/);assert(await page.locator('#authorize').isEnabled());}
   if(scenario.name.startsWith('pending'))assert(await page.locator('#sync').isDisabled());
   if(scenario.name==='initial-error-zh'){
     assert(await page.locator('#sync').isEnabled());
@@ -161,6 +160,6 @@ try {for(const scenario of cases){
   }
   if(scenario.name.startsWith('restricted'))assert.equal(await page.locator('#page-unavailable').innerText(),'Open a website');
   assert.deepEqual(errors,[]);assert(requests.every(url=>new URL(url).origin===origin));
-  report.cases.push({name:scenario.name,firstPaint:paints[0],paintedFrames:paints.length,visibleStates:1,startupCalls:startupCalls.map(call=>call.action)});
+  report.cases.push({name:scenario.name,firstPaint:paints[0],paintedFrames:paints.length,startupCalls:startupCalls.map(call=>call.action)});
   console.log('PASS '+scenario.name);await context.close();
 }} finally {await browser.close();await new Promise(done=>server.close(done));await writeFile(resolve(evidence,'report.json'),JSON.stringify(report,null,2));}

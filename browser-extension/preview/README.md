@@ -56,6 +56,13 @@ HTTP服务及源码身份检查包含在扩展测试中：
 
     npm --prefix browser-extension run test:preview
 
+检查 Popup 状态、独立加载、超时重试与迟到响应：
+
+    npm --prefix browser-extension run test:popup
+
+此检查使用已构建的本工作树 dist，先运行扩展 build；它同样只使用独立无头
+浏览器和合成 Chrome API，不连接实际 Native Host。
+
 浏览器检查使用独立无头浏览器，Windows默认Edge，其他平台默认Chrome。
 可以通过AMEOW_BROWSER环境变量指定现有Chromium浏览器的可执行文件；
 不会下载浏览器或操作日常用户配置。证据可写入AMEOW_PREVIEW_EVIDENCE指定的

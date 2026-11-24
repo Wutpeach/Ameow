@@ -5,7 +5,7 @@ import vm from 'node:vm';
 
 const source = (await readFile(new URL('../src/background.mjs', import.meta.url), 'utf8')).replace(/^import[^\n]+\n/gm, '');
 const identity = { version: '0.5.2', extensionId: 'icedkidcbbbijndplfofcbhikohlcool', sourceSha256: 'a'.repeat(64), capabilities: ['session_sync_v1'] };
-function fixture({ compiled = identity, fail = false, deferred = false } = {}) {
+function fixture({ compiled = identity, fail = false, deferred = false, cache = {} } = {}) {
   const listeners = {}, reports = []; let finish;
   const event = name => ({ addListener(fn) { listeners[name] = fn; } });
   const chrome = { runtime: { onInstalled: event('install'), onStartup: event('startup'), onMessage: event('message'),
@@ -14,7 +14,8 @@ function fixture({ compiled = identity, fail = false, deferred = false } = {}) {
       if (fail) throw Error('old host does not support identity');
       if (deferred) await new Promise(resolve => { finish = resolve; });
       return { version: 1, ok: true, sites: [] };
-    } }, alarms: { onAlarm: event('alarm'), get: async () => ({}), create: async () => {} },
+    } }, storage: { session: { get: async () => ({...cache}), set: async value => Object.assign(cache,value) } },
+    alarms: { onAlarm: event('alarm'), get: async () => ({}), create: async () => {} },
     permissions: { onAdded: event('added'), onRemoved: event('removed') }, cookies: { onChanged: event('cookies') } };
   class Sessions { async state() { return { source_id: '1'.repeat(32), grants: { private: 'must not leave storage' } }; } async sync() { return {}; } }
   class PageTools { async reconcile() {} }
@@ -43,4 +44,14 @@ test('unknown source build does not invent identity and duplicate events share a
   const f = fixture({ deferred: true }); await turn();
   f.listeners.startup(); f.listeners.alarm({ name: 'ameow-sync' }); await turn();
   assert.equal(f.reports.length, 1); f.finish(); await turn();
+});
+
+test('successful loaded identity is reported once per browser session and changes still report', async () => {
+  const cache = {};
+  const first = fixture({cache}); await turn(); assert.equal(first.reports.length,1);
+  const wake = fixture({cache}); await turn(); assert.equal(wake.reports.length,0);
+  wake.listeners.alarm({name:'ameow-sync'}); await turn(); assert.equal(wake.reports.length,0);
+  const reload = fixture({cache,compiled:{...identity,sourceSha256:'b'.repeat(64)}});
+  await turn(); assert.equal(reload.reports.length,1);
+  const otherProfile = fixture(); await turn(); assert.equal(otherProfile.reports.length,1);
 });

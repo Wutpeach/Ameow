@@ -63,6 +63,7 @@ button:disabled { opacity:.55; cursor:default; }
 .toggle span::after { content:""; display:block; width:16px; height:16px; border-radius:50%; background:white; transition:transform 150ms ease-out; }
 .toggle[aria-pressed="true"] span { background:var(--action-bg); }
 .toggle[aria-pressed="true"] span::after { background:var(--action-fg); transform:translateX(16px); }
+.toggle[data-initial-value] span::after { transition:none; }
 .popover { position:fixed; inset:auto; top:42px; left:12px; width:216px; max-height:calc(100vh - 54px); margin:0; padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--surface,#fff); color:inherit; box-shadow:0 2px 10px #0000001f; overflow:auto; font-size:13px; }
 .popover strong { font-size:13px; font-weight:600; }
 .popover p { margin-top:5px; color:var(--secondary); font-size:12px; line-height:18px; }
