@@ -15,4 +15,4 @@
 
 - [x] 3.1 根默认受影响程序及真实dist准备好，交实际证据、入口和未验边界，不关闭Issue或发行。
 
-证据：D:/Ameow-handoffs/0.5.3-acceptance-fixes-20261127/xhs-live/REPORT.md。真实网站的胶囊、Peek和关闭帖子已核；换笔记、图文拒绝、断开原容器及320px浅深检查为自有拦截页面回归。网站UI受理ACK为模拟，正式完整下载和快/精成品使用默认App/CLI。用户重载后浏览器Native整链、原站全屏及Mac本轮增量未验；本人UX待验，不关闭Issue。
+证据：D:/Ameow-handoffs/0.5.3-acceptance-fixes-20261127/xhs-live/REPORT.md及peek-stability/REPORT.md。真实网站的胶囊、Peek和关闭帖子已核；换笔记、图文拒绝、断开原容器及320px浅深检查为自有拦截页面回归。网站UI受理ACK为模拟，正式完整下载和快/精成品使用默认App/CLI。用户已确认普通下载，并在48d3d74e/2f9a575b补修交付后明确“验收通过”；据此接受当前小红书交付，不虚构本人逐项执行快/精或Mac最新UI实测。原站全屏和平台覆盖仍按证据实际范围；#97因抖音暂停范围继续Open，不阻塞本版准备，未发行。
