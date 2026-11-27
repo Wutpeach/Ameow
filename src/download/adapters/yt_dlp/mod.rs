@@ -7,6 +7,8 @@ mod bounded_http;
 mod attempt_resolution;
 #[cfg(target_os = "macos")]
 pub(crate) mod settlement_macos;
+#[cfg(target_os = "macos")]
+pub(crate) mod cancellation_macos;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum InvocationPhase {

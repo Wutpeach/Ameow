@@ -125,9 +125,17 @@ impl ExecutionContext<'_> {
         let executable = self.tool(command.tool)?;
         let args = command.args;
         #[cfg(target_os = "macos")]
-        let (executable, args) = if command.tool == "yt-dlp.exe" || command.tool == "yt-dlp" {
-            super::runtime::python_zipapp(self.tool(super::runtime::PYTHON_TOOL)?, &executable, args)?
-        } else { (executable, args) };
+        let (executable, args, cancellation) = if command.tool == "yt-dlp.exe" || command.tool == "yt-dlp" {
+            let python = self.tool(super::runtime::PYTHON_TOOL)?;
+            if phase == Some(super::adapters::yt_dlp::InvocationPhase::Transfer) {
+                let (executable, args, cancellation) = super::adapters::yt_dlp::cancellation_macos::Cancellation::invocation(
+                    python, &executable, args, self.lease)?;
+                (executable, args, Some(cancellation))
+            } else {
+                let (executable, args) = super::runtime::python_zipapp(python, &executable, args)?;
+                (executable, args, None)
+            }
+        } else { (executable, args, None) };
         let spec = ProcessSpec {
             executable,
             args,
@@ -140,7 +148,7 @@ impl ExecutionContext<'_> {
         #[cfg(target_os = "macos")]
         if let Some(phase) = phase {
             let completion = super::adapters::yt_dlp::settlement_macos::ManagedCompletion::for_invocation(
-                &spec, self.lease, phase, resolution, self.authentication.is_some(),
+                &spec, self.lease, phase, resolution, self.authentication.is_some(), cancellation,
             )?;
             return process_supervisor::run_managed(spec, completion, self.control, combined);
         }

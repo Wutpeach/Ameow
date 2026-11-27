@@ -199,7 +199,6 @@ const NOTE_EXIT: u32 = 0x8000_0000;
 const SIGINT: c_int = 2;
 const SIGKILL: c_int = 9;
 const SIGCONT: c_int = 19;
-const INTERRUPT_GRACE: Duration = Duration::from_secs(2);
 
 fn lock<T>(value: &Mutex<T>) -> MutexGuard<'_, T> {
     value
@@ -690,16 +689,16 @@ impl Owner {
             if self.trusted_exit_proven {
                 return Ok(());
             }
-            if self.trusted_contract.as_ref().is_some_and(ManagedCompletion::supports_interrupt)
+            if let Some(grace) = self.trusted_contract.as_ref().and_then(ManagedCompletion::interrupt_grace)
                 && self.resumed && !self.facts.root_waited
             {
                 if self.interrupted_at.is_none() {
                     if unsafe { kill(self.pid.ok_or("missing owned root")?, SIGINT) } != 0 {
-                        return Err(syscall_error("interrupt owned resolve root"));
+                        return Err(syscall_error("interrupt owned managed root"));
                     }
                     self.interrupted_at = Some(Instant::now());
                 }
-                if self.interrupted_at.is_some_and(|began| began.elapsed() < INTERRUPT_GRACE) {
+                if self.interrupted_at.is_some_and(|began| began.elapsed() < grace) {
                     return Ok(());
                 }
             }
@@ -792,7 +791,10 @@ impl Owner {
         if self.root_wait_status.is_none() || self.root_wait_status != self.trusted_wait_status {
             return Err("owned root wait status disagreed with trusted normal exit".into());
         }
-        if !contract.complete(&spec.cwd, self.exit_code) {
+        let complete = if self.interrupted_at.is_some() {
+            contract.complete_interrupted(&spec.cwd, self.pid.ok_or("missing owned root")? as u32, self.exit_code)
+        } else { contract.complete(&spec.cwd, self.exit_code) };
+        if !complete {
             return Err("managed component completion evidence is missing or unsupported".into());
         }
         Ok(true)
@@ -1347,7 +1349,7 @@ mod macos_tests {
                 io::stdout().flush().unwrap();
                 child.wait().unwrap();
             }
-            "fork-interrupt-complete" => {
+            "fork-interrupt-complete" | "fork-interrupt-cancelled" | "fork-cancel-record-no-interrupt" => {
                 static INTERRUPTED: AtomicBool = AtomicBool::new(false);
                 extern "C" fn interrupted(_: c_int) {
                     INTERRUPTED.store(true, Ordering::Release);
@@ -1356,8 +1358,17 @@ mod macos_tests {
                 assert_eq!(unsafe { sigaction(SIGINT, &action, ptr::null_mut()) }, 0);
                 let mut child = Command::new("/bin/sleep").arg("0.1").spawn().unwrap();
                 child.wait().unwrap();
-                while !INTERRUPTED.load(Ordering::Acquire) {
+                while mode != "fork-cancel-record-no-interrupt" && !INTERRUPTED.load(Ordering::Acquire) {
                     thread::sleep(Duration::from_millis(5));
+                }
+                if mode != "fork-interrupt-complete" {
+                    if std::env::var_os("AMEOW_SKIP_CANCEL_RECEIPT").is_none() {
+                        let receipt = serde_json::json!({"schema":1,"nonce":"fixture",
+                            "root_pid":std::process::id(),"kind":"cancelled","work_creation_closed":true,
+                            "workers_joined":true,"direct_children_waited":true,"reaped":[]});
+                        fs::write("transfer-cancel.json", format!("{receipt}\n")).unwrap();
+                    }
+                    std::process::exit(130);
                 }
                 std::process::exit(1);
             }
@@ -2001,6 +2012,74 @@ mod macos_tests {
             drop(owner);
             fs::remove_dir_all(workspace).unwrap();
         }
+    }
+
+    #[test]
+    fn transfer_cancellation_needs_this_interrupt_receipt_and_all_kernel_barriers() {
+        for (interrupt, record, settles) in [(true, true, true), (true, false, false), (false, true, false)] {
+            let workspace = tempfile::tempdir().unwrap();
+            let mut spec = spec(if interrupt { "fork-interrupt-cancelled" } else { "fork-cancel-record-no-interrupt" });
+            spec.cwd = workspace.path().into();
+            if !record { spec.env.push(("AMEOW_SKIP_CANCEL_RECEIPT".into(), "1".into())); }
+            let control = Control::default();
+            let mut owner = Owner::new(Arc::new(|_| {}), Arc::new(AtomicBool::new(false)));
+            owner.trusted_contract = Some(ManagedCompletion::cancellation_fixture());
+            owner.initialize(&Launch::new(&spec).unwrap(), &spec, &control).unwrap();
+            let deadline = Instant::now() + Duration::from_secs(5);
+            while !owner.descendants_unproven {
+                assert!(owner.tick(&spec, &control).unwrap().is_none());
+                assert!(Instant::now() < deadline);
+                thread::sleep(Duration::from_millis(5));
+            }
+            if interrupt { control.cancel(); }
+            let outcome = loop {
+                if let Some(outcome) = owner.tick(&spec, &control).unwrap() { break Some(outcome.unwrap()); }
+                if owner.facts.root_waited && owner.facts.callback_consumer_joined && owner.trusted_rejected { break None; }
+                assert!(Instant::now() < deadline);
+                thread::sleep(Duration::from_millis(5));
+            };
+            assert_eq!(owner.facts.resources_releasable(), settles);
+            assert_eq!(owner.trusted_completion, settles);
+            assert!(owner.trusted_exit_proven && owner.facts.root_waited);
+            assert_eq!(owner.root_wait_status, Some(130 << 8));
+            assert_eq!(owner.trusted_wait_status, owner.root_wait_status);
+            assert!(owner.facts.stdout_reader_joined && owner.facts.stderr_reader_joined && owner.facts.callback_consumer_joined);
+            assert_eq!(owner.interrupted_at.is_some(), interrupt);
+            assert!(!owner.terminate_sent);
+            assert_eq!(outcome.is_some(), settles);
+        }
+    }
+
+    #[test]
+    fn transfer_interrupt_deadline_is_one_opportunity_and_never_resets() {
+        let spec = spec("fork-ignore-interrupt");
+        let control = Control::default();
+        let mut owner = Owner::new(Arc::new(|_| {}), Arc::new(AtomicBool::new(false)));
+        owner.trusted_contract = Some(ManagedCompletion::cancellation_fixture());
+        owner.initialize(&Launch::new(&spec).unwrap(), &spec, &control).unwrap();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while !owner.descendants_unproven {
+            assert!(owner.tick(&spec, &control).unwrap().is_none());
+            assert!(Instant::now() < deadline);
+            thread::sleep(Duration::from_millis(5));
+        }
+        control.cancel(); owner.request_cancellation().unwrap();
+        let first = owner.interrupted_at.unwrap();
+        owner.request_cancellation().unwrap();
+        assert_eq!(owner.interrupted_at, Some(first));
+        assert!(!owner.cleanup);
+        owner.interrupted_at = Some(Instant::now() - Duration::from_secs(16));
+        let expired = owner.interrupted_at;
+        owner.request_cancellation().unwrap();
+        assert!(owner.cleanup);
+        assert_eq!(owner.interrupted_at, expired);
+        while !owner.facts.root_waited || !owner.facts.callback_consumer_joined {
+            assert!(owner.tick(&spec, &control).unwrap().is_none());
+            assert!(Instant::now() < deadline);
+            thread::sleep(Duration::from_millis(5));
+        }
+        assert!(owner.terminate_sent && !owner.facts.resources_releasable());
+        assert_eq!(owner.root_wait_status, Some(SIGKILL));
     }
 
     #[test]

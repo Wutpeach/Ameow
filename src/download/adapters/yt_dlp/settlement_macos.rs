@@ -11,6 +11,7 @@ pub(crate) struct ManagedCompletion {
     binding: Option<ProcessSpec>,
     _guards: Vec<File>,
     safe_records: bool,
+    cancellation: Option<super::cancellation_macos::Cancellation>,
 }
 
 impl ManagedCompletion {
@@ -20,6 +21,7 @@ impl ManagedCompletion {
         phase: InvocationPhase,
         resolution: Option<&serde_json::Value>,
         safe_records: bool,
+        cancellation: Option<super::cancellation_macos::Cancellation>,
     ) -> Result<Option<Self>, String> {
         let guards = lease.execution_guards()?;
         for name in ["rtmpdump", "phantomjs"] {
@@ -35,7 +37,7 @@ impl ManagedCompletion {
             };
             if !value.is_some_and(transfer_media_value) { return Ok(None); }
         }
-        Ok(Some(Self { phase, binding: Some(spec.clone()), _guards: guards, safe_records }))
+        Ok(Some(Self { phase, binding: Some(spec.clone()), _guards: guards, safe_records, cancellation }))
     }
 
     pub(crate) fn matches_invocation(&self, spec: &ProcessSpec) -> bool {
@@ -46,8 +48,22 @@ impl ManagedCompletion {
         matches!(self.phase, InvocationPhase::Resolve | InvocationPhase::Transfer)
     }
 
-    pub(crate) fn supports_interrupt(&self) -> bool {
-        self.phase == InvocationPhase::Resolve
+    pub(crate) fn interrupt_grace(&self) -> Option<std::time::Duration> {
+        if self.phase == InvocationPhase::Resolve { Some(std::time::Duration::from_secs(2)) }
+        else if self.cancellation.is_some() { Some(std::time::Duration::from_secs(15)) }
+        else { None }
+    }
+
+    pub(crate) fn complete_interrupted(&self, workspace: &Path, root_pid: u32, exit_code: u32) -> bool {
+        match self.phase {
+            // A fully completed media invocation may win the race with SIGINT.
+            // Its existing zero-exit completion proof remains valid for ownership;
+            // the outer cancellation/publication authority still decides delivery.
+            InvocationPhase::Transfer if exit_code == 0 => self.complete(workspace, exit_code),
+            InvocationPhase::Transfer => self.cancellation.as_ref()
+                .is_some_and(|contract| contract.complete(workspace, root_pid, exit_code)),
+            _ => self.complete(workspace, exit_code),
+        }
     }
 
     pub(crate) fn complete(&self, workspace: &Path, exit_code: u32) -> bool {
@@ -62,7 +78,14 @@ impl ManagedCompletion {
 
     #[cfg(test)]
     pub(crate) fn fixture(phase: InvocationPhase) -> Self {
-        Self { phase, binding: None, _guards: Vec::new(), safe_records: false }
+        Self { phase, binding: None, _guards: Vec::new(), safe_records: false, cancellation: None }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn cancellation_fixture() -> Self {
+        let mut value = Self::fixture(InvocationPhase::Transfer);
+        value.cancellation = Some(super::cancellation_macos::Cancellation::fixture("fixture"));
+        value
     }
 }
 
@@ -263,6 +286,7 @@ mod tests {
                 binding: Some(spec.clone()),
                 _guards: Vec::new(),
                 safe_records: false,
+                cancellation: None,
             };
             assert!(completion.matches_invocation(&spec));
             let mut changed = spec.clone();
@@ -418,6 +442,8 @@ mod tests {
         assert!(!completion.complete(workspace.path(), 0));
         completion.safe_records = true;
         assert!(completion.complete(workspace.path(), 0));
+        assert!(completion.complete_interrupted(workspace.path(), 42, 0));
+        assert!(!completion.complete_interrupted(workspace.path(), 42, 130));
         assert!(completion.complete(workspace.path(), 1));
         fs::write(workspace.path().join(SELECTION_FILE), []).unwrap();
         assert!(!completion.complete(workspace.path(), 1));
