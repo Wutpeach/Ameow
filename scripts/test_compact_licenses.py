@@ -45,6 +45,26 @@ class CompactLicenses(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Unexpected standard-library tag:'):
             parser.feed('<body><script>changed</script></body>')
 
+    def test_lock_checkout_line_endings_preserve_output_but_content_changes_fail(self):
+        inputs = json.loads((notices.ROOT / notices.INPUTS).read_text())
+        expected = notices.generate()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for source in [notices.INPUTS, 'Cargo.lock'] + [r['path'] for r in inputs['sources']]:
+                destination = root / source
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(notices.ROOT / source, destination)
+            lock = root / 'Cargo.lock'
+            lf = lock.read_bytes().replace(b'\r\n', b'\n')
+            for representation in [lf, lf.replace(b'\n', b'\r\n')]:
+                lock.write_bytes(representation)
+                self.assertEqual(notices.generate(root), expected)
+            tampered = lf.replace(b'version = "', b'version = "tampered-', 1)
+            self.assertNotEqual(tampered, lf)
+            lock.write_bytes(tampered)
+            with self.assertRaisesRegex(ValueError, 'Cargo.lock changed;'):
+                notices.generate(root)
+
 
 if __name__ == '__main__':
     unittest.main()

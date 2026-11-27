@@ -124,7 +124,10 @@ def generate(root=ROOT):
             raise ValueError(f"Input changed: {record['path']}")
         checked[record['path']] = data
     inventory = json.loads(checked['distribution/notices/rust-dependency-inventory.json'])
-    if hashlib.sha256((root / 'Cargo.lock').read_bytes()).hexdigest() != inventory['cargoLockSha256']:
+    if inventory.get('cargoLockHashMode') != 'crlf-to-lf':
+        raise ValueError('Unsupported Cargo.lock audit hash mode')
+    lock = (root / 'Cargo.lock').read_bytes().replace(b'\r\n', b'\n')
+    if hashlib.sha256(lock).hexdigest() != inventory['cargoLockSha256']:
         raise ValueError('Cargo.lock changed; refresh the dependency/source audit before packaging')
     packages = inventory['packages']
     assert inventory['packageCount'] == len(packages)

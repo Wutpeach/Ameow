@@ -4,7 +4,7 @@
   "sources": [
     {
       "path": "distribution/notices/rust-dependency-inventory.json",
-      "sha256": "489db79a1dca89383bb21c4fae1ead1b6727e48d7e4a075ade79092fc91bcff3"
+      "sha256": "6fee26a2bd8c5a24126e96067c02171ce632891d727a16fe48d1b6c1ad4884de"
     },
     {
       "path": "distribution/notices/rust-dependency-licenses.txt",
