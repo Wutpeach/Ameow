@@ -125,10 +125,45 @@ pub struct Identity {
     pub part: Option<u64>,
 }
 
+fn douyin_host(url: &Url) -> bool {
+    matches!(url.scheme(), "http" | "https") && url.port().is_none()
+        && matches!(url.host_str(), Some("douyin.com" | "www.douyin.com"))
+        && url.username().is_empty() && url.password().is_none()
+}
+fn valid_douyin_id(id: &str) -> bool {
+    !id.starts_with('0') && id.bytes().all(|b| b.is_ascii_digit())
+        && id.parse::<u64>().is_ok_and(|value| value > 0)
+}
+pub(crate) fn douyin_video_id(input: &str) -> Option<String> {
+    let url = Url::parse(input).ok()?;
+    if !douyin_host(&url) { return None; }
+    let path = url.path().strip_suffix('/').unwrap_or(url.path());
+    let id = path.strip_prefix("/video/")?;
+    valid_douyin_id(id).then(|| id.to_owned())
+}
+fn normalize_douyin_url(url: Url) -> Result<Url, String> {
+    if !douyin_host(&url) { return Ok(url); }
+    let path = url.path().strip_suffix('/').unwrap_or(url.path());
+    let video = path.strip_prefix("/video/").filter(|id| !id.contains('/'));
+    if path != "/jingxuan" && video.is_none() { return Ok(url); }
+    let ids: Vec<_> = url.query_pairs().filter(|(key, _)| key == "modal_id").map(|(_, id)| id.into_owned()).collect();
+    if ids.len() > 1 { return Err("E_PAGE_TARGET: ambiguous Douyin work ID".into()); }
+    if video.is_some_and(|id| !valid_douyin_id(id)) || ids.first().is_some_and(|id| !valid_douyin_id(id)) {
+        return Err("E_PAGE_TARGET: invalid Douyin work ID".into());
+    }
+    if let (Some(path_id), Some(modal_id)) = (video, ids.first())
+        && path_id != modal_id.as_str()
+    { return Err("E_PAGE_TARGET: conflicting Douyin work IDs".into()); }
+    let Some(id) = video.or_else(|| ids.first().map(String::as_str)) else { return Ok(url); };
+    Url::parse(&format!("https://www.douyin.com/video/{id}"))
+        .map_err(|_| "E_PAGE_TARGET: invalid Douyin work URL".into())
+}
+
 impl Accepted {
     pub fn new(mut intent: DownloadIntent) -> Result<Self, String> {
         if let Some(clip) = intent.clip { clip.validate()?; }
-        let u = validate_public_url(&intent.url)?;
+        let u = normalize_douyin_url(validate_public_url(&intent.url)?)?;
+        if douyin_video_id(u.as_str()).is_some() { intent.url = u.to_string(); }
         let host = u.host_str().ok_or("Missing site host")?.trim_end_matches('.');
         let segments: Vec<_> = u
             .path_segments()
@@ -286,6 +321,39 @@ mod generic_tests {
         assert_eq!(accepted.object, Object::Generic { url: "https://example.com/a?p=bad&list=x".into() });
         assert!(accepted.object.provisional_key().starts_with("generic-url:"));
         assert!(!accepted.object.provisional_key().contains("example"));
+    }
+    #[test]
+    fn douyin_single_work_urls_share_transport_and_object_without_guessing() {
+        let canonical = "https://www.douyin.com/video/7702352846469090602";
+        let expected = accept(canonical).unwrap();
+        for url in [
+            "https://www.douyin.com/jingxuan?modal_id=7702352846469090602",
+            "https://douyin.com/jingxuan/?from=feed&modal_id=7702352846469090602#player",
+            "http://douyin.com/video/7702352846469090602/?modal_id=7702352846469090602",
+            "https://www.douyin.com/video/7702352846469090602#player",
+        ] {
+            let accepted = accept(url).unwrap();
+            assert_eq!(accepted.intent.url, canonical, "{url}");
+            assert_eq!(accepted.object, expected.object, "{url}");
+            assert_eq!(douyin_video_id(&accepted.intent.url).as_deref(), Some("7702352846469090602"));
+        }
+        for url in [
+            "https://www.douyin.com/jingxuan?modal_id=7702352846469090602&modal_id=7702352846469090602",
+            "https://www.douyin.com/jingxuan?modal_id=abc",
+            "https://www.douyin.com/jingxuan?modal_id=0",
+            "https://www.douyin.com/jingxuan?modal_id=07702352846469090602",
+            "https://www.douyin.com/video/7702352846469090602?modal_id=7702352846469090603",
+            "https://www.douyin.com/video/not-an-id",
+        ] { assert!(accept(url).is_err(), "{url}"); }
+        for url in [
+            "https://www.douyin.com/jingxuan",
+            "https://www.douyin.com/user/example?modal_id=7702352846469090602",
+            "https://www.douyin.com.evil.example/jingxuan?modal_id=7702352846469090602",
+            "https://www.douyin.com:8443/jingxuan?modal_id=7702352846469090602",
+        ] {
+            assert_eq!(accept(url).unwrap().intent.url, url);
+            assert_eq!(douyin_video_id(url), None);
+        }
     }
     #[test]
     fn unrecognized_site_syntax_reaches_native_resolution() {

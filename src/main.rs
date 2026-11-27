@@ -64,6 +64,7 @@ impl AssetSource for Assets {
             "brands/imgur.svg" => Some(Cow::Borrowed(include_bytes!("../assets/brands/imgur.svg"))),
             "brands/x.svg" => Some(Cow::Borrowed(include_bytes!("../assets/brands/x.svg"))),
             "brands/vimeo.svg" => Some(Cow::Borrowed(include_bytes!("../assets/brands/vimeo.svg"))),
+            "brands/xiaohongshu.svg" => Some(Cow::Borrowed(include_bytes!("../assets/brands/xiaohongshu.svg"))),
             "icons/x.svg" => Some(Cow::Borrowed(include_bytes!("../assets/x.svg"))),
             "icons/copy.svg" => Some(Cow::Borrowed(include_bytes!("../assets/copy.svg"))),
             "icons/check.svg" => Some(Cow::Borrowed(include_bytes!("../assets/check.svg"))),
@@ -89,7 +90,7 @@ impl AssetSource for Assets {
     }
     fn list(&self, prefix: &str) -> anyhow::Result<Vec<SharedString>> {
         let mut paths: Vec<SharedString> = ["brands/bilibili.svg", "brands/youtube.svg", "brands/bluesky.svg",
-            "brands/imgur.svg", "brands/x.svg", "brands/vimeo.svg",
+            "brands/imgur.svg", "brands/x.svg", "brands/vimeo.svg", "brands/xiaohongshu.svg",
             "icons/x.svg", "icons/copy.svg", "icons/check.svg", "icons/eye-off.svg",
             "icons/settings.svg", "icons/sliders-horizontal.svg", "icons/download.svg",
             "icons/blocks.svg", "icons/info.svg", "icons/circle-alert.svg",

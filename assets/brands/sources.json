@@ -95,6 +95,24 @@
         "guidelines": "https://press.vimeo.com/brand-guidelines"
       },
       "individualLicense": null
+    },
+    {
+      "sha256": "847cacc807f5c236031a7477381daa67fd829d89f3f80c16a547ff2efe050794",
+      "immutableSourceUrl": "https://github.com/simple-icons/simple-icons/blob/32e030086fdc605196391aab28519b14dc4295b4/icons/xiaohongshu.svg",
+      "title": "Xiaohongshu",
+      "slug": "xiaohongshu",
+      "viewBox": "0 0 24 24",
+      "metadata": {
+        "title": "Xiaohongshu",
+        "hex": "FF2442",
+        "source": "https://pro.xiaohongshu.com",
+        "aliases": {
+          "loc": {
+            "zh-CN": "小红书"
+          }
+        }
+      },
+      "individualLicense": null
     }
   ]
 }

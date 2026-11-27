@@ -3,6 +3,10 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 pub fn attest(accepted: &Accepted, metadata: &Value) -> Result<Identity, String> {
         if let Object::Generic { url } = &accepted.object {
+            if let Some(expected) = crate::download::request::douyin_video_id(url)
+                && (metadata["id"].as_str() != Some(expected.as_str())
+                    || metadata["extractor_key"].as_str() != Some("Douyin"))
+            { return Err("E_PAGE_TARGET: native Douyin work identity does not match the request".into()); }
             if is_collection(metadata)
             { return Err("Metadata is a playlist/multiple/indirect object".into()); }
             let frozen = format!("{:x}", Sha256::digest(url.as_bytes()));
@@ -145,6 +149,16 @@ mod tests {
 
     fn generic(url: &str) -> Accepted {
         Accepted::new(DownloadIntent { clip: None, url: url.into(), quality: Quality::Balanced, output_dir: std::env::temp_dir() }).unwrap()
+    }
+    #[test]
+    fn douyin_identity_requires_the_requested_native_work() {
+        let accepted = generic("https://www.douyin.com/jingxuan?modal_id=7702352846469090602");
+        let matching = json!({"id":"7702352846469090602", "extractor_key":"Douyin", "title":"Synthetic identity fixture"});
+        let proof = proof(&accepted, &matching).unwrap();
+        assert_eq!(canonical_url(&accepted, &proof.identity), "https://www.douyin.com/video/7702352846469090602");
+        for metadata in [json!({}), json!({"id":"7702352846469090603", "extractor_key":"Douyin"}),
+            json!({"id":"7702352846469090602", "extractor_key":"Other"})]
+        { assert!(attest(&accepted, &metadata).unwrap_err().contains("E_PAGE_TARGET")); }
     }
     #[test]
     fn generic_identity_allows_native_normalization_and_optional_labels() {

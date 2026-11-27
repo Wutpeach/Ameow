@@ -70,16 +70,17 @@ impl BrowserUi {
 fn brand(site: &str) -> (&str, &'static str) {
     match site {
         "bilibili.com" => ("Bilibili", "brands/bilibili.svg"),
-        "youtube.com" => ("YouTube", "brands/youtube.svg"),
+        "youtube.com" | "youtu.be" => ("YouTube", "brands/youtube.svg"),
         "bsky.app" => ("Bluesky", "brands/bluesky.svg"),
         "imgur.com" => ("Imgur", "brands/imgur.svg"),
-        "x.com" => ("X", "brands/x.svg"),
+        "x.com" | "twitter.com" => ("X", "brands/x.svg"),
         "vimeo.com" => ("Vimeo", "brands/vimeo.svg"),
+        "xiaohongshu.com" => ("小红书", "brands/xiaohongshu.svg"),
         _ => (site, "icons/info.svg"),
     }
 }
 fn brand_size(site: &str) -> f32 {
-    match site { "youtube.com" => 30., "x.com" => 26., "bilibili.com" | "bsky.app" | "imgur.com" | "vimeo.com" => 28., _ => 26. }
+    match site { "youtube.com" | "youtu.be" => 30., "x.com" | "twitter.com" => 26., "bilibili.com" | "bsky.app" | "imgur.com" | "vimeo.com" | "xiaohongshu.com" => 28., _ => 26. }
 }
 fn failed(site: &SiteView) -> bool { site.last_result.as_ref().is_some_and(|r| r.error.is_some()) }
 fn session_diagnostic(site: &SiteView, l: Language) -> String {
@@ -446,6 +447,25 @@ fn demo_points(anchors: &[Option<Bounds<Pixels>>; 4], t: f32) -> Option<Point<Pi
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[::core::prelude::v1::test]
+    fn known_session_brands_and_fallback_resolve_to_embedded_assets() {
+        use gpui::AssetSource as _;
+        let assets = crate::Assets;
+        for (domain, expected) in [
+            ("bilibili.com", "brands/bilibili.svg"),
+            ("youtube.com", "brands/youtube.svg"), ("youtu.be", "brands/youtube.svg"),
+            ("bsky.app", "brands/bluesky.svg"), ("imgur.com", "brands/imgur.svg"),
+            ("x.com", "brands/x.svg"), ("twitter.com", "brands/x.svg"),
+            ("vimeo.com", "brands/vimeo.svg"), ("xiaohongshu.com", "brands/xiaohongshu.svg"),
+            ("example.com", "icons/info.svg"),
+        ] {
+            let (_, path) = brand(domain);
+            assert_eq!(path, expected);
+            assert!(!assets.load(path).unwrap().unwrap().is_empty());
+            assert!(assets.list(path).unwrap().iter().any(|asset| asset.to_string() == path));
+        }
+        assert_eq!(brand("example.com").0, "example.com");
+    }
     #[::core::prelude::v1::test]
     fn setup_waits_for_current_reply_and_ignores_results_after_leaving() {
         let mut ui = BrowserUi::default();
