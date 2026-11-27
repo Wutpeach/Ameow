@@ -86,10 +86,14 @@ try {
     if ($requirements.schema -ne 1 -or @($requirements.materials).Count -eq 0) { throw 'E_RELEASE_MATERIALS: missing material inventory.' }
     $compaction = Get-Content -LiteralPath (Join-Path $packageRoot 'distribution/notices/license-compaction-inputs.json') -Raw | ConvertFrom-Json
     foreach ($source in $compaction.sources) {
-        if ($source.path -cnotmatch '^distribution/notices/[A-Za-z0-9_-]+\.(txt|json)$' -or (File-Record $source.path).sha256 -ine $source.sha256) { throw 'E_RELEASE_MATERIALS: original license compaction inputs changed; refresh and verify the source audit.' }
+        if ($source.path -cnotmatch '^distribution/notices/(?:[A-Za-z0-9_.-]+\.(?:txt|json)|upstream/[A-Za-z0-9_.-]+\.(?:txt|md|toml))$' -or (File-Record $source.path).sha256 -ine $source.sha256) { throw 'E_RELEASE_MATERIALS: original license compaction inputs changed; refresh and verify the source audit.' }
     }
     $licenseAudit = Get-Content -LiteralPath (Join-Path $packageRoot 'distribution/notices/rust-dependency-inventory.json') -Raw | ConvertFrom-Json
-    if ($licenseAudit.cargoLockSha256 -ine (File-Record 'Cargo.lock').sha256) { throw 'E_RELEASE_MATERIALS: Cargo.lock changed; refresh the dependency/source audit before packaging.' }
+    if ($licenseAudit.cargoLockHashMode -cne 'crlf-to-lf') { throw 'E_RELEASE_MATERIALS: unsupported Cargo.lock audit hash mode.' }
+    $lockBytes = $utf8.GetBytes([IO.File]::ReadAllText((Join-Path $packageRoot 'Cargo.lock')).Replace("`r`n", "`n"))
+    $lockHash = [Security.Cryptography.SHA256]::Create()
+    try { $lockSha256 = ([BitConverter]::ToString($lockHash.ComputeHash($lockBytes))).Replace('-', '') } finally { $lockHash.Dispose() }
+    if ($licenseAudit.cargoLockSha256 -ine $lockSha256) { throw 'E_RELEASE_MATERIALS: Cargo.lock changed; refresh the dependency/source audit before packaging.' }
     $destinations = @{}
     $materialAudit = @()
     $materialInputs = @($requirements.materials)
