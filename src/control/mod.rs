@@ -1,5 +1,8 @@
 //! Local desktop control. The transport carries requests; the desktop command owner applies them.
 pub mod cli;
+pub mod lifecycle;
+pub mod native_preferences;
+mod maintenance;
 #[cfg(all(test, feature = "dev-tools", windows))]
 pub(crate) use integration_tests::retry_inspection_cleanup_for_test;
 #[cfg(all(feature = "dev-tools", debug_assertions))]
@@ -226,6 +229,9 @@ pub enum Command {
         task_id: String,
     },
     Settings {},
+    SetPreference { key: String, value: Value },
+    ComponentAction { action: String, component: Option<String> },
+    AppAction { action: String },
     BrowserSessions {},
     Components {},
     Diagnose {
@@ -237,7 +243,8 @@ impl Command {
         matches!(
             self,
             Self::Inspect { .. } | Self::Submit { .. } | Self::Cancel { .. } | Self::Retry { .. }
-        )
+                | Self::SetPreference { .. } | Self::ComponentAction { .. }
+        ) || matches!(self, Self::AppAction { action } if action != "status")
     }
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -504,6 +511,7 @@ pub struct Server {
     cache: HashMap<String, (Vec<u8>, Response)>,
     stop: Arc<AtomicBool>,
     worker: Option<std::thread::JoinHandle<()>>,
+    maintenance: maintenance::Maintenance,
 }
 impl Drop for Server {
     fn drop(&mut self) {
@@ -514,6 +522,13 @@ impl Drop for Server {
     }
 }
 impl Server {
+    pub fn attach_native_preferences(&mut self, handle: native_preferences::Handle) { self.maintenance.attach_native_preferences(handle); }
+    pub fn attach_maintenance(&mut self, updates: crate::app_update::service::Handle, upstream: crate::download::upstream::UpstreamChecker, isolated: bool) {
+        self.maintenance.attach(updates, upstream, isolated);
+        self.maintenance.configure_identity(&self.instance_id);
+    }
+    pub fn take_lifecycle_exit(&mut self) -> bool { std::mem::take(&mut self.maintenance.exit_ready) }
+    pub fn lifecycle_pending(&self) -> bool { self.maintenance.lifecycle_pending() }
     pub fn start(root: &Path) -> Result<Self, ControlError> {
         let listener = transport::Listener::bind(root).map_err(io_error)?;
         let instance_id = nonce()?;
@@ -571,6 +586,7 @@ impl Server {
             cache: HashMap::new(),
             stop,
             worker: Some(worker),
+            maintenance: maintenance::Maintenance::new(root),
         })
     }
     /// Runs on the very same desktop thread as GUI commands and update arbitration.
@@ -580,12 +596,14 @@ impl Server {
         commands_allowed: bool,
         startup_pending: bool,
     ) -> Vec<(Option<u64>, CommandReply)> {
+        self.maintenance.poll(queue);
         let mut notices = Vec::new();
         for _ in 0..16 {
             let Ok(envelope) = self.receiver.try_recv() else {
                 break;
             };
-            let (mut response, notice) = self.handle(&envelope.request, queue, commands_allowed);
+            let allowed = commands_allowed && !self.lifecycle_pending();
+            let (mut response, notice) = self.handle(&envelope.request, queue, allowed);
             if matches!(envelope.request.command, Command::Hello {})
                 && let Some(result) = &mut response.result
             {
@@ -695,7 +713,7 @@ impl Server {
             .ok_or_else(|| ControlError::new("E_INVALID_TASK_ID", "Invalid queue job ID"))
     }
     fn execute(
-        &self,
+        &mut self,
         command: &Command,
         queue: &DownloadCoordinator,
         allowed: bool,
@@ -729,7 +747,7 @@ impl Server {
         };
         match command {
             Command::Hello {} => Ok(
-                json!({"pid":std::process::id(),"app_version":crate::app_update::BUILD_VERSION,"commands_allowed":allowed,"startup_pending":false,"clip_v1":true,"precise_clip_v1":true,"inspection_v1":cfg!(all(feature="dev-tools", debug_assertions)),"browser_sessions_v1":true}),
+                json!({"pid":std::process::id(),"app_version":crate::app_update::BUILD_VERSION,"installed_version":self.maintenance.installed_version(),"commands_allowed":allowed,"startup_pending":false,"clip_v1":true,"precise_clip_v1":true,"inspection_v1":true,"browser_sessions_v1":true,"preferences_write_v1":true,"component_maintenance_v1":self.maintenance.available(),"app_maintenance_v1":self.maintenance.available()}),
             ),
             Command::List {} | Command::ListPage { .. } => {
                 let after = match command {
@@ -755,18 +773,25 @@ impl Server {
                 let job = find(task_id)?;
                 Ok(file_page(&self.instance_id, job, *after))
             }
-            Command::Settings {} => Ok(json!(snapshot.settings)),
+            Command::Settings {} => Ok(self.maintenance.settings(queue)),
+            Command::SetPreference { key, value } => {
+                if !allowed { return Err(ControlError::new("E_APP_UPDATE_BUSY", "Ameow is draining or updating")); }
+                self.maintenance.set_preference(queue, key, value)
+            }
+            Command::ComponentAction { action, component } => {
+                if !allowed { return Err(ControlError::new("E_APP_UPDATE_BUSY", "Ameow is draining or updating")); }
+                self.maintenance.component_action(queue, action, component.as_deref())
+            }
+            Command::AppAction { action } => self.maintenance.app_action(queue, action, allowed),
             Command::BrowserSessions {} => Ok(json!(snapshot.browser_sessions)),
-            Command::Components {} => Ok(
-                json!({"preparing":snapshot.preparing,"preparation":snapshot.preparation,"held":snapshot.preparation_held,"owner_lost":snapshot.preparation_owner_lost,"verified_versions":snapshot.verified_runtime_versions,"runtime_update":snapshot.runtime_update}),
-            ),
+            Command::Components {} => Ok(self.maintenance.components(queue)),
             Command::Diagnose { task_id } => {
                 let reply = match task_id {
                     Some(task) => queue.apply(QueueCommand::CopyDiagnostic(find(task)?.job_id)),
                     None => queue.apply(QueueCommand::CopyPreparationDiagnostic),
                 };
                 match reply {
-                    CommandReply::Diagnostic(text) => Ok(json!({"text":text})),
+                    CommandReply::Diagnostic(text) => Ok(json!({"text":if task_id.is_none() {self.maintenance.diagnostic(text)} else {text}})),
                     CommandReply::Error(e) => Err(ControlError::new("E_REQUEST_REJECTED", e)),
                     _ => Err(ControlError::new(
                         "E_REQUEST_REJECTED",
@@ -775,9 +800,6 @@ impl Server {
                 }
             }
             Command::Inspect { url, quality } => {
-                if !cfg!(all(feature = "dev-tools", debug_assertions)) {
-                    return Err(ControlError::new("E_INSPECTION_UNSUPPORTED", "Metadata inspection requires a debug dev-tools owner"));
-                }
                 if url.len() > 8192 { return Err(ControlError::new("E_INVALID_REQUEST", "URL exceeds boundary limits")); }
                 let CommandReply::Accepted(id) = apply(QueueCommand::Inspect { url: url.clone(), quality: *quality })? else {
                     return Err(ControlError::new("E_REQUEST_REJECTED", "Inspection was not accepted"));

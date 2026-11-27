@@ -17,17 +17,17 @@ cargo build --locked --bin ameow --bin ameow-cli --target-dir target
 ./target/debug/ameow-cli.exe --help
 ~~~
 
-Windows 安装包/便携包中的 ameow-cli.exe 与 AmeowLauncher.exe 同目录，可将该目录加入自己的 PATH，也可直接使用绝对路径。macOS 包内入口为 Ameow.app/Contents/MacOS/ameow-cli，可用自己的 shell alias 调用。CLI 使用 console subsystem，桌面应用保持原窗口入口。
+Windows 安装包/便携包中的 ameow-cli.exe 与稳定入口 Ameow.exe 同目录，可将该目录加入自己的 PATH，也可直接使用绝对路径。macOS 包内入口为 Ameow.app/Contents/MacOS/ameow-cli，可用自己的 shell alias 调用。CLI 使用 console subsystem，桌面应用保持原窗口入口。
 
 上述包内位置适用于包含 CLI 的完整包；保留 Launcher、应用版本成员与目录结构，不要把单个 CLI EXE 放到其他版本旁。Mac 源码构建使用相同 Cargo 命令，在 zsh/bash 运行 `./target/debug/ameow-cli --help`，路径不带 `.exe`。Windows PowerShell 调用带引号的绝对路径时使用 `& '实际路径/ameow-cli.exe' --help`。
 
-Windows 应用自动更新仍使用原单 EXE 更新包，只更新桌面应用；CLI 随完整安装包/便携包更新。协议版本不兼容时明确报错。macOS CLI 是应用包成员，纳入完整包签名与更新校验。
+0.5.2 起 Windows 完整便携包也是应用内更新载荷，CLI 随完整应用更新。协议版本不兼容时明确报错。macOS CLI 是应用包成员，纳入完整包签名与更新校验。
 
 ## 常用命令
 
 ~~~powershell
-$Url = Read-Host '公开媒体 URL'
-$Output = Read-Host '已存在的保存目录'
+$Url = 'https://example.com/media' # 换成实际媒体 URL
+$Output = 'D:/Downloads' # 已存在的保存目录
 ameow-cli --json submit $Url
 ameow-cli --json submit $Url --quality saver --output $Output
 ameow-cli --json list
@@ -44,7 +44,7 @@ ameow-cli --json diagnose
 
 --quality 为 highest、balanced、saver，语义与 GUI 一致。--output 必须指向已存在且符合原队列校验的目录；相对路径按调用 CLI 的工作目录解析。选项只覆盖本次任务，不修改 GUI 默认。重试沿用原冻结意图。
 
-提交在没有控制实例时默认启动相邻的普通应用；Windows 优先走稳定启动器。--no-start 禁止启动，--app PATH 可选择确切开发入口。启动不会额外激活/恢复窗口，窗口仍遵守原应用规则。其他命令在没有实例时返回连接错误。握手等待应用 owner 接受，组件准备继续走既有共同流程。
+提交在没有控制实例时默认启动相邻的普通应用；0.5.3 开发版的媒体查询也可启动。Windows 优先走稳定启动器。--no-start 禁止启动，--app PATH 可选择确切开发入口。启动不会额外激活/恢复窗口，窗口仍遵守原应用规则。其他命令在没有实例时返回连接错误。握手等待应用 owner 接受，组件准备继续走既有共同流程。
 
 CLI 退出、Ctrl+C、等待超时与失联均不取消任务。取消必须显式执行 cancel。wait 直到权威终态且资源结算后返回结果；GUI 普通重试可能创建新 ID，原失败 ID 仍表示原任务，Gallery 续作可能保持同 ID。
 
@@ -74,7 +74,7 @@ show / wait 保留 task_id、原 job_id、revision、attempt、phase、冻结的
 | 8 | 协议错误或版本不兼容 |
 | 9 | 业务拒绝、任务不存在、旧实例 ID、访问或容量限制等；读取 error.code |
 
-稳定类别包括 E_NOT_RUNNING、E_DISCONNECTED、E_CONNECTION_TIMEOUT、E_LAUNCH_TIMEOUT、E_ACCESS_DENIED、E_PROTOCOL_VERSION、E_INVALID_REQUEST、E_INVALID_TASK_ID、E_TASK_NOT_FOUND、E_INSTANCE_CHANGED、E_APP_UPDATE_BUSY、E_REQUEST_REJECTED、E_REQUEST_CONFLICT、E_REQUEST_LIMIT、E_SNAPSHOT_CHANGED、E_WAIT_TIMEOUT。业务拒绝细节在 error.message，调用者应按 code 分支。组件状态及安全诊断可辅助判断；首期没有组件/应用更新或全局设置写命令。
+稳定类别包括 E_NOT_RUNNING、E_DISCONNECTED、E_CONNECTION_TIMEOUT、E_LAUNCH_TIMEOUT、E_ACCESS_DENIED、E_PROTOCOL_VERSION、E_INVALID_REQUEST、E_INVALID_TASK_ID、E_TASK_NOT_FOUND、E_INSTANCE_CHANGED、E_APP_UPDATE_BUSY、E_REQUEST_REJECTED、E_REQUEST_CONFLICT、E_REQUEST_LIMIT、E_SNAPSHOT_CHANGED、E_WAIT_TIMEOUT。业务拒绝细节在 error.message，调用者应按 code 分支。组件状态及安全诊断可辅助判断；维护操作的受理与实际完成必须分开判断。
 
 ## 回执丢失与身份
 
@@ -95,23 +95,69 @@ ameow-cli --json --request-id ORIGINAL_REQUEST_KEY --instance-id ORIGINAL_INSTAN
 --instance-root 是完整隔离域：应用侧固定派生 runtime/、settings.json、output/，拒绝混入其他路径或与生产 runtime/安装目录相交。该实例不创建生产更新会话。自动启动隔离实例需要 --app 指向直接开发应用，不使用已安装版本或稳定启动器。
 
 ~~~powershell
-$Url = Read-Host '公开媒体 URL'
+$Url = 'https://example.com/media' # 换成实际媒体 URL
 ./target/debug/ameow-cli.exe --json --instance-root D:/AmeowCliTest --app ./target/debug/ameow.exe submit $Url
 ./target/debug/ameow-cli.exe --json --instance-root D:/AmeowCliTest list
 ~~~
 
 测试数据与 warm cache 放在该域；不得复制或改写其他任务的 app/target。本树构建使用固定 target，证据使用 ignored evidence/。Windows named pipe 限制当前用户 DACL 并核验服务端用户；macOS socket 位于受保护短路径目录并核验双方 UID。没有 TCP/HTTP 或远程服务。
 
-仅为本地包内验入，现有 `app-update-fixture` 特性（release 编译禁止）支持隔离启动测试安装布局：Windows 从相邻 `AmeowLauncher.exe` 启动，核验公共 RFC fixture 签名与 Launcher/CLI 字节，Launcher 与应用共用该域的唯一实例锁，并继续等待真实 Ready/accepted；不能用生产包替代 fixture。macOS 可从私有 `Ameow.app/Contents/MacOS/ameow-cli` 启动相邻应用。两端仍强制隔离 runtime/settings/output，停用生产更新服务，不读生产私钥或连接日常实例。正式构建仍要求上述直接开发入口。
+仅为本地包内验入，现有 `app-update-fixture` 特性（release 编译禁止）支持隔离启动测试安装布局：该历史 Windows fixture 使用相邻 `AmeowLauncher.exe`，核验公共 RFC fixture 签名与 Launcher/CLI 字节，Launcher 与应用共用该域的唯一实例锁，并继续等待真实 Ready/accepted；不能用生产包替代 fixture。macOS 可从私有 `Ameow.app/Contents/MacOS/ameow-cli` 启动相邻应用。两端仍强制隔离 runtime/settings/output，停用生产更新服务，不读生产私钥或连接日常实例。正式构建仍要求上述直接开发入口。
 
 ## macOS 最小复验
 
 在独立验证树检出待验证的准确提交，避免影响日常开发目录。构建 app、CLI、updater；在长路径的独立实例根验证两个并发提交只建立一个桌面 owner，CLI/GUI 同任务可见，双向取消/重试，真实交付、等待超时/中断、旧 ID 拒绝，以及默认未被任务目录覆盖。核验 socket 当前用户权限和同根重绑；构建应用包时核对 CLI arm64、最低系统版本与完整包签名。Windows 结果不能替代 Mac 验证。
 
-## 开发只解析
+## 正式媒体查询与切片（0.5.3 开发版）
 
-仅 debug + dev-tools 的 CLI 和 owner 支持。该能力需要明确实例身份；使用既有 components 输出中的 owner.instance_id。省略 --instance-root 时选择当前用户的默认 owner；传入它则选择已有的隔离运行域。两者都必须已经运行，命令不自动启动应用，身份不匹配则提交前拒绝。详见 [开发指南](developer-cli.md#使用现有-owner-只解析)。
+以下能力属于 0.5.3 开发版，需要匹配的 CLI 和桌面 owner；已发布的 0.5.2 包不提供这些新增命令。正式发布前请使用本树帮助和构建确认实际能力。
 
-只解析返回同一队列的实例绑定 task_id。使用 show / wait / cancel 观察和控制；Inspected 且 resources_released=true 仅表示解析与清理完成，files 为空，不代表下载或成品验证。其 accepted 为 null，quality 保留本次冻结选择；inspection 包含已验证 site/id/part、未知为 null 的时长与最多八条所选媒体测量。标题留空，原始 JSON、URL、格式 ID、headers 和凭据不进入摘要。大小的 native_filesize 与 native_estimate 来源明确区分，不能据此承诺网络总量或未来 transfer 选择。
+以连接结果中的 `owner.capabilities` 判断支持情况。查询结果的 `duration_seconds` 和 `selected` 中的测量字段在未知时为 `null`；`selected` 是对应画质预设选中的有限规格摘要。快速切片可能包含附近关键帧边界，需要更贴合指定时间时使用 `--precise`。
 
-如 inspection 进入 Held，cancel 仍只受理取消意图；使用现有 retry TASK_ID 请求该任务的正式清理重试，再 wait。该响应标记 cleanup_retry=true，沿用同一任务 ID，不重新解析、不下载。Failure 后再次解析需显式新建 inspect，不用普通下载 retry。旧 owner 返回 E_INSPECTION_UNSUPPORTED；启动中返回 E_STARTING，不静默换实例。
+~~~powershell
+$Cli = 'D:/Apps/Ameow/ameow-cli.exe'
+$Url = 'https://example.com/media' # 换成实际可访问的作品链接
+$Info = & $Cli --json inspect $Url --quality balanced | ConvertFrom-Json
+& $Cli --json wait $Info.result.task_id --timeout 300
+if ($LASTEXITCODE -ne 0) { throw "媒体查询未成功结算" }
+$Job = & $Cli --json submit $Url --quality balanced --output 'D:/Downloads' --start-ms 10000 --end-ms 30000 | ConvertFrom-Json
+& $Cli --json wait $Job.result.task_id --timeout 300
+# 如需精确切片，提交时同时使用 --start-ms、--end-ms 与 --precise
+~~~
+
+`inspect` 返回任务 ID；其终态 `Inspected` 且 `resources_released: true` 才表示解析和清理完成，`inspection` 是安全摘要，未创建文件。媒体信息和所选规格来自实际解析，不能保证之后下载成功。它可能联网、准备组件和使用已有浏览器授权，但不导出凭据。`--quality` 省略时查询使用 highest。提交的质量与目录默认取已保存值；两个时间参数是毫秒，默认快速切片，精确切片需加 `--precise`。
+
+## 偏好与维护（0.5.3 开发版）
+
+~~~powershell
+& $Cli --json settings
+& $Cli --json settings set quality balanced
+& $Cli --json sessions
+& $Cli --json components check
+& $Cli --json components wait --timeout 60
+& $Cli --json components
+& $Cli --json components update yt-dlp
+& $Cli --json components wait --timeout 300
+& $Cli --json components restore yt-dlp
+& $Cli --json components wait --timeout 300
+& $Cli --json app status
+& $Cli --json app check
+& $Cli --json app wait --timeout 60
+& $Cli --json app download
+& $Cli --json app wait --timeout 300
+$Install = & $Cli --json app install | ConvertFrom-Json
+if (-not $Install.ok) { throw $Install.error.message }
+& $Cli --json --instance-id $Install.instance_id --operation-id $Install.result.operation.id app wait --timeout 300
+~~~
+
+`settings set` 修改持久偏好，先使用 `settings` 查看当前值；提交的 `--quality` 和 `--output` 仅影响对应任务。可用键包括 `quality`（highest/balanced/saver）、`output_dir`（已存在的绝对目录）、`theme`（system/light/dark）、`language`（system/chinese/english）、`tray_icon`（follow_appearance/ameow_blue/apricot）、`shortcut`、`auto_update`、`notify_updates` 和 `login_startup`。应用更新偏好保存是异步的：观察 `settings` 的保存状态、错误和 operation；隔离实例不允许更改系统启动注册。
+
+`owner.installed_version` 只在正规更新会话可确认已接受的安装记录时提供版本；开发实例为 `null`。安装等待会同时核对新的 owner、应用版本和该安装版本，连接断开不表示成功。
+
+`sessions` 只显示状态和缺失条件，请在浏览器中沿现有授权流程操作。组件检查可选择 `yt-dlp` 或 `gallery-dl`，不传名称时检查两者；更新与恢复须指定组件。先成功检查并确认存在可安装的新版本，再请求更新。每次操作后查询 `components` 或 `app status`，以各自真实阶段、版本和错误判断结果。`app quit`、`app restart` 使用桌面既有停止规则；进行中任务和资源遵循桌面安排。受理、等待、失联及完成是不同结果，失联本身不证明退出或安装完成。
+
+使用 `ameow-cli --help`、`ameow-cli help submit` 或 `ameow-cli components --help` 查询实际命令参数、错误和恢复方式。
+
+异步偏好保存可用 `settings wait --timeout 30` 确认。维护回执包含 `operation.id`、`action`、`phase`、`done`、`success` 和 `error`；只有 `done: true` 且 `success: true` 才表示完成。等待失败退出 4，超时退出 6，操作继续。
+
+`app install`、`app quit` 和 `app restart` 需保留原回执的 `instance_id` 与 `operation.id`；原 owner 退出后，用 `--instance-id ORIGINAL_INSTANCE --operation-id OPERATION_ID app status` 查询，或配合 `app wait --timeout 300` 等待。安装核对实际接受的安装版本，重启核对新 owner 握手，退出核对进程结束。安装和退出/重启分别仅保留最近一份回执，新操作替换旧回执；超时或缺失回执仍表示结果未确认。

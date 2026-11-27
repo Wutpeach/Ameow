@@ -8,7 +8,7 @@
 
 ### Requirement: 显式开发门槛与完整隔离
 
-开发执行 SHALL 仅在显式启用开发特性的 debug 构建可用，release 构建 MUST 拒绝该特性。有限 run/scenario 每次执行 SHALL 要求独立数据根，固定派生配置、runtime 和 output，拒绝生产域交叠及已有运行记录，不启动桌面或生产更新服务。dev inspect SHALL 按 desktop-control 的显式实例绑定连接既有 owner，不创建独立匿名域替代该 owner 的正式会话。
+开发执行 SHALL 仅在显式启用开发特性的 debug 构建可用，release 构建 MUST 拒绝该特性。有限 run/scenario 每次执行 SHALL 要求独立数据根，固定派生配置、runtime 和 output，拒绝生产域交叠及已有运行记录，不启动桌面或生产更新服务。正式媒体查询按 desktop-control 连接桌面 owner；开发有限执行不得创建独立匿名域替代该 owner 的正式会话。
 
 #### Scenario: 普通构建拒绝开发命令
 - **WHEN** 未启用开发特性的 CLI 收到 dev 命令

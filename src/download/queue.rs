@@ -128,6 +128,20 @@ mod tests {
     }
     use std::time::Instant;
     #[test]
+    fn inspection_is_available_without_development_features() -> Result<(), String> {
+        let root = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let backend = fake_backend(root.path());
+        lock(&backend.shared.model).settings.output_dir = root.path().join("missing");
+        let job = backend.inspect("https://youtu.be/jNQXAC9IVRw".into(), Quality::Saver)?;
+        let snapshot = backend.snapshot();
+        let inspected = snapshot.jobs.iter().find(|item| item.job_id == job).ok_or("missing inspection")?;
+        assert!(inspected.inspect_only);
+        assert_eq!(inspected.accepted.intent.quality, Quality::Saver);
+        assert!(inspected.delivered.is_none());
+        assert!(backend.inspect("file:///private".into(), Quality::Highest).is_err());
+        Ok(())
+    }
+    #[test]
     fn update_progress_tracks_cache_download_and_probe_for_recommended_runtime() -> Result<(), String> {
         use super::super::runtime_update::RuntimeUpdatePhase;
         let root = tempfile::tempdir().map_err(|e| e.to_string())?;
@@ -3308,7 +3322,6 @@ impl DownloadCoordinator {
         self.submit_kind(url, quality, output_dir, clip, false)
     }
     pub fn inspect(&self, url: String, quality: Quality) -> Result<u64, String> {
-        if !cfg!(all(feature = "dev-tools", debug_assertions)) { return Err("E_INSPECTION_UNSUPPORTED".into()); }
         self.submit_kind(url, Some(quality), None, None, true)
     }
     fn submit_kind(&self, url: String, quality: Option<Quality>, output_dir: Option<PathBuf>, clip: Option<super::request::ClipRange>, inspect_only: bool) -> Result<u64, String> {

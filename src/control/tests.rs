@@ -24,6 +24,7 @@ fn isolated_server() -> Server {
         cache: HashMap::new(),
         stop: Arc::new(AtomicBool::new(false)),
         worker: None,
+        maintenance: maintenance::Maintenance::new(Path::new(".")),
     }
 }
 
@@ -43,6 +44,35 @@ fn submit() -> Command {
         quality: None,
         output_dir: None,
     }
+}
+#[test]
+fn preference_writes_persist_replay_and_keep_previous_value_on_rejection() {
+    let root = tempfile::tempdir().unwrap();
+    let queue = DownloadCoordinator::update_test_queue(root.path());
+    let mut server = isolated_server();
+    server.attach_native_preferences(native_preferences::Handle::new(|request| { request.process(|_| Ok(())); Ok(()) }));
+    let req = request("instance_current", "settings_save_01", Command::SetPreference { key: "quality".into(), value: json!("saver") });
+    let first = server.handle(&req, &queue, true).0;
+    assert!(first.ok, "{first:?}");
+    assert_eq!(first.result.as_ref().unwrap()["saved"], true);
+    let saved = std::fs::read(root.path().join("defaults.json")).unwrap();
+    let decoded: Value = serde_json::from_slice(&saved).unwrap();
+    assert_eq!(decoded["quality"], "Saver");
+    assert_eq!(queue.snapshot().settings.quality, Quality::Saver);
+    assert_eq!(server.handle(&req, &queue, true).0.result, first.result);
+    for (id, key, value, code) in [
+        ("settings_save_02", "output_dir", json!(root.path().join("missing")), "E_REQUEST_REJECTED"),
+        ("settings_save_03", "quality", json!("unbounded"), "E_INVALID_REQUEST"),
+        ("settings_save_04", "unknown", json!(true), "E_INVALID_REQUEST"),
+        ("settings_save_05", "login_startup", json!(true), "E_ACCESS_DENIED"),
+    ] {
+        let rejected = request("instance_current", id, Command::SetPreference { key:key.into(), value });
+        assert_eq!(error(server.handle(&rejected, &queue, true).0), code);
+        assert_eq!(std::fs::read(root.path().join("defaults.json")).unwrap(), saved);
+    }
+    let blocked = request("instance_current", "settings_save_06", Command::SetPreference { key: "quality".into(), value: json!("highest") });
+    assert_eq!(error(server.handle(&blocked, &queue, false).0), "E_APP_UPDATE_BUSY");
+    assert_eq!(std::fs::read(root.path().join("defaults.json")).unwrap(), saved);
 }
 #[test]
 fn clip_changes_conflict_with_the_original_request_receipt() {

@@ -10,7 +10,7 @@ use std::{
     path::{Path, PathBuf},
     sync::{
         Arc, Mutex,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
         mpsc,
     },
     time::{Duration, Instant},
@@ -89,7 +89,20 @@ pub enum Action {
     Later,
     Save(Preferences),
 }
+#[derive(Clone, Debug, Serialize)]
+pub struct TrackedOperation {
+    pub id: String,
+    pub action: String,
+    pub phase: String,
+    pub done: bool,
+    pub success: Option<bool>,
+    pub error: Option<String>,
+    pub target_version: Option<String>,
+}
 struct Shared {
+    preferences_known: AtomicBool,
+    tracked: Mutex<Option<TrackedOperation>>,
+    next_operation: AtomicU64,
     view: Mutex<View>,
     coordinator: Mutex<Option<Arc<Coordinator>>>,
     cancel: AtomicBool,
@@ -125,7 +138,7 @@ impl IdleWindow {
 #[derive(Clone)]
 pub struct Handle {
     shared: Arc<Shared>,
-    sender: mpsc::SyncSender<Action>,
+    sender: mpsc::SyncSender<(Action, Option<String>)>,
 }
 impl Default for Handle {
     fn default() -> Self {
@@ -138,7 +151,10 @@ impl Handle {
         Self {
             sender,
             shared: Arc::new(Shared {
+                preferences_known: AtomicBool::new(false),
                 view: Mutex::new(view),
+                tracked: Mutex::new(None),
+                next_operation: AtomicU64::new(1),
                 coordinator: Mutex::new(None),
                 cancel: AtomicBool::new(false),
                 check_pending: AtomicBool::new(false),
@@ -165,7 +181,45 @@ impl Handle {
     pub fn user_interaction(&self) {
         *self.shared.idle.lock().unwrap() = IdleWindow::default();
     }
-    pub fn send(&self, action: Action) -> bool {
+    /// The latest CLI action; installation remains pending across owner shutdown.
+    pub fn tracked(&self) -> Option<TrackedOperation> {
+        self.shared.tracked.lock().unwrap().clone()
+    }
+    pub fn preferences_known(&self) -> bool { self.shared.preferences_known.load(Ordering::Acquire) }
+    pub fn accepted_install_version(&self) -> Option<String> {
+        if !self.snapshot().launcher { return None; }
+        self.shared.coordinator.lock().unwrap().as_ref()?.install().state().ok()?.current.map(|release| release.version)
+    }
+    pub fn send_tracked(&self, action: Action) -> Result<String, String> {
+        let view = self.snapshot();
+        if self.shared.coordinator.lock().unwrap().is_none() {
+            return Err("E_APP_UPDATE_OWNER_UNAVAILABLE".into());
+        }
+        if matches!(&action, Action::Save(_)) && !self.preferences_known() { return Err("E_APP_UPDATE_SETTINGS_UNAVAILABLE".into()); }
+        let name = match &action {
+            Action::Check => "check",
+            Action::Download if view.update.phase == Phase::Available => "download",
+            Action::Restart if view.launcher && view.update.phase == Phase::Ready => "install",
+            Action::Save(_) => "save",
+            _ => return Err("E_APP_UPDATE_NOT_READY".into()),
+        };
+        let id = self.shared.next_operation.fetch_add(1, Ordering::Relaxed).to_string();
+        {
+            let mut tracked = self.shared.tracked.lock().unwrap();
+            if tracked.as_ref().is_some_and(|op| !op.done) {
+                return Err("E_APP_UPDATE_BUSY".into());
+            }
+            *tracked = Some(TrackedOperation { id: id.clone(), action: name.into(), phase: "pending".into(),
+                done: false, success: None, error: None, target_version: view.update.version });
+        }
+        if !self.send_inner(action, Some(id.clone())) {
+            finish_tracked(&self.shared, Some(&id), Err("E_APP_UPDATE_REQUEST_REJECTED".into()));
+            return Err("E_APP_UPDATE_REQUEST_REJECTED".into());
+        }
+        Ok(id)
+    }
+    pub fn send(&self, action: Action) -> bool { self.send_inner(action, None) }
+    fn send_inner(&self, action: Action, id: Option<String>) -> bool {
         // Cancellation is observed during an in-flight acquisition before preference persistence.
         match action {
             Action::Check => {
@@ -174,7 +228,7 @@ impl Handle {
                     || matches!(view.update.phase, Phase::Checking | Phase::Downloading | Phase::Verifying | Phase::WaitingForTasks | Phase::Switching)
                     || self.shared.check_pending.compare_exchange(false,true,Ordering::AcqRel,Ordering::Acquire).is_err()
                 { return false; }
-                let sent = self.sender.try_send(Action::Check).is_ok();
+                let sent = self.sender.try_send((Action::Check, id)).is_ok();
                 if !sent { self.shared.check_pending.store(false,Ordering::Release); }
                 sent
             }
@@ -188,6 +242,9 @@ impl Handle {
             Action::Later => {
                 self.shared.manual_restart.store(false, Ordering::Release);
                 self.shared.waiting.store(false, Ordering::Release);
+                let id = self.shared.tracked.lock().unwrap().as_ref()
+                    .filter(|op| !op.done && op.action == "install").map(|op| op.id.clone());
+                finish_tracked(&self.shared, id.as_deref(), Err("E_APP_UPDATE_CANCELLED".into()));
                 true
             }
             Action::Save(p) => {
@@ -202,14 +259,14 @@ impl Handle {
                 view.saving = true;
                 view.saved = false;
                 view.save_error = None;
-                let sent = self.sender.try_send(Action::Save(p)).is_ok();
+                let sent = self.sender.try_send((Action::Save(p), id)).is_ok();
                 if !sent {
                     view.saving = false;
                     view.save_error = Some("E_APP_UPDATE_OWNER_UNAVAILABLE".into());
                 }
                 sent
             }
-            action => self.sender.try_send(action).is_ok(),
+            action => self.sender.try_send((action, id)).is_ok(),
         }
     }
     pub fn start(
@@ -244,17 +301,17 @@ impl Handle {
                         Ok(Preferences::default())
                     };
                     match preferences {
-                        Ok(p) => shared.view.lock().unwrap().preferences = p,
+                        Ok(p) => { shared.view.lock().unwrap().preferences = p; shared.preferences_known.store(true,Ordering::Release); },
                         Err(e) => shared.view.lock().unwrap().save_error = Some(e),
                     }
                     let started = Instant::now();
                     let mut schedule = Schedule::default();
                     let mut available = None::<(Vec<u8>, Option<String>)>;
                     loop {
-                        let action = match receiver.recv_timeout(Duration::from_millis(200)) {
-                            Ok(a) => Some(a),
+                        let (action, operation_id) = match receiver.recv_timeout(Duration::from_millis(200)) {
+                            Ok((a, id)) => (Some(a), id),
                             Err(mpsc::RecvTimeoutError::Disconnected) => return Ok(()),
-                            Err(_) => None,
+                            Err(_) => (None, None),
                         };
                         let elapsed = started.elapsed().as_millis() as u64;
                         shared.view.lock().unwrap().check_retry_secs=schedule.last.map_or(0,|last|last.saturating_add(MANUAL_LIMIT_MS).saturating_sub(elapsed).div_ceil(1000));
@@ -275,14 +332,18 @@ impl Handle {
                             })();
                             let mut v = shared.view.lock().unwrap();
                             v.saving = false;
+                            let receipt = result.clone();
                             match result {
                                 Ok(()) => {
                                     enabled_automatic = !v.preferences.auto_update && p.auto_update;
                                     v.preferences = p.clone();
                                     v.saved = true;
+                                    shared.preferences_known.store(true, Ordering::Release);
                                 }
                                 Err(e) => v.save_error = Some(e),
                             }
+                            drop(v);
+                            finish_tracked(&shared, operation_id.as_deref(), receipt);
                             shared.cancel.store(false, Ordering::Release);
                         }
                         let control = shared.view.lock().unwrap().clone();
@@ -310,14 +371,17 @@ impl Handle {
                             Phase::Ready | Phase::WaitingForTasks | Phase::Switching
                         ) {
                             if manual { shared.check_pending.store(false,Ordering::Release); }
+                            finish_tracked(&shared, operation_id.as_deref(), Err("E_APP_UPDATE_BUSY".into()));
                             continue;
                         }
                         if shared.closing.load(Ordering::Acquire) || control.saving {
                             if manual { shared.check_pending.store(false,Ordering::Release); }
+                            finish_tracked(&shared, operation_id.as_deref(), Err("E_APP_UPDATE_BUSY".into()));
                             continue;
                         }
                         if manual && !schedule.manual_allowed(elapsed) {
                             shared.check_pending.store(false,Ordering::Release);
+                            finish_tracked(&shared, operation_id.as_deref(), Err("E_APP_UPDATE_COOLDOWN".into()));
                             continue;
                         }
                         shared.cancel.store(false, Ordering::Release);
@@ -396,6 +460,7 @@ impl Handle {
                             }
                             Ok(())
                         })();
+                        let receipt = result.clone();
                         let retained = checking_ready && result.is_err() && coordinator.install().state().ok()
                             .and_then(|state| state.pending)
                             .is_some_and(|pending| Some(pending.version.as_str()) == previous.version.as_deref()
@@ -409,6 +474,7 @@ impl Handle {
                                     shared.view.lock().unwrap().check_error=Some("E_APP_UPDATE_CANCELLED".into());
                                     coordinator.set_state(Phase::Ready, previous.version, previous.error);
                                     schedule.finished(elapsed, false);
+                                    finish_tracked(&shared, operation_id.as_deref(), receipt);
                                     continue;
                                 }
                                 let version = coordinator.snapshot().version;
@@ -430,6 +496,7 @@ impl Handle {
                                 }
                                 if retained {
                                     coordinator.set_state(Phase::Ready, previous.version, previous.error);
+                                    finish_tracked(&shared, operation_id.as_deref(), receipt);
                                     continue;
                                 }
                                 coordinator.set_state(
@@ -443,9 +510,11 @@ impl Handle {
                                 );
                             }
                         }
+                        finish_tracked(&shared, operation_id.as_deref(), receipt);
                     }
                 })();
                 if let Err(error) = result {
+                    finish_current_tracked(&shared, Err(error.clone()));
                     if let Some(c) = shared.coordinator.lock().unwrap().as_ref() {
                         c.set_state(Phase::Failed, None, Some(error));
                     } else {
@@ -531,6 +600,9 @@ impl Handle {
         }
     }
     pub fn restart_failed(&self, queue: &DownloadCoordinator, session: &Session, error: String) {
+        let id = self.shared.tracked.lock().unwrap().as_ref()
+            .filter(|op| !op.done && op.action == "install").map(|op| op.id.clone());
+        finish_tracked(&self.shared, id.as_deref(), Err(error.clone()));
         self.shared.waiting.store(false, Ordering::Release);
         if session.cancel_restart(queue) {
             self.shared.closing.store(false, Ordering::Release);
@@ -550,6 +622,19 @@ impl Handle {
         }
         session.coordinator.set_state(Phase::Failed, None, Some(error));
     }
+}
+fn finish_tracked(shared: &Shared, id: Option<&str>, result: Result<(), String>) {
+    let Some(id) = id else { return; };
+    let mut tracked = shared.tracked.lock().unwrap();
+    let Some(op) = tracked.as_mut().filter(|op| op.id == id && !op.done) else { return; };
+    op.done = true;
+    op.success = Some(result.is_ok());
+    op.phase = if result.is_ok() { "completed" } else { "failed" }.into();
+    op.error = result.err();
+}
+fn finish_current_tracked(shared: &Shared, result: Result<(), String>) {
+    let id = shared.tracked.lock().unwrap().as_ref().filter(|op| !op.done).map(|op| op.id.clone());
+    finish_tracked(shared, id.as_deref(), result);
 }
 #[derive(Debug)]
 struct Schedule {

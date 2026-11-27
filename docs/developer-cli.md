@@ -189,6 +189,8 @@ cargo test --locked --features dev-tools --test developer_cli
 
 ## 使用现有 owner 只解析
 
+0.5.3 开发版提供正式 `inspect`；普通使用和非交互示例见 [CLI 参考](cli.md)。以下 `dev inspect` 示例仅适用于仍提供该开发入口的 debug + dev-tools 构建，实际支持以 `--help` 和当前构建为准。
+
 先构建匹配的桌面 owner 与 CLI：
 
 ~~~powershell

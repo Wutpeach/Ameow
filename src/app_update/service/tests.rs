@@ -15,6 +15,43 @@ fn owner(root:&Path,source:Option<PathBuf>)->(Handle,Install){
     (handle,install)
 }
 #[test]
+fn tracked_actions_report_real_persistence_and_update_results() {
+    let root = tempfile::tempdir().unwrap();
+    let source = source(root.path(), b"tracked update");
+    let (h, install) = owner(root.path(), Some(source));
+    wait(|| h.preferences_known());
+    let prefs = Preferences { auto_update: false, notify_updates: true };
+    let id = h.send_tracked(Action::Save(prefs.clone())).unwrap();
+    wait(|| h.tracked().is_some_and(|op| op.id == id && op.done));
+    assert_eq!(h.tracked().unwrap().success, Some(true));
+    assert_eq!(h.snapshot().preferences, prefs);
+    assert_eq!(read_json::<Preferences>(&root.path().join("app-update-settings.json")).unwrap(), prefs);
+    let id = h.send_tracked(Action::Check).unwrap();
+    wait(|| h.tracked().is_some_and(|op| op.id == id && op.done));
+    assert_eq!(h.tracked().unwrap().success, Some(true));
+    assert_eq!(h.snapshot().update.phase, Phase::Available);
+    let id = h.send_tracked(Action::Download).unwrap();
+    wait(|| h.tracked().is_some_and(|op| op.id == id && op.done));
+    assert_eq!(h.tracked().unwrap().success, Some(true));
+    assert_eq!(h.snapshot().update.phase, Phase::Ready);
+    assert!(install.state().unwrap().pending.is_some());
+    assert!(h.send_tracked(Action::Restart).is_err(), "fixture has no launcher session");
+}
+
+#[test]
+fn tracked_save_failure_does_not_claim_success() {
+    let root = tempfile::tempdir().unwrap();
+    let (h, _) = owner(root.path(), None);
+    wait(|| h.preferences_known());
+    fs::create_dir(root.path().join("app-update-settings.json")).unwrap();
+    let id = h.send_tracked(Action::Save(Preferences { auto_update: false, notify_updates: false })).unwrap();
+    wait(|| h.tracked().is_some_and(|op| op.id == id && op.done));
+    let result = h.tracked().unwrap();
+    assert_eq!(result.success, Some(false));
+    assert!(result.error.is_some());
+    assert_eq!(h.snapshot().preferences, Preferences::default());
+}
+#[test]
 fn scheduler_delays_start_limits_manual_checks_and_backs_off_without_busy_retries(){
     let mut s=Schedule::default();assert!(!s.due(STARTUP_MS-1));assert!(s.due(STARTUP_MS));
     assert!(s.manual_allowed(0));s.checked(123);assert!(!s.manual_allowed(10122));assert!(s.manual_allowed(10123));
@@ -482,7 +519,7 @@ fn queued_ready_check_blocks_duplicate_checks_and_restart_until_the_owner_handle
     assert!(!handle.send(Action::Restart));
     handle.poll(&queue,Some(&session));
     assert!(!queue.snapshot().stopping);
-    assert!(matches!(receiver.try_recv(),Ok(Action::Check)));
+    assert!(matches!(receiver.try_recv(),Ok((Action::Check,None))));
     assert!(receiver.try_recv().is_err());
 }
 

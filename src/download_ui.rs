@@ -24,6 +24,9 @@ use std::{
 };
 
 pub enum UiReply {
+    ControlExitReady,
+    NativePreference(ameow_next::control::native_preferences::Request),
+    SettingsRevision { reply: CommandReply, revision: u64 },
     AppUpdate(ameow_next::app_update::service::Handle),
     ComponentOwners { upstream: ameow_next::download::upstream::UpstreamChecker, root: PathBuf, directory: Option<PathBuf> },
     Extension(ameow_next::browser_sessions::extension::Snapshot),
@@ -97,6 +100,8 @@ pub struct DownloadUi {
     settings_from_shortcut: bool,
     directory_drop_pending: bool,
     acknowledged_settings: Option<Settings>,
+    acknowledged_revision: Option<u64>,
+    native_shortcut_pending: bool,
     pub queue_open: bool,
     pub exit_open: bool,
     pub exit_when_stopped: bool,
@@ -192,7 +197,8 @@ impl DownloadUi {
             };
             let component_root = component_root.expect("runtime root resolved");
             let extension_directory = ameow_next::browser_sessions::native::extension_directory().ok();
-            let _ = sender.send(UiReply::ComponentOwners { upstream: ameow_next::download::upstream::UpstreamChecker::with_root(component_root.clone()), root: component_root.clone(), directory: extension_directory.clone() });
+            let upstream = ameow_next::download::upstream::UpstreamChecker::with_root(component_root.clone());
+            let _ = sender.send(UiReply::ComponentOwners { upstream: upstream.clone(), root: component_root.clone(), directory: extension_directory.clone() });
             let mut extension_checked = Instant::now() - Duration::from_secs(2);
             let mut evidence = value("--queue-evidence").and_then(|path| {
                 #[cfg(all(feature="app-update-fixture",debug_assertions))]
@@ -210,7 +216,12 @@ impl DownloadUi {
             let started = Instant::now();
             let control_root = ameow_next::control::root(value("--instance-root").map(PathBuf::from));
             let mut control = match control_root.and_then(|root| ameow_next::control::Server::start(&root)) {
-                Ok(server) => {
+                Ok(mut server) => {
+                    server.attach_maintenance(updates.clone(), upstream.clone(), value("--instance-root").is_some());
+                    let native_sender = sender.clone();
+                    server.attach_native_preferences(ameow_next::control::native_preferences::Handle::new(move |request| {
+                        native_sender.send(UiReply::NativePreference(request)).map_err(|_| "E_SHORTCUT_OWNER_UNAVAILABLE".into())
+                    }));
                     append_evidence(&mut evidence, &started, serde_json::json!({"type":"control-start","pid":std::process::id(),"instance_id":server.instance_id,"protocol_version":ameow_next::control::PROTOCOL_VERSION}));
                     Some(server)
                 },
@@ -269,7 +280,7 @@ impl DownloadUi {
                         append_evidence(&mut evidence, &started, reply_summary(&reply));
                         let event = match reply {
                             CommandReply::Diagnostic(text) => UiReply::Diagnostic { job: diagnostic_job.unwrap_or(0), text },
-                            reply if saving => UiReply::Settings(reply),
+                            reply if saving => UiReply::SettingsRevision { reply, revision: coordinator.snapshot().revision },
                             reply if retrying_preparation => UiReply::PreparationRetry(reply),
                             reply if updating_runtime => UiReply::RuntimeUpdate(reply),
                             reply if configuring_bridge => UiReply::BrowserBridge(
@@ -297,10 +308,13 @@ impl DownloadUi {
                         let event = match source { Some(source) => UiReply::Retry { source, reply }, None => UiReply::Reply(reply) };
                         let _ = sender.send(event);
                     }
+                    if control.take_lifecycle_exit() { let _ = sender.send(UiReply::ControlExitReady); }
                 }
                 #[cfg(target_os = "macos")]
                 if let Some(session) = &worker_launch { session.attest_download_owner(!disconnected); }
-                updates.poll(&coordinator,worker_launch.as_deref());
+                if control.as_ref().is_none_or(|control| !control.lifecycle_pending()) {
+                    updates.poll(&coordinator,worker_launch.as_deref());
+                }
                 if let Some(session) = &worker_launch && let Err(error) = session.poll(&coordinator) {
                     append_evidence(&mut evidence, &started, serde_json::json!({"type":"app-update-error","error":error}));
                     updates.restart_failed(&coordinator,session,error);
@@ -448,6 +462,8 @@ impl DownloadUi {
             settings_from_shortcut: false,
             directory_drop_pending: false,
             acknowledged_settings: None,
+            acknowledged_revision: None,
+            native_shortcut_pending: false,
             queue_open: false,
             exit_open: false,
             exit_when_stopped: false,
@@ -540,6 +556,10 @@ impl DownloadUi {
                 .is_none_or(|previous| next.revision >= previous.revision)
         {
             self.snapshot = Some(next.clone());
+            if !self.settings_pending && self.acknowledged_revision.is_some_and(|revision| next.revision >= revision) {
+                self.acknowledged_settings = Some(next.settings.clone());
+                self.acknowledged_revision = Some(next.revision);
+            }
         }
         self.replies.try_iter().collect()
     }
@@ -627,6 +647,14 @@ impl DownloadUi {
             _ => SettingsStatus::Failed("设置未保存，请重试".into()),
         };
         directory_saved
+    }
+    fn complete_settings_revision(&mut self, reply:CommandReply, revision:u64, now:u64) -> bool {
+        let newer = self.snapshot.as_ref().filter(|snapshot| snapshot.revision > revision).map(|snapshot| (snapshot.revision, snapshot.settings.clone()));
+        let result = self.complete_settings(reply, now);
+        if let Some((revision, settings)) = newer {
+            self.acknowledged_settings = Some(settings); self.acknowledged_revision = Some(revision);
+        } else { self.acknowledged_revision = Some(revision); }
+        result
     }
     fn request_quality(&mut self,quality:Quality,now:u64) -> bool {
         if self.settings_pending{return false;}
@@ -1749,6 +1777,35 @@ impl Prototype {
         };
         for reply in ui.poll() {
             match reply {
+                UiReply::ControlExitReady => { ui.exit_when_stopped = true; },
+                UiReply::NativePreference(request) => {
+                    request.process(|action| match action {
+                        ameow_next::control::native_preferences::Action::Prepare(preference) => {
+                            if ui.settings_pending { return Err("E_SETTINGS_BUSY".into()); }
+                            if let Some(preference) = preference {
+                                if !self.shortcut_allowed || self.shortcut.is_suspended() { return Err("E_SHORTCUT_BUSY".into()); }
+                                self.shortcut.prepare(preference).map_err(|error| format!("E_SHORTCUT_REGISTER: {error}"))?;
+                                ui.native_shortcut_pending = true;
+                            }
+                            ui.settings_pending = true;
+                            Ok(())
+                        }
+                        ameow_next::control::native_preferences::Action::Complete { saved, settings } => {
+                            if ui.native_shortcut_pending { self.shortcut.complete(saved); ui.native_shortcut_pending = false; }
+                            if let Some((settings, revision)) = settings {
+                                ui.acknowledged_settings = Some(settings); ui.acknowledged_revision = Some(revision);
+                            }
+                            ui.settings_pending = false; Ok(())
+                        }
+                    });
+                }
+                UiReply::SettingsRevision { reply, revision } => {
+                    self.shortcut.complete(matches!(&reply, CommandReply::SettingsSaved(_)));
+                    if let Some(generation) = self.menu_save_generation.take() {
+                        self.surface_menu.saved(generation, matches!(reply, CommandReply::SettingsSaved(_)));
+                    }
+                    if ui.complete_settings_revision(reply, revision, now) && !ui.hidden { self.model.directory_saved(now); }
+                }
                 UiReply::AppUpdate(handle) => ui.updates = handle,
                 UiReply::ComponentOwners { upstream, root, directory } => {
                     ui.upstream = upstream; ui.component_root = Some(root); ui.extension_directory = directory;
@@ -3033,6 +3090,28 @@ mod tests {
         ui.complete_settings(CommandReply::SettingsSaved(requested.clone()), 0);
         assert_eq!(ui.settings(), Some(requested));
         assert!(!ui.settings_pending);
+    }
+    #[test]
+    fn newer_queue_settings_survive_an_older_gui_ack() {
+        use super::*;
+        let (commands, receiver) = mpsc::sync_channel(2);
+        let (evidence, _) = mpsc::sync_channel(1);
+        let (_, replies) = mpsc::channel();
+        let latest = Arc::new(Mutex::new(None));
+        let mut ui = DownloadUi::with_transport(commands, evidence, replies, latest.clone());
+        let mut snapshot = exit_snapshot();
+        snapshot.revision = 4;
+        let older = Settings { quality: Quality::Balanced, ..snapshot.settings.clone() };
+        let changed = Settings { quality: Quality::Saver, ..older.clone() };
+        snapshot.settings = changed.clone();
+        *latest.lock().unwrap() = Some(Arc::new(snapshot));
+        ui.poll();
+        ui.complete_settings_revision(CommandReply::SettingsSaved(older), 3, 0);
+        assert_eq!(ui.settings(), Some(changed.clone()));
+        assert!(ui.request_preferences(ThemePreference::Dark, LanguagePreference::English, 1));
+        let QueueCommand::SaveSettings(requested) = receiver.try_recv().unwrap() else { panic!("settings command") };
+        assert_eq!(requested.quality, Quality::Saver);
+        assert_eq!(requested.output_dir, changed.output_dir);
     }
     #[test]
     fn settings_ack_round_trip_uses_real_store_and_recovers_after_write_failure() {

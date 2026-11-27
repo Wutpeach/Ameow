@@ -152,6 +152,7 @@ impl Controller {
         self.signal.pending.store(0, Ordering::Release);
     }
     pub fn is_pending(&self) -> bool { self.pending.is_some() }
+    pub fn is_suspended(&self) -> bool { self.suspended }
     #[cfg(any(test, all(feature = "app-update-fixture", debug_assertions)))]
     pub fn is_active(&self) -> bool { self.active.is_some() }
 }
