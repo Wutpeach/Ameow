@@ -1,3 +1,4 @@
+import { markRange } from './page-fixture.mjs';
 // Actual network starvation/seek, with mocked work binding and no extension/Native.
 import assert from 'node:assert/strict';
 import http from 'node:http';
@@ -21,7 +22,7 @@ const server = http.createServer(async (req, res) => {
 });
 await new Promise(done => server.listen(0, '127.0.0.1', done));
 const origin = 'http://127.0.0.1:' + server.address().port;
-const context = await chromium.launchPersistentContext(join(root, 'profile'), { executablePath: process.argv[4], headless: true, viewport: { width: 1100, height: 900 }, args: ['--disable-extensions', '--no-first-run', '--no-default-browser-check'] });
+const context = await chromium.launchPersistentContext(join(root, 'profile'), { executablePath: process.argv[4], headless: true, locale: "zh-CN", viewport: { width: 1100, height: 900 }, args: ['--disable-extensions', '--no-first-run', '--no-default-browser-check'] });
 try {
   const page = await context.newPage(); await page.route('**/*', route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
   await page.goto(origin, { waitUntil: 'domcontentloaded' }); await page.waitForFunction(() => document.querySelector('video').readyState >= 2);
@@ -30,7 +31,7 @@ try {
     globalThis.chrome = { runtime: { onMessage: { addListener() {}, removeListener() {} }, sendMessage: async () => ({ ok: true, value: { key: 'bilibili:fixture:' + fixturePart, url: 'https://www.bilibili.com/video/BV17x411w7KC/?p=' + fixturePart, duration: fixtureVideo.duration } }), connectNative() { throw Error('FORBIDDEN_NATIVE'); }, sendNativeMessage() { throw Error('FORBIDDEN_NATIVE'); } } };
   });
   await page.addScriptTag({ url: origin + '/page.js' }); await page.locator('ameow-page-tools').waitFor(); await page.evaluate(() => ameowPageTools.openPeek());
-  const controls = page.locator('ameow-peek-controls'); await controls.getByRole('button', { name: '编辑选区时间', exact: true }).click(); await controls.getByRole('textbox', { name: '入点时间' }).fill('1.250'); await controls.getByRole('textbox', { name: '出点时间' }).fill('4.750');
+  const controls = page.locator('ameow-peek-controls'); await markRange(page);
   await controls.getByRole('button',{name:'聚焦选区',exact:true}).click();
   report.results.before = await page.evaluate(() => ({ readyState: fixtureVideo.readyState, buffered: Array.from({ length: fixtureVideo.buffered.length }, (_, i) => [fixtureVideo.buffered.start(i), fixtureVideo.buffered.end(i)]) }));
   await controls.getByRole('slider', { name: '播放位置', exact: true }).evaluate(input => { input.value = '7'; input.dispatchEvent(new Event('input', { bubbles: true })); });

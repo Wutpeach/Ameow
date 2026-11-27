@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { pageHost, canonicalTarget, clipRange, parseTime, formatTime } from '../src/page-core.mjs';
+import { pageHost, canonicalTarget, clipRange, formatTime } from '../src/page-core.mjs';
 import { PageTools } from '../src/page-background.mjs';
 import { Sessions } from '../src/core.mjs';
 test('only the current unambiguous VOD is bound, including the Bilibili part', () => {
@@ -13,9 +13,8 @@ test('only the current unambiguous VOD is bound, including the Bilibili part', (
   assert.equal(canonicalTarget('https://www.bilibili.com/video/av170001/?p=2', bili).url, 'https://www.bilibili.com/video/BV17x411w7KC/?p=2');
   assert.equal(canonicalTarget('https://www.bilibili.com/video/BV17x411w7KC/?p=1', bili), null);
 });
-test('editable time preserves milliseconds and rejects malformed or out-of-bounds drafts', () => {
-  for (const [value, ms] of [['1.25', 1250], ['1:12.500', 72500], ['1:02:03.004', 3723004]]) { assert.equal(parseTime(value), ms); assert.equal(parseTime(formatTime(ms)), ms); }
-  for (const value of ['-1', 'Infinity', '1:60', '1.0001', '', '1::2']) assert.equal(parseTime(value), null);
+test('time display preserves milliseconds and malformed or out-of-bounds drafts are rejected', () => {
+  for (const [ms, text] of [[1250, '0:01.250'], [72500, '1:12.500'], [3723004, '1:02:03.004']]) assert.equal(formatTime(ms), text);
   for (const value of [{ start_ms: null, end_ms: 10 }, { start_ms: 5, end_ms: 5 }, { start_ms: 0, end_ms: 11000 }, { start_ms: 0, end_ms: 1, mode: 'copy' }]) assert.throws(() => clipRange(value, 10));
 });
 test('an older native bridge refuses clip submission before any submit operation', async () => {

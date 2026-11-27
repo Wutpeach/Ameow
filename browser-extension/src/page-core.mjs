@@ -13,14 +13,6 @@ export function clipRange(value, duration) {
     || Number.isFinite(duration) && value.end_ms > Math.round(duration * 1000)) throw Error("E_CLIP_RANGE");
   return { start_ms: value.start_ms, end_ms: value.end_ms, ...(value.precise ? { precise: true } : {}) };
 }
-export function parseTime(value) {
-  if (!/^\d+(?::\d{1,2}){0,2}(?:\.\d{1,3})?$/.test(value.trim())) return null;
-  const parts = value.trim().split(":");
-  if (parts.slice(1).some(p => Number(p) >= 60)) return null;
-  const seconds = parts.reduce((sum, p) => sum * 60 + Number(p), 0);
-  const ms = Math.round(seconds * 1000);
-  return Number.isSafeInteger(ms) ? ms : null;
-}
 export function formatTime(ms) {
   if (ms === null || !Number.isFinite(ms)) return "";
   ms = Math.max(0, Math.round(ms));

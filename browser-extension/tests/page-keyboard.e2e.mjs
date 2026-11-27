@@ -1,3 +1,4 @@
+import { markRange } from './page-fixture.mjs';
 // Local media + mock page binding only: no extension, Native host or account.
 import assert from 'node:assert/strict';
 import { mkdir, cp, writeFile, readFile } from 'node:fs/promises';
@@ -12,7 +13,7 @@ await cp(resolve('browser-extension/dist/page.js'), join(root, 'page.js'));
 await cp(resolve('browser-extension/dist/page.css'), join(root, 'page.css'));
 await writeFile(join(root, 'fixture.html'), '<!doctype html><link rel="stylesheet" href="page.css"><style>body{margin:0}.bpx-player-container{position:relative;width:640px;height:360px;margin:80px auto}video{width:100%;height:100%}</style><div class="bpx-player-container"><video src="source.mp4" controls></video></div>');
 const report = { scope: 'local synthetic page, mocked page binding/submit, no extension or Native APIs', results: {} };
-const context = await chromium.launchPersistentContext(join(root, 'profile'), { executablePath: process.argv[4], headless: true, viewport: { width: 1100, height: 900 }, args: ['--disable-extensions', '--no-first-run', '--no-default-browser-check'] });
+const context = await chromium.launchPersistentContext(join(root, 'profile'), { executablePath: process.argv[4], headless: true, locale: "zh-CN", viewport: { width: 1100, height: 900 }, args: ['--disable-extensions', '--no-first-run', '--no-default-browser-check'] });
 try {
   const page = await context.newPage();
   await page.route('**/*', route => route.request().url().startsWith('file:') ? route.continue() : route.abort());
@@ -30,7 +31,7 @@ try {
   await page.locator('ameow-page-tools').waitFor();
   const open = async () => { await page.evaluate(() => ameowPageTools.openPeek()); await page.locator('.ameow-peek[data-transition]').waitFor({ state: 'detached' }); };
   const controls = page.locator('ameow-peek-controls');
-  const marks = async () => { if (!await controls.getByRole('textbox', { name: '入点时间' }).isVisible()) await controls.getByRole('button', { name: '编辑选区时间', exact: true }).click(); await controls.getByRole('textbox', { name: '入点时间' }).fill('1.250'); await controls.getByRole('textbox', { name: '出点时间' }).fill('4.750'); };
+  const marks = () => markRange(page);
   await open(); await marks();
   await page.evaluate(() => ameowPageTools.video.pause());
   const clear = controls.locator('[data-action=marker]');

@@ -88,7 +88,9 @@ components:
     timelineHeight: "64px"
     markerInteraction: "empty: add / marked: clear; direct edge drag"
     markerShape: "single: full / range: inward in-out caps"
-    textSelection: "display: none / editable: native"
+    playhead: "neutral solid pointed grip / full-height thin line / 28px hit width"
+    focusShortcut: "F: marker or selection / full timeline"
+    textSelection: "display: none / host editable: native"
     controlHeight: "32px"
     downloadAction: "Ameow monochrome icon + 下载 capsule"
     closeAction: "backdrop / Escape"
@@ -251,7 +253,9 @@ Compact 可见表面为 60px，圆角取 compact；Full 可见表面为 200px，
 
 Popup工具开关中文名为“切片/下载 工具条”，英文为“Clip/download toolbar”；右侧复用14px info图标、24px命中与原popover，按需显示“在支持的视频页面显示下载与切片入口。”／“Show download and clip actions on supported video pages.”，Tab及Enter/Space打开、Esc关闭；不增加常驻说明或设置。名称允许自然换行，开关不压缩。
 
-切片 Peek 底栏右侧保留「Ameow 纯色图标 下载」胶囊按钮，高32px、图标16px、间距6px、横向内边距12px；左邻为固定64×32px、与下载共用胶囊外轮廓的「精确」勾选按钮，默认关闭，中性文字/透明底，开启后实心勾选与轻微选中底色，不改变布局。hover、选中和键盘focus保持同一胶囊外轮廓；精确用轻底表达模式，下载用高对比实心表达主操作，不共用外框或增加分隔线。hover和键盘focus就近说明快速模式关键帧偏差及精确模式重新编码可能更慢。Tab聚焦、Space切换；同作品关开保留、清标记保留、换视频/分P重置，提交等待禁用，失败保留选择。下载保留等待/受理与禁用态辨识；右下不另设关闭按钮，点击浮窗外或按Esc回到原播放器，保留胶囊、同作品草稿及页面工具偏好。
+切片 Peek 底栏右侧保留「Ameow 纯色图标 下载」胶囊按钮，高32px、图标16px、间距6px、横向内边距12px；左邻为固定64×32px、与下载共用胶囊外轮廓的「精确」勾选按钮，默认关闭，中性文字/透明底，开启后实心勾选与轻微选中底色，不改变布局。hover、选中和键盘focus保持同一胶囊外轮廓；精确用轻底表达模式，下载用高对比实心表达主操作，不共用外框或增加分隔线。hover和键盘focus明确点击后开启/关闭精确，并说明快速模式边界可能略偏移、精确模式重新编码可能更慢。Tab聚焦、Space切换；同作品关开保留、清标记保留、换视频/分P重置，提交等待禁用，失败保留选择。下载保留等待/受理与禁用态辨识；右下不另设关闭按钮，点击浮窗外或按Esc回到原播放器，保留胶囊、同作品草稿及页面工具偏好。
+
+Peek不设时间编辑按钮或输入区；保留Marker、I/O、标记拖动及方向键调整。F与聚焦按钮共用状态：单点聚焦附近、有效范围聚焦选区、再按返回完整时间轴，无标记禁用。播放头为中性色11×10px实心尖头抓手和从刻度文字下方贯穿轨道至底边的36px细线，实际命中28×12px；标记、播放头、选区平移垂直分区，hover/focus/drag局部反馈，拖动显示就近时间；按钮提示浮于轨道上方，不遮挡刻度、时间或选区；不加常驻快捷键栏、连续缩放或磁吸。
 
 设置默认只以实际授权站点的品牌圆形徽章和站名为主体，不在下方常驻共享详情、状态文字行、浏览器来源、快照时间或技术说明。站名与主圆形品牌图标居中，角标和菜单不参与主图标/标签布局；短名、长省略名、中英文和各品牌均保持同一中心。未知站点使用合理短标签或省略，完整值由整徽章提示和按需诊断取得。状态角标具有实心主题底色、必要描边与留白，和品牌图形、选择环各自分层；鼠标悬浮和键盘焦点获得相同的简短状态说明，失败不表示授权被移除。徽章hover/按下/焦点/选中的实际背景绘制与裁剪均为主题圆角矩形，移除和诊断保持按需可发现。
 

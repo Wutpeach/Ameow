@@ -1,3 +1,4 @@
+import { markRange } from './page-fixture.mjs';
 // Owned profile + real action popups/content scripts; intercepted synthetic VOD, no desktop.
 // Run from the repository root: node browser-extension/tests/extension-ui.e2e.mjs <fresh-output> <browser> <8s-mp4>
 import assert from 'node:assert/strict';
@@ -19,7 +20,7 @@ const fixtureManifest = JSON.parse(await readFile(join(extension, 'manifest.json
 fixtureManifest.host_permissions.push('https://' + longDomain + '/*');
 await writeFile(join(extension, 'manifest.json'), JSON.stringify(fixtureManifest, null, 2));
 const context = await chromium.launchPersistentContext(join(root, 'profile'), {
-  executablePath, headless: true, viewport: { width: 1100, height: 900 },
+  executablePath, headless: true, locale: "zh-CN", viewport: { width: 1100, height: 900 },
   ignoreDefaultArgs: ['--disable-extensions'],
   args: ['--headless=new', '--load-extension=' + extension, '--disable-extensions-except=' + extension, '--no-first-run', '--no-default-browser-check'],
 });
@@ -130,9 +131,7 @@ try {
         assert.equal(logo.d, approved.match(/<path d="([^"]+)"/)[1]);
         assert.equal(logo.fill, logo.color);
         assert.equal(logo.opacity, '0.45');
-        await controls.getByRole('button', { name: '编辑选区时间', exact: true }).click();
-        await controls.getByRole('textbox', { name: '入点时间' }).fill('1.250');
-        await controls.getByRole('textbox', { name: '出点时间' }).fill('4.750');
+        await markRange(page);
         assert(await submit.isEnabled());
         await page.locator('.ameow-peek').screenshot({ path: join(root, site + '-' + (reduced ? 'dark' : 'light') + '-peek.png') });
         if (exit === 'escape') await page.keyboard.press('Escape');

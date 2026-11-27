@@ -12,7 +12,7 @@ await cp(new URL(import.meta.url), join(root, 'executed-script.mjs'));
 for (const [from, to] of [[process.argv[3], 'source.mp4'], [join(bundle, 'page.js'), 'page.js'], [join(bundle, 'page.css'), 'page.css']]) await cp(resolve(from), join(root, to));
 await writeFile(join(root, 'fixture.html'), '<!doctype html><link rel="stylesheet" href="page.css"><style>body{margin:0;font:16px Georgia,serif}#outside{margin:20px}.bpx-player-container{position:relative;width:640px;height:360px;margin:50px auto}video{width:100%;height:100%}#host-edit,#host-note,#host-label{position:absolute;left:12px;top:12px;z-index:4}#host-note{top:40px;background:white}#host-label{top:66px;color:white}</style><p id="outside">Outside page words remain selectable</p><div class="bpx-player-container"><video src="source.mp4" controls></video><input id="host-edit" value="original input"><div id="host-note" contenteditable="true">original editable</div><span id="host-label">Player display words</span></div>');
 const report = { scope: 'own local media and actual pointer/keyboard; mock binding, no extension/Native/clipboard/video recording', checks: {}, selectionOnly };
-const context = await chromium.launchPersistentContext(join(root, 'profile'), { executablePath: process.argv[4], headless: true, viewport: { width: 848, height: 780 }, args: ['--disable-extensions', '--no-first-run', '--no-default-browser-check'] });
+const context = await chromium.launchPersistentContext(join(root, 'profile'), { executablePath: process.argv[4], headless: true, locale: "zh-CN", viewport: { width: 848, height: 780 }, args: ['--disable-extensions', '--no-first-run', '--no-default-browser-check'] });
 let page;
 try {
   page = await context.newPage();
@@ -46,14 +46,10 @@ try {
   await page.locator('#host-note').dblclick(); assert((await selected()).length > 0);
   await page.keyboard.press('Control+A'); await page.keyboard.type('editable o'); assert.equal(await page.locator('#host-note').innerText(), 'editable o');
   report.checks.hostEditableNativeSelection = true;
-  await controls.getByRole('button', { name: '编辑选区时间', exact: true }).click();
-  const input = controls.getByRole('textbox', { name: '入点时间' }); await input.focus(); await page.keyboard.type('1.250'); await input.dblclick();
-  assert(await input.evaluate(e => e.selectionEnd > e.selectionStart));
-  await input.press('Control+A'); assert(await input.evaluate(e => e.selectionStart === 0 && e.selectionEnd === e.value.length));
-  await page.keyboard.type('2.500'); assert.equal(await input.inputValue(), '2.500');
-  report.checks.timeInputNativeSelectionAndEdit = true;
-  await controls.getByRole('button', { name: '编辑选区时间', exact: true }).click();
-  await marker.click(); await at(3); await marker.press('Space');
+  assert.equal(await controls.getByRole('textbox').count(), 0);
+  assert.equal(await controls.locator('[data-action=edit]').count(), 0);
+  report.checks.timeEditorRemoved = true;
+  if(await marker.getAttribute('aria-pressed')==='true') await marker.click(); await at(3); await marker.press('Space');
   const singlePath = await controls.locator('.handle.single:not([hidden]) path').getAttribute('d');
   assert.equal(singlePath, await marker.locator('path').getAttribute('d'));
   report.singlePath = singlePath;
