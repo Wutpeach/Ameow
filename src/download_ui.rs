@@ -37,6 +37,7 @@ pub enum UiReply {
     PreparationRetry(CommandReply),
     RuntimeUpdate(CommandReply),
     BrowserBridge(Result<(), String>),
+    #[cfg(any(test, all(feature = "app-update-fixture", debug_assertions)))]
     Settings(CommandReply),
     Diagnostic { job: u64, text: String },
     StartupError(String),
@@ -1840,6 +1841,7 @@ impl Prototype {
                 UiReply::StartupError(error) => {
                     ui.fail_startup(error);
                 }
+                #[cfg(any(test, all(feature = "app-update-fixture", debug_assertions)))]
                 UiReply::Settings(reply) => {
                     self.shortcut.complete(matches!(&reply, CommandReply::SettingsSaved(_)));
                     if let Some(generation) = self.menu_save_generation.take() {
