@@ -1,6 +1,8 @@
 //! Application updates are independent of managed media components and user data.
 //! Embedded trust roots do not imply a published or verified public update feed.
 pub mod launcher;
+#[cfg(windows)]
+pub mod installer;
 pub mod release;
 mod package;
 #[cfg(target_os = "macos")]

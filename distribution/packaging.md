@@ -1,6 +1,6 @@
 # Windows release inputs
 
-The single build entry is scripts/package_portable.ps1. It builds Ameow.exe, AmeowLauncher.exe, ameow-cli.exe, ameow-browser-host.exe and the offline ameow-release.exe, then prepares verified unsigned build inputs and an unsigned plan. Windows 0.5.2 is an unreleased new layout: signing creates one complete portable ZIP which is also the application-update payload; it no longer creates a single-EXE update ZIP. It never signs or uploads.
+The single build entry is scripts/package_portable.ps1. It builds Ameow.exe, AmeowLauncher.exe, ameow-cli.exe, ameow-browser-host.exe and the offline ameow-release.exe, then prepares verified unsigned build inputs and an unsigned plan. Windows 0.5.2 introduced the current layout: signing creates one complete portable ZIP which is also the application-update payload; it no longer creates a single-EXE update ZIP. It never signs or uploads.
 
 ~~~powershell
 ./scripts/package_portable.ps1 -TargetDirectory D:/AmeowRelease/target -OutputDirectory D:/AmeowRelease/candidate/build
@@ -10,11 +10,13 @@ Use Rust 1.98.1 / Windows x64 MSVC and prepare the locked dependencies for the o
 
 No approval status, review file, reviewer identity or version Tag is needed to build. The former Gate A/B paths and BuildOnly/ReleasePreparation/PackageMode combination are removed. Local dirty builds may prepare unsigned development inputs; their dirty identity is recorded and they cannot be signed as production releases. For a release, invoke the same script from an independent clean checkout of a definite Commit; leave unrelated development changes alone. A version Tag is checked only when supplied by a Tag-triggered CI run, or at final publication.
 
-The build records Commit/tree, actual source/resource hashes, Cargo.lock, toolchain and binary identities. Inputs and packaging implementation must remain unchanged during compilation and staging. distribution/license-inputs.json contains material source/destination hashes and informational obligations, with no approval fields. LICENSE and THIRD_PARTY_NOTICES are mandatory; only named text materials are copied, paths and duplicate names are checked, and actual bytes must match the inventory. The inventory itself is included without a self-referential hash.
+The build records Commit/tree, actual source/resource hashes, Cargo.lock, toolchain and binary identities. Inputs and packaging implementation must remain unchanged during compilation and staging. distribution/license-inputs.json contains material source/destination hashes and informational obligations, with no approval fields. LICENSE and THIRD_PARTY_NOTICES are mandatory; only named text materials are copied, paths and duplicate names are checked, and actual bytes must match the inventory. The staged inventory includes the source commit/tree, dirty state and the original inventory hash without a self-referential hash. Root and version-slot mirrors remain present in the portable ZIP because published 0.5.2 update consumers require them.
+
+The installer verifies every ZIP member but installs only the signed version-slot licenses tree and root LICENSE. Its delivery receipt lists installedMembers separately from omittedRootLicenseMirrors; the extracted packaging payload is not the installed footprint. Upgrade cleanup removes an existing root license mirror only when its bytes match verified ownership records, preserving the complete old version and its required notices. Measure ZIP bytes, installer bytes, extracted logical bytes and installed allocated bytes separately; source text savings alone do not establish a download or exclusive disk-space percentage.
 
 Use the existing offline sign and verify-signed commands, then scripts/package_windows.ps1 for Inno and portable delivery. Empty production roots, test roots, mismatched compiled version/roots, unclean or synthetic production source identity, invalid signatures, altered ZIP/EXE/notices and invalid members remain rejected. The public RFC fixture root is usable only in explicit debug/test builds and yields visibly marked fixture artifacts. It cannot authorize normal Windows delivery.
 
-Production private keys stay outside Git and candidate directories, under the publisher's custody; CI cannot generate or use them. No Authenticode certificate is required by these tools. Actual third-party license/source/attribution and publisher eligibility obligations remain the publisher's responsibility; notes in the inventory are disclosures, not packaging switches.
+Production private keys stay outside Git and candidate directories, under the publisher's custody; CI cannot generate or use them. No Authenticode certificate is required by these tools. Actual third-party license/source/attribution and publisher eligibility obligations remain the publisher's responsibility; the inventory records source and material integrity, not license approval.
 
 ## Signing and delivery
 
@@ -56,6 +58,44 @@ Application signing and publication remain explicit publisher operations; CI doe
 
 ## Dependency review scope
 
-Known license-text gaps and attribution limits are retained in [THIRD_PARTY_NOTICES](../THIRD_PARTY_NOTICES.md), the [dependency inventory](notices/rust-dependency-inventory.json), [MSVC context](notices/msvc-build-context.md) and [runtime acquisition](notices/runtime-acquisition.md). A release does not resolve these disclosures.
+Known license-text gaps (currently mac 0.1.1 and seahash 4.1.0) and attribution limits are retained in [THIRD_PARTY_NOTICES](../THIRD_PARTY_NOTICES.md), the [dependency inventory](notices/rust-dependency-inventory.json), [MSVC context](notices/msvc-build-context.md) and [runtime acquisition](notices/runtime-acquisition.md). A release does not resolve these disclosures.
 
 The 2026-11-10 dependency review recorded zip 2.4.2 stream/extract/password advisories, rustls 0.23.45 Brotli/session Debug/cache/ECH advisories, and grid 0.18.0 `expand_rows` overflow. That review did not establish their complete trigger paths in the examined application; it was not a claim that the dependencies were vulnerability-free or that alerts were resolved. For a new release, assess the current lockfile, enabled features and actual API use against applicable upstream advisories. Do not treat that historical assessment as approval of a changed dependency graph.
+
+## License material
+
+The Windows payload carries Ameow MIT, JetBrains Mono OFL, adapted icon terms and
+`rust-notices.txt`, plus a short third-party index and the build-pinned material
+manifest. The same checked full texts are embedded in **About → Third-party
+licenses**. Identical complete Rust/standard-library license texts are stored once
+per material set and mapped from their components; different copyright notices
+remain intact. Every referenced text is contiguous and readable offline.
+
+`distribution/notices/license-compaction-inputs.json` pins the original source
+bytes. Reproduce or check the generated material with Python 3:
+
+```powershell
+python scripts/compact_licenses.py --write
+python scripts/compact_licenses.py
+python -m unittest discover -s scripts -p test_compact_licenses.py
+```
+
+The generator verifies each original dependency license body against its SHA256,
+keeps component mappings and every non-whitespace word in order, and converts the
+standard library's official HTML into plain text while retaining notices, source
+links and complete licenses. It rejects changed inputs, missing bodies and unknown
+HTML tags. After intentional source updates, refresh the source manifest and
+regenerate, then update `distribution/license-inputs.json` hashes.
+
+The full dependency/source JSON inventory, raw standard-library HTML and provenance,
+MSVC host context and separately acquired runtime review remain in the matching
+source commit. They are engineering audit records; the payload still includes all
+named offline license/copyright material. Separately acquired Windows runtime
+executables are not silently added to the application package.
+
+Do not remove root material mirrors in isolation: the real 0.5.2 consumer requires
+those alongside the immutable version-slot files. Material slimming changes the
+contents of both sets and retains their signed membership. Report ZIP compressed
+data and total ZIP bytes, installer bytes, extracted logical bytes and installed
+allocated bytes separately after final package checks; none can be inferred from
+another. Existing published assets are immutable.

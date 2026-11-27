@@ -43,7 +43,7 @@ function File-Record([string]$RelativePath) {
     return [ordered]@{path=$RelativePath;bytes=$item.Length;sha256=(Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash}
 }
 function Source-Inventory {
-    $paths = @(Invoke-Native git @('-C', $packageRoot, 'ls-files', '--cached', '--others', '--exclude-standard', '--', 'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', 'vendor/accesskit_windows', 'build.rs', 'build_support', 'THIRD_PARTY_NOTICES.md', 'LICENSE', 'src', 'assets', 'browser-extension', 'distribution/notices', $requirementsPath))
+    $paths = @(Invoke-Native git @('-C', $packageRoot, 'ls-files', '--cached', '--others', '--exclude-standard', '--', 'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', 'vendor/accesskit_windows', 'build.rs', 'build_support', 'THIRD_PARTY_NOTICES.md', 'LICENSE', 'src', 'assets', 'browser-extension', 'distribution/notices', 'distribution/legacy-windows-0.5.1.json', $requirementsPath))
     return @($paths | Sort-Object -Unique | ForEach-Object { File-Record $_ })
 }
 function Inventory-Digest($Inputs) {
@@ -84,15 +84,21 @@ try {
     $implementationInputs = @(File-Record 'scripts/package_portable.ps1'; File-Record '.github/workflows/rust.yml'; File-Record 'rust-toolchain.toml')
     $requirements = Get-Content -LiteralPath (Join-Path $packageRoot $requirementsPath) -Raw | ConvertFrom-Json
     if ($requirements.schema -ne 1 -or @($requirements.materials).Count -eq 0) { throw 'E_RELEASE_MATERIALS: missing material inventory.' }
+    $compaction = Get-Content -LiteralPath (Join-Path $packageRoot 'distribution/notices/license-compaction-inputs.json') -Raw | ConvertFrom-Json
+    foreach ($source in $compaction.sources) {
+        if ($source.path -cnotmatch '^distribution/notices/[A-Za-z0-9_-]+\.(txt|json)$' -or (File-Record $source.path).sha256 -ine $source.sha256) { throw 'E_RELEASE_MATERIALS: original license compaction inputs changed; refresh and verify the source audit.' }
+    }
+    $licenseAudit = Get-Content -LiteralPath (Join-Path $packageRoot 'distribution/notices/rust-dependency-inventory.json') -Raw | ConvertFrom-Json
+    if ($licenseAudit.cargoLockSha256 -ine (File-Record 'Cargo.lock').sha256) { throw 'E_RELEASE_MATERIALS: Cargo.lock changed; refresh the dependency/source audit before packaging.' }
     $destinations = @{}
     $materialAudit = @()
-    $materialInputs = @($requirements.materials) + @([pscustomobject]@{source=$requirementsPath;destination='licenses/license-inputs.json';sha256=(File-Record $requirementsPath).sha256})
+    $materialInputs = @($requirements.materials)
     foreach ($material in $materialInputs) {
         $own = $material.source -ceq 'LICENSE' -and $material.destination -ceq 'LICENSE'
-        if ((-not $own -and ($material.source -cnotmatch '^(THIRD_PARTY_NOTICES\.md|distribution/notices/[A-Za-z0-9_./-]+\.(txt|md|json)|assets/(LICENSE|runtime-notices\.md|runtime-GPL-3\.0\.txt|fonts/OFL\.txt))$' -and $material.source -cne $requirementsPath)) -or
+        if ((-not $own -and $material.source -cnotmatch '^(THIRD_PARTY_NOTICES\.md|distribution/notices/[A-Za-z0-9_./-]+\.(txt|md|json)|assets/(LICENSE|runtime-notices\.md|runtime-GPL-3\.0\.txt|fonts/OFL\.txt))$') -or
             (-not $own -and $material.destination -cnotmatch '^licenses/[A-Za-z0-9_./-]+\.(txt|md|json)$') -or
             $material.source -match '(^|/)\.\.?(/|$)' -or $material.destination -match '(^|/)\.\.?(/|$)' -or $destinations.ContainsKey($material.destination) -or
-            ($material.destination -ieq 'licenses/license-inputs.json' -and $material.source -cne $requirementsPath)) { throw 'E_RELEASE_MATERIALS: invalid or duplicated material path.' }
+            $material.destination -ieq 'licenses/license-inputs.json') { throw 'E_RELEASE_MATERIALS: invalid or duplicated material path.' }
         $actual = File-Record $material.source
         if ($actual.sha256 -ine $material.sha256) { throw "E_RELEASE_MATERIALS: byte hash mismatch: $($material.source)" }
         $materialAudit += [ordered]@{source=$material.source;destination=$material.destination;sha256=$actual.sha256}
@@ -108,7 +114,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Extension dependency installation failed.' }
     & npm --prefix (Join-Path $packageRoot 'browser-extension') run build *>> (Join-Path $outputRoot 'extension-build.log')
     if ($LASTEXITCODE -ne 0) { throw 'Extension build failed.' }
-    $buildArguments = @('build','--locked','--offline','--release','--target',$platform,'--bin','ameow','--bin','ameow-launcher','--bin','ameow-cli','--bin','ameow-browser-host','--bin','ameow-release')
+    $buildArguments = @('build','--locked','--offline','--release','--jobs','4','--target',$platform,'--bin','ameow','--bin','ameow-launcher','--bin','ameow-cli','--bin','ameow-browser-host','--bin','ameow-release')
     & cargo @buildArguments *> (Join-Path $outputRoot 'build.log')
     if ($LASTEXITCODE -ne 0) { throw "Release build failed; see $outputRoot/build.log" }
     if ((Inventory-Digest @(Source-Inventory)) -cne (Inventory-Digest $before)) { throw 'Build inputs changed during compilation.' }
@@ -140,6 +146,12 @@ try {
         if ($record.sha256 -ine $material.sha256) { throw 'Staged material bytes changed.' }
         $materials += $record
     }
+    # Source audit stays in Git; the shipped index pins its exact build source.
+    $licenseIndex = Join-Path $outputRoot 'licenses/license-inputs.json'
+    Write-Json $licenseIndex ([ordered]@{schema=1;source=[ordered]@{repository='https://github.com/Wutpeach/Ameow';commit=$head;tree=$tree;dirty=$dirty;materialInventorySha256=(File-Record $requirementsPath).sha256};materials=@($requirements.materials)})
+    $indexRecord = & $recordFile $licenseIndex 'licenses/license-inputs.json'
+    $materials += $indexRecord
+    $materialAudit += [ordered]@{source=$requirementsPath;destination=$indexRecord.path;sha256=$indexRecord.sha256;generatedFromSha256=(File-Record $requirementsPath).sha256}
     Write-Json (Join-Path $outputRoot 'input-manifest.json') ([ordered]@{schema=2;baselineHead=$head;baselineTree=$tree;dirty=$dirty;sourceAndResources=$before;sourceInventorySha256=(Inventory-Digest $before);packagingInputs=$implementationInputs;toolchain=$rustc;command=('cargo '+($buildArguments -join ' '))})
     Write-Json (Join-Path $outputRoot 'material-audit.json') ([ordered]@{materials=$materialAudit})
     $build = [ordered]@{schema=3;version=$version;target=$platform;commit=$head;tree=$tree;tag=$tag;dirty=$dirty;source_sha256=(Inventory-Digest $before).ToLowerInvariant();cargo_lock_sha256=(File-Record 'Cargo.lock').sha256.ToLowerInvariant();toolchain='1.98.1';trust=(Get-Content -LiteralPath (Join-Path $packageRoot 'assets/app-update-trust.json') -Raw | ConvertFrom-Json);app=(& $recordFile $appPath 'Ameow.exe');launcher=(& $recordFile (Join-Path $outputRoot 'AmeowLauncher.exe') 'AmeowLauncher.exe');cli=(& $recordFile (Join-Path $outputRoot 'ameow-cli.exe') 'ameow-cli.exe');browser=$browser;notices=$materials}

@@ -10,7 +10,7 @@ fn main() {
     println!("cargo:rerun-if-changed=assets/brand");
     let root = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap());
     let out = PathBuf::from(env::var_os("OUT_DIR").unwrap());
-    for input in [notices::SOURCE, notices::INVENTORY, notices::PACKAGES, "build_support/notices.rs"]
+    for input in [notices::SOURCE, notices::INVENTORY, "build_support/notices.rs"]
         .into_iter().chain(notices::TEXTS.iter().copied()) {
         println!("cargo:rerun-if-changed={input}");
     }

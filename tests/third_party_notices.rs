@@ -12,10 +12,14 @@ fn source() -> PathBuf {
 }
 fn fixture() -> tempfile::TempDir {
     let dir = tempfile::tempdir().unwrap();
-    for path in [notices::SOURCE, notices::INVENTORY, notices::PACKAGES, notices::MACOS_INVENTORY]
-        .into_iter()
-        .chain(notices::TEXTS.iter().copied())
-        .chain(notices::MACOS_TEXTS.iter().copied())
+    for path in [
+        notices::SOURCE,
+        notices::INVENTORY,
+        notices::MACOS_INVENTORY,
+    ]
+    .into_iter()
+    .chain(notices::TEXTS.iter().copied())
+    .chain(notices::MACOS_TEXTS.iter().copied())
     {
         let dest = dir.path().join(path);
         fs::create_dir_all(dest.parent().unwrap()).unwrap();
@@ -37,7 +41,10 @@ fn macos_runtime_notices_are_checked_and_do_not_change_windows_output() {
         let modified = fixture();
         fs::write(modified.path().join(path), b"tampered").unwrap();
         assert!(notices::assemble_for_target(modified.path(), "0.1.0", "macos").is_err());
-        assert_eq!(notices::assemble_for_target(modified.path(), "0.1.0", "windows").unwrap(), windows);
+        assert_eq!(
+            notices::assemble_for_target(modified.path(), "0.1.0", "windows").unwrap(),
+            windows
+        );
     }
 }
 fn review(root: &Path, path: &str, text: &[u8]) {
@@ -63,29 +70,19 @@ fn embedded_notices_preserve_full_materials_and_package_attribution() {
     let text = notices::assemble(&source(), ameow_next::app_update::BUILD_VERSION).unwrap();
     assert_eq!(text, ameow_next::third_party_notices::TEXT);
     for path in notices::TEXTS {
-        if path == &notices::TEXTS[3] {
-            assert!(text.contains("Alliance for Open Media Patent License 1.0"));
-            assert!(text.contains("“Affiliate”"));
-            assert!(!text.contains('\u{fffd}'));
-        } else if path == &notices::TEXTS[6] {
-            assert!(
-                text.contains(
-                    &notices::standard_library_text(
-                        &fs::read_to_string(source().join(path)).unwrap()
-                    )
-                    .unwrap()
-                )
-            );
-            assert!(!text.contains("<details>"));
-        } else {
-            assert!(
-                text.contains(&fs::read_to_string(source().join(path)).unwrap()),
-                "{path}"
-            );
-        }
+        assert!(
+            text.contains(&fs::read_to_string(source().join(path)).unwrap()),
+            "{path}"
+        );
     }
-    let packages: Value =
-        serde_json::from_slice(&fs::read(source().join(notices::PACKAGES)).unwrap()).unwrap();
+    // AOM/AVIF bodies remain source audit material: this target graph excludes those codecs.
+    // Completeness follows the selected package mappings and exact checked notice files above.
+    assert!(!text.contains('\u{fffd}'));
+    assert!(!text.contains("<details>"));
+    let packages: Value = serde_json::from_slice(
+        &fs::read(source().join("distribution/notices/rust-dependency-inventory.json")).unwrap(),
+    )
+    .unwrap();
     for package in packages["packages"].as_array().unwrap() {
         assert!(text.contains(&format!(
             "{}@{}",
@@ -93,7 +90,7 @@ fn embedded_notices_preserve_full_materials_and_package_attribution() {
             package["version"].as_str().unwrap()
         )));
         for license in package["texts"].as_array().unwrap() {
-            assert!(text.contains(license["bodyAnchor"].as_str().unwrap()));
+            assert!(text.contains(license["sha256"].as_str().unwrap()));
         }
     }
     assert!(text.contains("Cole Bemis"));
@@ -103,7 +100,7 @@ fn embedded_notices_preserve_full_materials_and_package_attribution() {
 
 #[test]
 fn missing_or_modified_notice_sources_fail_closed() {
-    for path in [notices::SOURCE, notices::PACKAGES]
+    for path in [notices::SOURCE]
         .into_iter()
         .chain(notices::TEXTS.iter().copied())
     {
@@ -136,10 +133,13 @@ fn empty_invalid_utf8_and_incomplete_rehashed_materials_are_rejected() {
             "<!-- include: LICENSE -->",
             "<!-- include: LICENSE -->\n<!-- include: LICENSE -->",
         ),
-        original.replace("<!-- rust-packages -->", ""),
         original.replace(
-            "<!-- rust-packages -->",
-            "<!-- rust-packages -->\n<!-- rust-packages -->",
+            "<!-- include: distribution/notices/rust-notices.txt -->",
+            "",
+        ),
+        original.replace(
+            "<!-- include: distribution/notices/rust-notices.txt -->",
+            "<!-- unknown -->",
         ),
     ] {
         let dir = fixture();
@@ -183,18 +183,12 @@ fn each_version_keeps_its_own_notice_bytes() {
 }
 
 #[test]
-fn standard_library_reader_preserves_words_entities_and_source_links() {
-    let text = notices::standard_library_text("<html><head>title</head><body><h1>Copyright</h1><p>A &#34;quote&#34; &amp; &#60;owner&#62;.</p><a href=\"https://example.org/license\">Full terms</a><pre>  verbatim\n    indent</pre></body></html>").unwrap();
-    assert!(text.contains("A \"quote\" & <owner>."));
-    assert!(text.contains("https://example.org/license"));
-    assert!(text.contains("Full terms"));
-    assert!(text.contains("  verbatim\n    indent"));
-    for bad in [
-        "",
-        "<body><script>bad</script></body>",
-        "<body>&unknown;</body>",
-        "<body>&#999999999;</body>",
-    ] {
-        assert!(notices::standard_library_text(bad).is_err());
-    }
+fn compact_rust_material_keeps_offline_texts_and_component_source_mappings() {
+    let text = fs::read_to_string(source().join(notices::TEXTS[3])).unwrap();
+    assert!(text.contains("Rust 1.98.1 standard library:"));
+    assert!(text.contains("Complete license texts (shared only when all wording matches):"));
+    assert!(text.contains("Copyright"));
+    assert!(text.contains("License text: T"));
+    assert!(text.contains("https://thanks.rust-lang.org"));
+    assert!(!text.contains("<pre>"));
 }

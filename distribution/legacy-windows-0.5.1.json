@@ -1,0 +1,189 @@
+{
+  "schema": 1,
+  "version": "0.5.1",
+  "commit": "98c149d38a5257c74d5c4e47f7074fdff2987030",
+  "source": "https://github.com/Wutpeach/Ameow/releases/download/v0.5.1/Ameow_0.5.1_windows_x64_portable.zip",
+  "archiveSha256": "fa3e89fc71a4b2243bbb33ca9a7d94815e839358cf5f8c46738df30868f06885",
+  "members": [
+    {
+      "path": "AmeowLauncher.exe",
+      "bytes": 1015296,
+      "sha256": "195e341d7b9fe5689b9e4660e1ca4cf5f88620065751e78ea68183ae4d11ed8e"
+    },
+    {
+      "path": "LICENSE",
+      "bytes": 1086,
+      "sha256": "6b884099768b4997b2a4b071e3c175a812740f22f377f26faf6372fa5cfe9c35"
+    },
+    {
+      "path": "README.txt",
+      "bytes": 638,
+      "sha256": "9e6f59edf413447c45bbfeecffb6056ffd0ae7b995d7fa3842f1b987aaf1a452"
+    },
+    {
+      "path": "ameow-browser-host.exe",
+      "bytes": 2137088,
+      "sha256": "889ed7fcc94a818246022d551c9d3b0e48fcc36f75c48e1674d899f0560414da"
+    },
+    {
+      "path": "ameow-cli.exe",
+      "bytes": 951296,
+      "sha256": "e10acff50e85633dfba301a44b63585dc1929df3e5863132bc92c7b4c83d44e4"
+    },
+    {
+      "path": "browser-extension/LICENSES.txt",
+      "bytes": 5464,
+      "sha256": "28cc1068cb43ec54365ff66626365403f8307d0962755d02a5d4db1961ec3b84"
+    },
+    {
+      "path": "browser-extension/ameow-cat.svg",
+      "bytes": 2071,
+      "sha256": "337bf491c6c84891f9246a70e535dca23bc3ed34fb71cc158d431a8893a9bc21"
+    },
+    {
+      "path": "browser-extension/background.js",
+      "bytes": 195772,
+      "sha256": "c0a895c9d8dd1bec5b33ebf32fd4c37ebcc0b64dd4f517c578c16f381f2f8d78"
+    },
+    {
+      "path": "browser-extension/build.json",
+      "bytes": 163,
+      "sha256": "36bfab93a09153e45dc6e0550b941f67f8a8c42305d7f19723f4aa44b2a561e3"
+    },
+    {
+      "path": "browser-extension/icons/128.png",
+      "bytes": 9036,
+      "sha256": "ed9c828fd02d1c0d8304a50e85399fdaa197363a306e22fd9b2f81280fd98227"
+    },
+    {
+      "path": "browser-extension/icons/16.png",
+      "bytes": 571,
+      "sha256": "9739314bf747483d6bb0a4596b627369fcdaf5dca68b043ae29ae3cc092c3c3a"
+    },
+    {
+      "path": "browser-extension/icons/24.png",
+      "bytes": 890,
+      "sha256": "d57621e44f8328e31f77ee79d629b02b8c6abc37bc76cf823951552c918bb203"
+    },
+    {
+      "path": "browser-extension/icons/32.png",
+      "bytes": 1414,
+      "sha256": "b9e2040e05c32c3eca5ec3d09ec45b441a5f8d56a328695f28cdd254ad2e63af"
+    },
+    {
+      "path": "browser-extension/icons/48.png",
+      "bytes": 2811,
+      "sha256": "63add777fc39d9c5a07067377084262b9d06d942a0080845c0e508536d00b45b"
+    },
+    {
+      "path": "browser-extension/manifest.json",
+      "bytes": 1280,
+      "sha256": "5dd9cfa38c59397f79bd8ece9963b76a42f627fd53863a836039356143a9b952"
+    },
+    {
+      "path": "browser-extension/page.css",
+      "bytes": 2515,
+      "sha256": "42b2c33792fbbaf640e84f587464c1a3c335099cd6b8051c469c730d6b74d639"
+    },
+    {
+      "path": "browser-extension/page.js",
+      "bytes": 61643,
+      "sha256": "c37cd77042ab89177335a7e8d5a7500d78b3e6acd379b90d5122f330192e1e1a"
+    },
+    {
+      "path": "browser-extension/popup.css",
+      "bytes": 7073,
+      "sha256": "6bc1b28a62fd4b74a4c35d1f6b8121c368610b9097325728e999244aa1c0d7bf"
+    },
+    {
+      "path": "browser-extension/popup.html",
+      "bytes": 2468,
+      "sha256": "c1e6310b6e7919c5a815e5235bcf5791cf6c6e73375a649845c80f0fa18867c3"
+    },
+    {
+      "path": "browser-extension/popup.js",
+      "bytes": 199336,
+      "sha256": "5b3ed8163e115d5bec99d433b22aa44a6f87b2629fdd2923a01c088ee2d3ce04"
+    },
+    {
+      "path": "licenses/JetBrains-Mono-OFL.txt",
+      "bytes": 4399,
+      "sha256": "30f0c136e3c88e422d0791acd97238870f9054a9729bc34cf2ff0d4ed8cac4ad"
+    },
+    {
+      "path": "licenses/THIRD_PARTY_NOTICES.md",
+      "bytes": 2881,
+      "sha256": "0b9faec45c8d35ec01ce79eb0b4abd9e3d3861bc94c6e03969a242981d884579"
+    },
+    {
+      "path": "licenses/icon-licenses.txt",
+      "bytes": 15593,
+      "sha256": "704d854e4245a0f860b5d2e34904f7508034a7fdea4cf8b60afc2e6f8434be81"
+    },
+    {
+      "path": "licenses/license-inputs.json",
+      "bytes": 5127,
+      "sha256": "1bad539c7e8806660cdb73786b361e4c3a870ef40bd7dafb29d1b188a39ba1f7"
+    },
+    {
+      "path": "licenses/msvc-build-context.md",
+      "bytes": 3113,
+      "sha256": "8b1d5f0b3b779272229b4e36d251789851ef8005ed4d594b2e837d8e7a47b420"
+    },
+    {
+      "path": "licenses/runtime-GPL-3.0.txt",
+      "bytes": 35147,
+      "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903"
+    },
+    {
+      "path": "licenses/runtime-acquisition.md",
+      "bytes": 5700,
+      "sha256": "f763e002ff75777a6a23705827713a547dd91f0043bb63ccfbc42d6a76e1d4ac"
+    },
+    {
+      "path": "licenses/rust-dependency-inventory.json",
+      "bytes": 649529,
+      "sha256": "a9fef9486921338fad7f296b1485f015027c87cb241b432b439655f309b91c51"
+    },
+    {
+      "path": "licenses/rust-dependency-licenses.txt",
+      "bytes": 951871,
+      "sha256": "59f6d54547b236b49b90d024a66261558c4de89d3b75cc998dceb6fa17969d9f"
+    },
+    {
+      "path": "licenses/rust-standard-library-Apache-2.0.txt",
+      "bytes": 11201,
+      "sha256": "c5c933dd7fd534150d42e86f3755921644aeee9df2adde2d5a912c83c3c35647"
+    },
+    {
+      "path": "licenses/rust-standard-library-MIT.txt",
+      "bytes": 1078,
+      "sha256": "b85dcd3e453d05982552c52b5fc9e0bdd6d23c6f8e844b984a88af32570b0cc0"
+    },
+    {
+      "path": "licenses/rust-standard-library-notices.txt",
+      "bytes": 1512520,
+      "sha256": "68129500b616d5838629e68f55ff3aed5e096dacf60ce9eb41bbe599a563afa6"
+    },
+    {
+      "path": "licenses/rust-standard-library-provenance.md",
+      "bytes": 604,
+      "sha256": "68226cf0f249d64dd9e6db822ef05f11cffdbb4f705f6ab54f353d758a0415bc"
+    },
+    {
+      "path": "release-identity.json",
+      "bytes": 5654,
+      "sha256": "9850e3acac436d46389fcd91aa9698e8a2dba21907120f527f175d9921d2dc88"
+    },
+    {
+      "path": "versions/0.5.1/Ameow.exe",
+      "bytes": 31451136,
+      "sha256": "fe4eccb492c7465b8cb5635b3819ad30244a75ae06a7660d0bb4f17f4c3694e2"
+    },
+    {
+      "path": "versions/0.5.1/manifest.json",
+      "bytes": 643,
+      "sha256": "bc3b83aec491ba95398dd34e178be7ddcef988da5a6d4ff85bc55a87be26aa7f"
+    }
+  ]
+}

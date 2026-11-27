@@ -5,7 +5,6 @@ use std::{collections::BTreeSet, fs, path::Path};
 
 pub const SOURCE: &str = "THIRD_PARTY_NOTICES.md";
 pub const INVENTORY: &str = "distribution/license-inputs.json";
-pub const PACKAGES: &str = "distribution/notices/rust-dependency-inventory.json";
 pub const MACOS_INVENTORY: &str = "distribution/macos-license-inputs.json";
 pub const MACOS_TEXTS: &[&str] = &[
     "src/download/macos-runtime-notice-inputs.md",
@@ -16,10 +15,7 @@ pub const TEXTS: &[&str] = &[
     "LICENSE",
     "assets/fonts/OFL.txt",
     "distribution/notices/icon-licenses.txt",
-    "distribution/notices/rust-dependency-licenses.txt",
-    "distribution/notices/rust-standard-library-MIT.txt",
-    "distribution/notices/rust-standard-library-Apache-2.0.txt",
-    "distribution/notices/rust-standard-library-notices.txt",
+    "distribution/notices/rust-notices.txt",
 ];
 
 fn field<'a>(value: &'a Value, key: &str) -> Result<&'a str, String> {
@@ -48,113 +44,21 @@ fn checked(root: &Path, inventory: &Value, path: &str) -> Result<String, String>
     if !format!("{:x}", Sha256::digest(&bytes)).eq_ignore_ascii_case(expected) {
         return Err(format!("E_NOTICES_HASH: {path}"));
     }
-    let text = decode(path, &bytes)?;
+    let text = String::from_utf8(bytes).map_err(|_| format!("E_NOTICES_UTF8: {path}"))?;
     if text.trim().is_empty() || text.contains('\0') {
         return Err(format!("E_NOTICES_EMPTY: {path}"));
     }
     Ok(text)
 }
 
-fn decode(path: &str, bytes: &[u8]) -> Result<String, String> {
-    if let Ok(text) = std::str::from_utf8(bytes) {
-        return Ok(text.to_owned());
-    }
-    // The pinned AOM Patent License has Windows-1252 smart quotes; keep its raw source untouched.
-    let marker =
-        b"===== SHA256 7b14a70c194b19dbd0625e7eac839a63200f67484521ce5e8d8244b127e8907a =====";
-    if path != TEXTS[3] {
-        return Err(format!("E_NOTICES_UTF8: {path}"));
-    }
-    let start = bytes
-        .windows(marker.len())
-        .position(|w| w == marker)
-        .ok_or("E_NOTICES_ENCODING")?;
-    let end = bytes[start + marker.len()..]
-        .windows(13)
-        .position(|w| w == b"===== SHA256 ")
-        .map_or(bytes.len(), |i| start + marker.len() + i);
-    let mut normalized = Vec::with_capacity(bytes.len());
-    normalized.extend_from_slice(&bytes[..start]);
-    for byte in &bytes[start..end] {
-        match byte {
-            0x93 => normalized.extend_from_slice("“".as_bytes()),
-            0x94 => normalized.extend_from_slice("”".as_bytes()),
-            _ => normalized.push(*byte),
-        }
-    }
-    normalized.extend_from_slice(&bytes[end..]);
-    String::from_utf8(normalized).map_err(|_| format!("E_NOTICES_UTF8: {path}"))
-}
-
-// Only the pinned Rust COPYRIGHT-library.html format, not a general HTML renderer.
-pub fn standard_library_text(html: &str) -> Result<String, String> {
-    let body = html
-        .split_once("<body>")
-        .and_then(|(_, rest)| rest.split_once("</body>").map(|(body, _)| body))
-        .ok_or("E_NOTICES_STDLIB_HTML")?;
-    let mut text = String::new();
-    let mut rest = body;
-    while !rest.is_empty() {
-        if let Some(tag) = rest.strip_prefix('<') {
-            let (tag, tail) = tag.split_once('>').ok_or("E_NOTICES_STDLIB_TAG")?;
-            let name = tag
-                .trim_start_matches('/')
-                .split_ascii_whitespace()
-                .next()
-                .ok_or("E_NOTICES_STDLIB_TAG")?;
-            if ![
-                "h1", "h2", "h3", "ul", "li", "p", "b", "code", "details", "summary", "pre", "div",
-                "a",
-            ]
-            .contains(&name)
-            {
-                return Err(format!("E_NOTICES_STDLIB_TAG: {name}"));
-            }
-            if name == "a" && !tag.starts_with('/') {
-                if let Some(url) = tag
-                    .split_once("href=\"")
-                    .and_then(|(_, s)| s.split_once('"').map(|(url, _)| url))
-                {
-                    if url.starts_with("https://") || url.starts_with("http://") {
-                        text.push_str(&format!(" [{url}] "));
-                    }
-                }
-            } else if !["b", "code", "a"].contains(&name) {
-                text.push('\n');
-            }
-            rest = tail;
-        } else if let Some(entity) = rest.strip_prefix('&') {
-            let (entity, tail) = entity.split_once(';').ok_or("E_NOTICES_STDLIB_ENTITY")?;
-            let decoded = match entity {
-                "amp" => Some('&'),
-                "lt" => Some('<'),
-                "gt" => Some('>'),
-                "quot" => Some('"'),
-                "apos" => Some('\''),
-                "nbsp" => Some(' '),
-                s if s.starts_with("#x") => u32::from_str_radix(&s[2..], 16)
-                    .ok()
-                    .and_then(char::from_u32),
-                s if s.starts_with('#') => s[1..].parse().ok().and_then(char::from_u32),
-                _ => None,
-            }
-            .ok_or("E_NOTICES_STDLIB_ENTITY")?;
-            text.push(decoded);
-            rest = tail;
-        } else {
-            let len = rest.find(['<', '&']).unwrap_or(rest.len());
-            text.push_str(&rest[..len]);
-            rest = &rest[len..];
-        }
-    }
-    Ok(text)
-}
-
 pub fn assemble(root: &Path, version: &str) -> Result<String, String> {
-    let target = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_else(|_| std::env::consts::OS.into());
+    let target =
+        std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_else(|_| std::env::consts::OS.into());
     if target == "macos" {
         println!("cargo:rerun-if-changed={MACOS_INVENTORY}");
-        for path in MACOS_TEXTS { println!("cargo:rerun-if-changed={path}"); }
+        for path in MACOS_TEXTS {
+            println!("cargo:rerun-if-changed={path}");
+        }
     }
     assemble_for_target(root, version, &target)
 }
@@ -169,7 +73,6 @@ pub fn assemble_for_target(root: &Path, version: &str, target: &str) -> Result<S
         return Err("E_NOTICES_SOURCE".into());
     }
     let mut included = BTreeSet::new();
-    let mut mapped = false;
     let mut result = String::new();
     for line in source.lines() {
         if let Some(path) = line
@@ -180,46 +83,7 @@ pub fn assemble_for_target(root: &Path, version: &str, target: &str) -> Result<S
                 return Err(format!("E_NOTICES_INCLUDE: {path}"));
             }
             let text = checked(root, &inventory, path)?;
-            result.push_str(&if path == TEXTS[6] {
-                standard_library_text(&text)?
-            } else {
-                text
-            });
-        } else if line == "<!-- rust-packages -->" {
-            if mapped {
-                return Err("E_NOTICES_DUPLICATE_PACKAGES".into());
-            }
-            mapped = true;
-            let packages: Value = serde_json::from_str(&checked(root, &inventory, PACKAGES)?)
-                .map_err(|e| format!("E_NOTICES_PACKAGES: {e}"))?;
-            let entries = packages["packages"]
-                .as_array()
-                .ok_or("E_NOTICES_PACKAGES")?;
-            if entries.is_empty() || packages["packageCount"].as_u64() != Some(entries.len() as u64)
-            {
-                return Err("E_NOTICES_PACKAGE_COUNT".into());
-            }
-            for package in entries {
-                result.push_str(&format!(
-                    "{}@{} — {}\n",
-                    field(package, "name")?,
-                    field(package, "version")?,
-                    field(package, "licenseExpression")?
-                ));
-                let texts = package["texts"]
-                    .as_array()
-                    .ok_or("E_NOTICES_PACKAGE_TEXTS")?;
-                if texts.is_empty() {
-                    result.push_str("  Exact license-text source remains unresolved.\n");
-                }
-                for text in texts {
-                    result.push_str(&format!(
-                        "  {}: {}\n",
-                        field(text, "name")?,
-                        field(text, "bodyAnchor")?
-                    ));
-                }
-            }
+            result.push_str(&text);
         } else if line.contains("<!--") || line.contains("-->") {
             return Err("E_NOTICES_DIRECTIVE".into());
         } else {
@@ -227,21 +91,27 @@ pub fn assemble_for_target(root: &Path, version: &str, target: &str) -> Result<S
         }
         result.push('\n');
     }
-    if included.len() != TEXTS.len() || !mapped {
+    if included.len() != TEXTS.len() {
         return Err("E_NOTICES_INCOMPLETE".into());
     }
     if target == "macos" {
         let inventory: Value = serde_json::from_slice(
-            &fs::read(root.join(MACOS_INVENTORY)).map_err(|e| format!("E_NOTICES_INVENTORY: {e}"))?,
-        ).map_err(|e| format!("E_NOTICES_INVENTORY: {e}"))?;
+            &fs::read(root.join(MACOS_INVENTORY))
+                .map_err(|e| format!("E_NOTICES_INVENTORY: {e}"))?,
+        )
+        .map_err(|e| format!("E_NOTICES_INVENTORY: {e}"))?;
         let mut extra = String::new();
         for path in MACOS_TEXTS {
             extra.push_str(&checked(root, &inventory, path)?);
-            if !extra.ends_with('\n') { extra.push('\n'); }
+            if !extra.ends_with('\n') {
+                extra.push('\n');
+            }
             extra.push('\n');
         }
         let end = format!("End of third-party notices for Ameow {version}.\n");
-        if !result.ends_with(&end) { return Err("E_NOTICES_END".into()); }
+        if !result.ends_with(&end) {
+            return Err("E_NOTICES_END".into());
+        }
         result.insert_str(result.len() - end.len(), &extra);
     }
     Ok(result)

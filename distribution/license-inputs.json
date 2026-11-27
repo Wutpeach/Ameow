@@ -6,7 +6,7 @@
       "obligation": "Preserve the versioned source and checked local full texts.",
       "source": "THIRD_PARTY_NOTICES.md",
       "destination": "licenses/THIRD_PARTY_NOTICES.md",
-      "sha256": "0B9FAEC45C8D35EC01CE79EB0B4ABD9E3D3861BC94C6E03969A242981D884579"
+      "sha256": "BF66F11C87A02314B40833847D39A4A099033D7998511078DC79B7F6297EA3F1"
     },
     {
       "kind": "Ameow-owned code",
@@ -27,75 +27,19 @@
       "obligation": "Preserve ISC/Feather MIT and actual adapted-source/unknown-tag disclosure.",
       "source": "distribution/notices/icon-licenses.txt",
       "destination": "licenses/icon-licenses.txt",
-      "sha256": "704D854E4245A0F860B5D2E34904F7508034A7FDEA4CF8B60AFC2E6F8434BE81"
+      "sha256": "E6B2A33304584AC0CFD9BAD1E88E659D3116E080A0E485DC9600ADDBAF508BF2"
     },
     {
-      "kind": "Rust material/provenance",
-      "obligation": "Preserve actual texts, source mappings and explicit scope/gaps; no public-completeness claim.",
-      "source": "distribution/notices/rust-dependency-licenses.txt",
-      "destination": "licenses/rust-dependency-licenses.txt",
-      "sha256": "59F6D54547B236B49B90D024A66261558C4DE89D3B75CC998DCEB6FA17969D9F"
-    },
-    {
-      "kind": "Rust material/provenance",
-      "obligation": "Preserve actual texts, source mappings and explicit scope/gaps; no public-completeness claim.",
-      "source": "distribution/notices/rust-dependency-inventory.json",
-      "destination": "licenses/rust-dependency-inventory.json",
-      "sha256": "A9FEF9486921338FAD7F296B1485F015027C87CB241B432B439655F309B91C51"
-    },
-    {
-      "kind": "Rust material/provenance",
-      "obligation": "Preserve actual texts, source mappings and explicit scope/gaps; no public-completeness claim.",
-      "source": "distribution/notices/rust-standard-library-notices.txt",
-      "destination": "licenses/rust-standard-library-notices.txt",
-      "sha256": "68129500B616D5838629E68F55FF3AED5E096DACF60CE9EB41BBE599A563AFA6"
-    },
-    {
-      "kind": "Rust material/provenance",
-      "obligation": "Preserve actual texts, source mappings and explicit scope/gaps; no public-completeness claim.",
-      "source": "distribution/notices/rust-standard-library-MIT.txt",
-      "destination": "licenses/rust-standard-library-MIT.txt",
-      "sha256": "B85DCD3E453D05982552C52B5FC9E0BDD6D23C6F8E844B984A88AF32570B0CC0"
-    },
-    {
-      "kind": "Rust material/provenance",
-      "obligation": "Preserve actual texts, source mappings and explicit scope/gaps; no public-completeness claim.",
-      "source": "distribution/notices/rust-standard-library-Apache-2.0.txt",
-      "destination": "licenses/rust-standard-library-Apache-2.0.txt",
-      "sha256": "C5C933DD7FD534150D42E86F3755921644AEEE9DF2ADDE2D5A912C83C3C35647"
-    },
-    {
-      "kind": "Rust material/provenance",
-      "obligation": "Preserve actual texts, source mappings and explicit scope/gaps; no public-completeness claim.",
-      "source": "distribution/notices/rust-standard-library-provenance.md",
-      "destination": "licenses/rust-standard-library-provenance.md",
-      "sha256": "68226CF0F249D64DD9E6DB822EF05F11CFFDBB4F705F6AB54F353D758A0415BC"
-    },
-    {
-      "kind": "on-demand tools",
-      "obligation": "Record pinned official downloads after launch; tools are not ZIP members.",
-      "source": "distribution/notices/runtime-acquisition.md",
-      "destination": "licenses/runtime-acquisition.md",
-      "sha256": "CEB1236C736F30F953562B842356D21CE40238DCB286B6A28A57481A61C0A97D"
-    },
-    {
-      "kind": "on-demand GPL context",
-      "obligation": "Provide GPL text as context; fulfill applicable source and redistribution obligations for tools actually distributed.",
-      "source": "assets/runtime-GPL-3.0.txt",
-      "destination": "licenses/runtime-GPL-3.0.txt",
-      "sha256": "8CEB4B9EE5ADEDDE47B31E975C1D90C73AD27B6B165A1DCD80C7C545EB65B903"
-    },
-    {
-      "kind": "MSVC provenance",
-      "obligation": "Record build context; no compiler/separate runtime DLL bundled; no public clearance.",
-      "source": "distribution/notices/msvc-build-context.md",
-      "destination": "licenses/msvc-build-context.md",
-      "sha256": "8B1D5F0B3B779272229B4E36D251789851EF8005ED4D594B2E837D8E7A47B420"
+      "kind": "Rust dependency and standard-library licenses",
+      "obligation": "Preserve all component/copyright/NOTICE mappings and complete shared license texts offline; original sources and source hashes remain versioned in the repository.",
+      "source": "distribution/notices/rust-notices.txt",
+      "destination": "licenses/rust-notices.txt",
+      "sha256": "4D98A6DD37A9509964EACB214F3BCF184FA9C0D0F53E6E9377B82C9EAF24917C"
     }
   ],
   "notes": [
-    "Third-party rights and license obligations remain the publisher's responsibility; this inventory records materials, not an approval decision.",
-    "Exact historical icon tags and nine upstream package-text provenance gaps remain disclosed in the dependency inventory.",
-    "Confirm the actual publisher's Visual Studio Community eligibility and applicable generated-binary terms."
+    "The full dependency/source inventory, original standard-library HTML and compiler provenance are engineering audit records retained in the exact source commit, not additional shipped license requirements.",
+    "Complete required license/copyright/NOTICE wording remains offline in the named files and application About view.",
+    "Root/version mirrors remain required by published 0.5.2 update consumers."
   ]
 }

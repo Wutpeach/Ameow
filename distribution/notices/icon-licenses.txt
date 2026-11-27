@@ -71,7 +71,7 @@ C2 source verification (2026-11-09): the nine 2026-11-03 additions were compared
 
 
 Simple Icons — pinned source 32e030086fdc605196391aab28519b14dc4295b4 (16.38.0)
-Brand SVGs: Bilibili, YouTube, Bluesky, Imgur, X, Vimeo. Used only for site identification.
+Brand SVGs: Bilibili, YouTube, Bluesky, Imgur, X, Vimeo, Xiaohongshu. Used only for site identification.
 Source: https://github.com/simple-icons/simple-icons/tree/32e030086fdc605196391aab28519b14dc4295b4
 
 # CC0 1.0 Universal

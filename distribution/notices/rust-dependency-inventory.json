@@ -1,20 +1,13 @@
 {
   "schema": 1,
-  "scope": "owner-only private flow validation; public distribution blocked",
+  "scope": "Windows x64 normal/build dependency source audit; build-only packages retained conservatively; not linkage or license approval",
   "graphMethod": "cargo tree --locked --offline --target x86_64-pc-windows-msvc --edges normal,build --prefix none --format {p}|{l}",
   "packageCount": 452,
-  "textBodyCount": 319,
-  "cargoLockSha256": "75371fa7176a93ad010edb63eba560a01c4c052bbd836b10e2da64faeda8d2e6",
+  "textBodyCount": 320,
+  "cargoLockSha256": "d1e317fc44cd8507c7977fe4a89b65f024349c43fc1545fda2df55997e372f13",
   "packageTextGaps": [
-    "accesskit@0.24.1",
-    "accesskit_consumer@0.38.0",
     "mac@0.1.1",
-    "rust-i18n-macro@4.2.4",
-    "rust-i18n-support@4.2.4",
-    "seahash@4.1.0",
-    "taffy@0.15.1",
-    "zune-core@0.4.12",
-    "zune-jpeg@0.4.21"
+    "seahash@4.1.0"
   ],
   "packages": [
     {
@@ -23,7 +16,22 @@
       "licenseExpression": "MIT OR Apache-2.0",
       "registrySource": "registry+https://github.com/rust-lang/crates.io-index",
       "cargoLockChecksum": "d3b7f7f85a7e5f68090000ed7622545829afd484d210358702ae4cb97dd0c320",
-      "texts": []
+      "texts": [
+        {
+          "name": "LICENSE-MIT",
+          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+          "bytes": 1023,
+          "bodyAnchor": "SHA256 23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+          "source": {
+            "kind": "pinned-upstream-license",
+            "url": "https://raw.githubusercontent.com/AccessKit/accesskit/a55d3e1a18bb9ef0e4bccc9083fb13c3e0ad8969/LICENSE-MIT",
+            "commit": "a55d3e1a18bb9ef0e4bccc9083fb13c3e0ad8969",
+            "repository": "https://github.com/AccessKit/accesskit",
+            "path": "LICENSE-MIT",
+            "versionEvidence": "The locked crate .cargo_vcs_info.json pins this repository commit."
+          }
+        }
+      ]
     },
     {
       "name": "accesskit_consumer",
@@ -31,7 +39,22 @@
       "licenseExpression": "MIT OR Apache-2.0",
       "registrySource": "registry+https://github.com/rust-lang/crates.io-index",
       "cargoLockChecksum": "5d10a236f96f87d70732e44520046785431ef01d5bcd6b041317bfadd2f88245",
-      "texts": []
+      "texts": [
+        {
+          "name": "LICENSE-MIT",
+          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+          "bytes": 1023,
+          "bodyAnchor": "SHA256 23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+          "source": {
+            "kind": "pinned-upstream-license",
+            "url": "https://raw.githubusercontent.com/AccessKit/accesskit/c88605b96d04431f9c3c792464a0f2f253480e94/LICENSE-MIT",
+            "commit": "c88605b96d04431f9c3c792464a0f2f253480e94",
+            "repository": "https://github.com/AccessKit/accesskit",
+            "path": "LICENSE-MIT",
+            "versionEvidence": "The locked crate .cargo_vcs_info.json pins this repository commit."
+          }
+        }
+      ]
     },
     {
       "name": "accesskit_windows",
@@ -8599,7 +8622,22 @@
       "licenseExpression": "MIT",
       "registrySource": "registry+https://github.com/rust-lang/crates.io-index",
       "cargoLockChecksum": "d54a28dd9d46108d56b9f0c85b220908844233e561c03087890325104f90f2c6",
-      "texts": []
+      "texts": [
+        {
+          "name": "LICENSE",
+          "sha256": "d6fde6c28ecbccfc7f6d97c0badbb14bbea2cc8f5e81a8c1537204bdfed9a6d5",
+          "bytes": 1067,
+          "bodyAnchor": "SHA256 d6fde6c28ecbccfc7f6d97c0badbb14bbea2cc8f5e81a8c1537204bdfed9a6d5",
+          "source": {
+            "kind": "pinned-upstream-license",
+            "url": "https://raw.githubusercontent.com/longbridge/rust-i18n/5f3ea5ba03395f2f2908e3587e01788cfdfd3555/LICENSE",
+            "commit": "5f3ea5ba03395f2f2908e3587e01788cfdfd3555",
+            "repository": "https://github.com/longbridge/rust-i18n",
+            "path": "LICENSE",
+            "versionEvidence": "The locked crate .cargo_vcs_info.json pins this repository commit."
+          }
+        }
+      ]
     },
     {
       "name": "rust-i18n-support",
@@ -8607,7 +8645,22 @@
       "licenseExpression": "MIT",
       "registrySource": "registry+https://github.com/rust-lang/crates.io-index",
       "cargoLockChecksum": "e806c2a9701cbd6043992cd935c30cb1fdb128fa15e7b506f3b46f97045737c0",
-      "texts": []
+      "texts": [
+        {
+          "name": "LICENSE",
+          "sha256": "d6fde6c28ecbccfc7f6d97c0badbb14bbea2cc8f5e81a8c1537204bdfed9a6d5",
+          "bytes": 1067,
+          "bodyAnchor": "SHA256 d6fde6c28ecbccfc7f6d97c0badbb14bbea2cc8f5e81a8c1537204bdfed9a6d5",
+          "source": {
+            "kind": "pinned-upstream-license",
+            "url": "https://raw.githubusercontent.com/longbridge/rust-i18n/5f3ea5ba03395f2f2908e3587e01788cfdfd3555/LICENSE",
+            "commit": "5f3ea5ba03395f2f2908e3587e01788cfdfd3555",
+            "repository": "https://github.com/longbridge/rust-i18n",
+            "path": "LICENSE",
+            "versionEvidence": "The locked crate .cargo_vcs_info.json pins this repository commit."
+          }
+        }
+      ]
     },
     {
       "name": "rustc-demangle",
@@ -10597,7 +10650,22 @@
       "licenseExpression": "MIT",
       "registrySource": "registry+https://github.com/rust-lang/crates.io-index",
       "cargoLockChecksum": "31f7bd2d97198df05186f93a3a3c306845f40e8b3c22bf9279cdd7e5cf5fea7d",
-      "texts": []
+      "texts": [
+        {
+          "name": "LICENSE",
+          "sha256": "f97daf1a0124413dccf399a4e6626b4b74acd05282f80b6d64ac82225650b77a",
+          "bytes": 1100,
+          "bodyAnchor": "SHA256 f97daf1a0124413dccf399a4e6626b4b74acd05282f80b6d64ac82225650b77a",
+          "source": {
+            "kind": "pinned-upstream-license",
+            "url": "https://raw.githubusercontent.com/DioxusLabs/taffy/0064bd54cbe38bf1d8bcd6ec6ab0704d45fb048a/LICENSE",
+            "commit": "0064bd54cbe38bf1d8bcd6ec6ab0704d45fb048a",
+            "repository": "https://github.com/DioxusLabs/taffy",
+            "path": "LICENSE",
+            "versionEvidence": "The locked crate .cargo_vcs_info.json pins this repository commit."
+          }
+        }
+      ]
     },
     {
       "name": "tempfile",
@@ -14261,7 +14329,22 @@
       "licenseExpression": "MIT OR Apache-2.0 OR Zlib",
       "registrySource": "registry+https://github.com/rust-lang/crates.io-index",
       "cargoLockChecksum": "3f423a2c17029964870cfaabb1f13dfab7d092a62a29a89264f4d36990ca414a",
-      "texts": []
+      "texts": [
+        {
+          "name": "LICENSE-ZLIB",
+          "sha256": "7fa429541e55b1509909e058f2d21a37467e4958ec713b357f6e0cf9dc4ee352",
+          "bytes": 818,
+          "bodyAnchor": "SHA256 7fa429541e55b1509909e058f2d21a37467e4958ec713b357f6e0cf9dc4ee352",
+          "source": {
+            "kind": "pinned-upstream-license",
+            "url": "https://raw.githubusercontent.com/etemesi254/zune-image/f8fbb123d5ed04441e8324a555bfcda0cb1bd28f/LICENSE-ZLIB",
+            "commit": "f8fbb123d5ed04441e8324a555bfcda0cb1bd28f",
+            "repository": "https://github.com/etemesi254/zune-image",
+            "path": "LICENSE-ZLIB",
+            "versionEvidence": "The locked crate .cargo_vcs_info.json pins this repository commit."
+          }
+        }
+      ]
     },
     {
       "name": "zune-core",
@@ -14339,7 +14422,22 @@
       "licenseExpression": "MIT OR Apache-2.0 OR Zlib",
       "registrySource": "registry+https://github.com/rust-lang/crates.io-index",
       "cargoLockChecksum": "29ce2c8a9384ad323cf564b67da86e21d3cfdff87908bc1223ed5c99bc792713",
-      "texts": []
+      "texts": [
+        {
+          "name": "LICENSE-ZLIB",
+          "sha256": "7fa429541e55b1509909e058f2d21a37467e4958ec713b357f6e0cf9dc4ee352",
+          "bytes": 818,
+          "bodyAnchor": "SHA256 7fa429541e55b1509909e058f2d21a37467e4958ec713b357f6e0cf9dc4ee352",
+          "source": {
+            "kind": "pinned-upstream-license",
+            "url": "https://raw.githubusercontent.com/etemesi254/zune-image/fa2c767a01d7d9373911d0bf63e0588553d67e0e/LICENSE-ZLIB",
+            "commit": "fa2c767a01d7d9373911d0bf63e0588553d67e0e",
+            "repository": "https://github.com/etemesi254/zune-image",
+            "path": "LICENSE-ZLIB",
+            "versionEvidence": "The locked crate .cargo_vcs_info.json pins this repository commit."
+          }
+        }
+      ]
     },
     {
       "name": "zune-jpeg",

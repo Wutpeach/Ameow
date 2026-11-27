@@ -55,6 +55,9 @@ foreach ($resource in $delivery.installerResources) {
     if ((Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash -ine $resource.sha256) { throw "Installer resource changed: $($resource.path)" }
 }
 if ($delivery.installerResources.Count -ne 4 -or $delivery.compilerMessages.path -cne 'Default.isl' -or $delivery.installerSource.commit -cnotmatch '^[0-9a-f]{40}$') { throw 'Missing installer source or language/icon materials.' }
+if (@($delivery.omittedRootLicenseMirrors).Count -eq 0 -or @($delivery.installedMembers | Where-Object { $_.path.StartsWith('licenses/') }).Count -ne 0) { throw 'Installer must keep legal texts in the signed version slot without a redundant root licenses tree.' }
+if (@($delivery.installedMembers | Where-Object { $_.path.StartsWith("versions/$version/licenses/") }).Count -eq 0 -or @($delivery.installedMembers | Where-Object path -CEQ 'LICENSE').Count -ne 1) { throw 'Installed legal material is incomplete.' }
+if (@($delivery.installedMembers).Count + @($delivery.omittedRootLicenseMirrors).Count -ne @($delivery.members).Count) { throw 'Every verified ZIP member must be accounted for.' }
 foreach ($asset in $delivery.assets) {
     $file = Join-Path $valid $asset.path
     if ((Get-Item -LiteralPath $file).Length -ne $asset.bytes -or (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash -ine $asset.sha256) { throw "Release asset changed: $($asset.path)" }
@@ -68,8 +71,16 @@ $zip = [IO.Compression.ZipArchive]::new([IO.File]::OpenRead((Join-Path $valid $d
 try {
     if ($delivery.update.path -cne $delivery.portable.path -or $manifest.package_sha256 -cne $delivery.portable.sha256 -or $manifest.package_bytes -ne $delivery.portable.bytes) { throw 'Signed update does not identify the complete portable ZIP.' }
     if ($null -eq $zip.GetEntry('Ameow.exe') -or $null -eq $zip.GetEntry("versions/$version/Ameow.exe")) { throw 'Portable ZIP lacks the stable launcher or versioned app.' }
+    $prefix = "versions/$version/"
+    foreach ($entry in $zip.Entries) {
+        if (-not $entry.FullName.StartsWith($prefix, [StringComparison]::Ordinal)) { continue }
+        $relative = $entry.FullName.Substring($prefix.Length)
+        if ($relative -in @('Ameow.exe', 'bundle.json')) { continue }
+        $mirror = $zip.GetEntry($relative)
+        if ($null -eq $mirror -or $mirror.Length -ne $entry.Length) { throw "Published 0.5.2 updater requires the root mirror: $relative" }
+    }
 } finally { $zip.Dispose() }
-$checks += @('installer-compiled-from-verified-portable','shared-core-and-notice-hashes','portable-is-signed-update')
+$checks += @('installer-compiled-from-verified-portable','shared-core-and-notice-hashes','portable-is-signed-update','installer-notices-in-version-slot','published-052-root-mirror-contract-preserved')
 $result = @{result='PASS';checks=$checks;count=$checks.Count;nativeInstallerExecution=$false;productionPrivateKeyCreated=$false;delivery='valid/delivery.json'}
 $result | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $EvidenceDirectory 'result.json') -Encoding utf8
 $result | ConvertTo-Json -Depth 5

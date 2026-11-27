@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "method": "Preserve all distinct legal words, copyrights, source hashes and component mappings; share complete identical texts after whitespace normalization.",
+  "sources": [
+    {
+      "path": "distribution/notices/rust-dependency-inventory.json",
+      "sha256": "489db79a1dca89383bb21c4fae1ead1b6727e48d7e4a075ade79092fc91bcff3"
+    },
+    {
+      "path": "distribution/notices/rust-dependency-licenses.txt",
+      "sha256": "6f81c2ae8634c7190fcfe158f5c85183d309fcd900e954ed981cb428109edfc9"
+    },
+    {
+      "path": "distribution/notices/rust-standard-library-notices.txt",
+      "sha256": "68129500b616d5838629e68f55ff3aed5e096dacf60ce9eb41bbe599a563afa6"
+    },
+    {
+      "path": "distribution/notices/rust-standard-library-MIT.txt",
+      "sha256": "b85dcd3e453d05982552c52b5fc9e0bdd6d23c6f8e844b984a88af32570b0cc0"
+    },
+    {
+      "path": "distribution/notices/rust-standard-library-Apache-2.0.txt",
+      "sha256": "c5c933dd7fd534150d42e86f3755921644aeee9df2adde2d5a912c83c3c35647"
+    }
+  ]
+}

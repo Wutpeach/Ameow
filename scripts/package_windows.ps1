@@ -6,12 +6,14 @@ param(
     [Parameter(Mandatory)][string]$TrustedPublicRoots,
     [Parameter(Mandatory)][string]$OutputDirectory,
     [string]$Iscc = "${env:ProgramFiles(x86)}/Inno Setup 6/ISCC.exe",
-    [switch]$Fixture
+    [switch]$Fixture,
+    [switch]$MirrorNoticesForMeasurement
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $repository = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $utf8 = New-Object Text.UTF8Encoding($false)
+if ($MirrorNoticesForMeasurement -and -not $Fixture) { throw 'FIXTURE_MEASUREMENT_ONLY: root notice mirror comparisons require -Fixture.' }
 function Assert-PlainPath([string]$Path) {
     if (-not [IO.Path]::IsPathFullyQualified($Path) -or $Path -match '["\r\n]') { throw "Choose an absolute plain path: $Path" }
     $item = [IO.Path]::GetFullPath($Path)
@@ -41,6 +43,7 @@ if ($Fixture -and ($report.build.commit -cne ('0' * 40) -or -not $report.build.d
 $version = $report.build.version
 $suffix = if ($Fixture) { 'FIXTURE-NOT-FOR-DISTRIBUTION' } else { 'PUBLIC' }
 $fileSuffix = if ($Fixture) { "-$suffix" } else { '' }
+if ($MirrorNoticesForMeasurement) { $fileSuffix += '-LICENSE-MEASUREMENT-ONLY' }
 $name = if ($Fixture) { 'Ameow B Full Update Validation' } else { 'Ameow' }
 $appId = if ($Fixture) { 'Ameow.B.FullUpdate.Validation' } else { 'Ameow.Rust' }
 New-Item -ItemType Directory -Path $OutputDirectory | Out-Null
@@ -72,6 +75,8 @@ Copy-Item -LiteralPath $portableSource -Destination (Join-Path $output $portable
 $archive = [IO.Compression.ZipArchive]::new([IO.File]::OpenRead((Join-Path $output $portableName)), [IO.Compression.ZipArchiveMode]::Read)
 $lines = @('[Files]')
 $versionChecks = @()
+$installedMembers = @()
+$omittedRootLicenses = @()
 try {
     if ($archive.Entries.Count -ne @($report.members).Count) { throw 'ZIP member count changed.' }
     foreach ($member in $report.members) {
@@ -84,8 +89,16 @@ try {
         $input = $entry.Open(); $stream = [IO.File]::Open($destination, [IO.FileMode]::CreateNew)
         try { $input.CopyTo($stream) } finally { $stream.Dispose(); $input.Dispose() }
         Check-Record $destination $member
+        # The complete update ZIP retains mirrors for the immutable 0.5.2 consumer.
+        # Installed launchers verify the signed version slot; a second root notice tree is unnecessary.
+        if ($relative.StartsWith('licenses/', [StringComparison]::Ordinal) -and -not $MirrorNoticesForMeasurement) {
+            $omittedRootLicenses += $member
+            continue
+        }
+        $installedMembers += $member
         $parent = [IO.Path]::GetDirectoryName($relative).Replace('/', '\')
-        $flags = if ($relative -ceq 'state.json') { 'onlyifdoesntexist uninsneveruninstall' } elseif ($relative.StartsWith('versions/')) { 'onlyifdoesntexist' } else { 'ignoreversion' }
+        # Ownership-checked maintenance owns removal, including post-install update slots.
+        $flags = if ($relative -ceq 'state.json' -or $relative.StartsWith('versions/')) { 'onlyifdoesntexist uninsneveruninstall' } else { 'ignoreversion uninsneveruninstall' }
         $lines += 'Source: "' + $destination + '"; DestDir: "{app}' + $(if ($parent) { '\' + $parent }) + '"; Flags: ' + $flags
         $versionPath = $relative.Replace('/', '\')
         $versionChecks += "  if not PlainDestination(ExpandConstant('{app}\$versionPath')) then exit;"
@@ -94,6 +107,9 @@ try {
         }
     }
 } finally { $archive.Dispose() }
+$launcherRecord = @($report.members | Where-Object path -CEQ 'Ameow.exe')
+if ($launcherRecord.Count -ne 1) { throw 'Missing stable launcher.' }
+$lines += 'Source: "' + (Join-Path $payload 'Ameow.exe') + '"; DestDir: "{tmp}"; DestName: "ameow-setup-maintenance.exe"; Flags: dontcopy'
 $include = Join-Path $output 'payload.iss'
 [IO.File]::WriteAllLines($include, [string[]]$lines, $utf8)
 if (@($report.members | Where-Object path -CEQ "versions/$version/Ameow.exe").Count -ne 1) { throw 'Missing versioned application.' }
@@ -102,7 +118,7 @@ $versionCheckInclude = Join-Path $output 'version-check.iss'
 $manifestSource = Join-Path $SignedDirectory 'manifest.json'
 $manifestSourceRecord = Record $manifestSource 'manifest.json'
 $installerName = "Ameow_${version}_windows_x64_installer$fileSuffix"
-$defines = @("/DPayloadInclude=$include", "/DVersionCheckInclude=$versionCheckInclude", "/DApplicationId=$appId", "/DApplicationName=$name", "/DApplicationVersion=$version", "/DDeliveryOutput=$output", "/DInstallerName=$installerName")
+$defines = @("/DPayloadInclude=$include", "/DVersionCheckInclude=$versionCheckInclude", "/DApplicationId=$appId", "/DApplicationName=$name", "/DApplicationVersion=$version", "/DLauncherHash=$($launcherRecord[0].sha256)", "/DDeliveryOutput=$output", "/DInstallerName=$installerName")
 if ($Fixture) { $defines += '/DValidationBuild=1' }
 $definition = Record (Join-Path $repository 'distribution/ameow.iss') 'distribution/ameow.iss'
 $packaging = Record $PSCommandPath 'scripts/package_windows.ps1'
@@ -135,6 +151,6 @@ $manifest = Record (Join-Path $output $manifestName) $manifestName
 $assets = @($installer, $portable, $manifest)
 foreach ($asset in $assets) { Check-Record (Join-Path $output $asset.path) $asset }
 [IO.File]::WriteAllLines((Join-Path $output 'SHA256SUMS.txt'), [string[]]@($assets | ForEach-Object { "$($_.sha256)  $($_.path)" }), $utf8)
-$result = [ordered]@{schema=1;mode=$suffix;fixture=[bool]$Fixture;productionKeyCreated=$false;build=$report.build;installer=$installer;portable=$portable;update=$portable;manifest=$manifest;assets=$assets;members=$report.members;installerSource=$installerSource;installerDefinition=$definition;installerResources=@($installerResources);compilerMessages=$compilerMessages;packaging=$packaging;compiler=(Record $Iscc 'ISCC.exe')}
+$result = [ordered]@{schema=1;mode=$suffix;fixture=[bool]$Fixture;licenseMeasurementOnly=[bool]$MirrorNoticesForMeasurement;productionKeyCreated=$false;build=$report.build;installer=$installer;portable=$portable;update=$portable;manifest=$manifest;assets=$assets;members=$report.members;installedMembers=$installedMembers;omittedRootLicenseMirrors=$omittedRootLicenses;installerSource=$installerSource;installerDefinition=$definition;installerResources=@($installerResources);compilerMessages=$compilerMessages;packaging=$packaging;compiler=(Record $Iscc 'ISCC.exe')}
 [IO.File]::WriteAllText((Join-Path $output 'delivery.json'), ($result | ConvertTo-Json -Depth 30), $utf8)
 Write-Output "Windows delivery: $output/delivery.json ($suffix; nothing uploaded)"
