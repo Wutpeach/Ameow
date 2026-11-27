@@ -1,9 +1,9 @@
 {
-  "productCodeHead": "630bfd649d635cd968c44d79b5b504a1f8e44ae2",
-  "popupBuildHead": "630bfd649d635cd968c44d79b5b504a1f8e44ae2",
+  "productCodeHead": "f5a852310962d4c36cdd0f767f2ff310c3a75d89",
+  "popupBuildHead": "f5a852310962d4c36cdd0f767f2ff310c3a75d89",
   "productPr": null,
   "popup": "Current compact product popup, with synthetic transport and in-memory diagnostics.",
-  "sourceSha256": "6d276c363d0c3c8a74c0c9af5da5511f54c1f288d22dc1ed84fc3e94fbafd112",
+  "sourceSha256": "1c0638e27b358139d2df67f650f9693c60f7fefabddf5532df3c49eb14fde962",
   "previousCandidate": {
     "captureExeSha256": "14cdd01acb36d940fbdd4bdfce07566d5659c3b4e7a1ce099c4ce8ae830a021a",
     "revision": "c617b99bb2e0ac48b71ced51a50396c5b37ffe20",
@@ -101,8 +101,8 @@
     {
       "packagePath": "popup.js",
       "sitePath": "site/public/manual/browser/vendor/popup.js",
-      "bytes": 202919,
-      "sha256": "3ced974e9ab671832a0a106780a66d5fab9be20774f9a1c07923ed5ae910f400"
+      "bytes": 202969,
+      "sha256": "cd47b7330c0bc36981d1559c4c8953140f52cac919d3c5c698a9e8f0b1f91822"
     },
     {
       "packagePath": "ameow-cat.svg",
@@ -120,19 +120,19 @@
       "packagePath": "build.json",
       "sitePath": "site/public/manual/browser/vendor/build.json",
       "bytes": 291,
-      "sha256": "970c5b44ad890eed0d94eee15e838e51c7cdb94295b70ceb27c343fdbe0d303c"
+      "sha256": "1b7d33c1501c3410a184bc82a5440ef5abe87b18aad1c8b04541a2877f7e694c"
     },
     {
       "packagePath": "page.css",
       "sitePath": "site/public/manual/browser/vendor/page.css",
-      "bytes": 2515,
-      "sha256": "42b2c33792fbbaf640e84f587464c1a3c335099cd6b8051c469c730d6b74d639"
+      "bytes": 2696,
+      "sha256": "734626a76b60e0107128b69fef1c6fd5acc27287fe23c73a2b65be6189872352"
     },
     {
       "packagePath": "page.js",
       "sitePath": "site/public/manual/browser/vendor/page.js",
-      "bytes": 63599,
-      "sha256": "0fac9cdb06c73d2734ccabb55ad3666c714c36107bfeee06fed82112356a8a6f"
+      "bytes": 68497,
+      "sha256": "b97fd3d8a9de0011a42047df3ad5dc5871573dbd3d12bb12634ad6dbe2fd6217"
     }
   ],
   "previousPopupCandidates": [
