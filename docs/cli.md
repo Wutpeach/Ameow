@@ -138,8 +138,9 @@ $Job = & $Cli --json submit $Url --quality balanced --output 'D:/Downloads' --st
 
 ~~~powershell
 & $Cli --json settings set quality balanced
-& $Cli --json settings wait --timeout 30
 ~~~
+
+画质等同步偏好保存返回 `saved: true` 即已完成；无需等待 operation。
 
 组件先检查并等待，读取每项真实检查结果：
 
@@ -196,6 +197,6 @@ if (-not $Install.ok) { throw $Install.error.message }
 
 使用 `ameow-cli --help`、`ameow-cli help submit` 或 `ameow-cli components --help` 查询实际命令参数、错误和恢复方式。
 
-异步偏好保存可用 `settings wait --timeout 30` 确认。维护回执包含 `operation.id`、`action`、`phase`、`done`、`success` 和 `error`；只有 `done: true` 且 `success: true` 才表示完成。等待失败退出 4，超时退出 6，操作继续。
+应用更新偏好返回异步 operation 时，使用 `settings wait --timeout 30` 确认保存。维护回执包含 `operation.id`、`action`、`phase`、`done`、`success` 和 `error`；只有 `done: true` 且 `success: true` 才表示完成。等待失败退出 4，超时退出 6，操作继续。
 
 `app install`、`app quit` 和 `app restart` 需保留原回执的 `instance_id` 与 `operation.id`；原 owner 退出后，用 `--instance-id ORIGINAL_INSTANCE --operation-id OPERATION_ID app status` 查询，或配合 `app wait --timeout 300` 等待。安装核对实际接受的安装版本，重启核对新 owner 握手，退出核对进程结束。安装和退出/重启分别仅保留最近一份回执，新操作替换旧回执；超时或缺失回执仍表示结果未确认。
