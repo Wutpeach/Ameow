@@ -77,10 +77,10 @@
     return button;
   }
   function mediaForPage(boundVideo) {
-    const selector = location.hostname === "www.youtube.com" ? "#movie_player" : location.hostname === "www.xiaohongshu.com" ? ".player-el.xhsplayer-skin-default" : ".bpx-player-container";
-    const roots = [...document.querySelectorAll(selector)].filter((el) => el.getBoundingClientRect().width > 120);
+    const selector = location.hostname === "www.youtube.com" ? "#movie_player" : location.hostname === "www.xiaohongshu.com" ? "#noteContainer .player-el.xhsplayer-skin-default, .ameow-peek .player-el.xhsplayer-skin-default" : ".bpx-player-container";
+    const roots = [...document.querySelectorAll(selector)].filter((el) => el.getBoundingClientRect().width > 120 && el.checkVisibility({ checkVisibilityCSS: true, checkOpacity: true }));
     if (roots.length !== 1) return null;
-    const media = [...roots[0].querySelectorAll("video, bwp-video")].filter((el) => el.getBoundingClientRect().width > 120 && el.getBoundingClientRect().height > 60);
+    const media = [...roots[0].querySelectorAll("video, bwp-video")].filter((el) => el.getBoundingClientRect().width > 120 && el.getBoundingClientRect().height > 60 && el.checkVisibility({ checkVisibilityCSS: true, checkOpacity: true }));
     const video = media[0];
     const ready = video && (video.readyState >= 2 || video === boundVideo && video.readyState >= 1);
     return media.length === 1 && ready && Number.isFinite(video.duration) && video.duration > 0 ? { player: roots[0], video } : null;

@@ -1,7 +1,7 @@
 {
   "version": "0.5.2",
   "extensionId": "icedkidcbbbijndplfofcbhikohlcool",
-  "sourceSha256": "1c0638e27b358139d2df67f650f9693c60f7fefabddf5532df3c49eb14fde962",
+  "sourceSha256": "4a603c00681284d1f1d9feefe7ee77fa0e9fe21785adc522ea28adb27aa3e191",
   "capabilities": [
     "session_sync_v1",
     "page_tools_v1",

@@ -1,9 +1,9 @@
 {
-  "productCodeHead": "f5a852310962d4c36cdd0f767f2ff310c3a75d89",
-  "popupBuildHead": "f5a852310962d4c36cdd0f767f2ff310c3a75d89",
+  "productCodeHead": "48d3d74e5990490e77f158491fdf3af249beda93",
+  "popupBuildHead": "48d3d74e5990490e77f158491fdf3af249beda93",
   "productPr": null,
   "popup": "Current compact product popup, with synthetic transport and in-memory diagnostics.",
-  "sourceSha256": "1c0638e27b358139d2df67f650f9693c60f7fefabddf5532df3c49eb14fde962",
+  "sourceSha256": "4a603c00681284d1f1d9feefe7ee77fa0e9fe21785adc522ea28adb27aa3e191",
   "previousCandidate": {
     "captureExeSha256": "14cdd01acb36d940fbdd4bdfce07566d5659c3b4e7a1ce099c4ce8ae830a021a",
     "revision": "c617b99bb2e0ac48b71ced51a50396c5b37ffe20",
@@ -120,7 +120,7 @@
       "packagePath": "build.json",
       "sitePath": "site/public/manual/browser/vendor/build.json",
       "bytes": 291,
-      "sha256": "1b7d33c1501c3410a184bc82a5440ef5abe87b18aad1c8b04541a2877f7e694c"
+      "sha256": "f8b045c28171d3c2b9f3858de05139889cbfbe6103df83b107870df1f5b353eb"
     },
     {
       "packagePath": "page.css",
@@ -131,8 +131,8 @@
     {
       "packagePath": "page.js",
       "sitePath": "site/public/manual/browser/vendor/page.js",
-      "bytes": 68497,
-      "sha256": "b97fd3d8a9de0011a42047df3ad5dc5871573dbd3d12bb12634ad6dbe2fd6217"
+      "bytes": 68703,
+      "sha256": "12deb57caaf91299b9767db6606c4973c32884d5bff44f9db518d05d1c24b8c2"
     }
   ],
   "previousPopupCandidates": [
