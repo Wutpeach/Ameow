@@ -399,7 +399,7 @@ impl SettingsWindow {
                 if presence.visible() && self.component_downloader == downloader {
                     let passive = self.passive.replace(!was_open || self.passive.get());
                     let menu = self.component_restore_menu(bounds, cx); self.passive.set(passive);
-                    anchor = anchor.child(div().absolute().left(px(0.)).top(px(36.)).w(px(208.))
+                    anchor = anchor.child(div().absolute().right_0().top(px(36.))
                         .child(deferred(anchored().anchor(gpui::Anchor::TopRight).snap_to_window_with_margin(Edges::all(px(12.)))
                             .child(div().relative().top(px(presence.travel(-4.))).opacity(presence.alpha).child(menu)))));
                 }

@@ -3,7 +3,7 @@ import { PAGE_ORIGINS, REQUIRED_PAGE_HOSTS, pageHost, canonicalTarget, clipRange
 
 // This function runs in the page world. Return only current work/time evidence.
 export function readPlayer() {
-  const visible = el => el && el.getBoundingClientRect().width > 120 && el.getBoundingClientRect().height > 60;
+  const visible = el => el && el.getBoundingClientRect().width > 120 && el.getBoundingClientRect().height > 60 && el.checkVisibility({ checkVisibilityCSS:true, checkOpacity:true });
   if (location.hostname === "www.youtube.com") {
     const root = document.querySelector("#movie_player"), videos = [...(root?.querySelectorAll("video") || [])].filter(visible);
     const data = root?.getVideoData?.();
@@ -14,7 +14,7 @@ export function readPlayer() {
     const state = window.__INITIAL_STATE__?.note, id = location.pathname.match(/^\/(?:explore|discovery\/item)\/([a-f0-9]{24})\/?$/)?.[1];
     const current = state?.currentNoteId, currentId = typeof current === "string" ? current : current?.value;
     const note = id && state?.noteDetailMap?.[id]?.note;
-    const roots = [...document.querySelectorAll(".player-el.xhsplayer-skin-default")].filter(visible);
+    const roots = [...document.querySelectorAll("#noteContainer .player-el.xhsplayer-skin-default, .ameow-peek .player-el.xhsplayer-skin-default")].filter(visible);
     const videos = roots.length === 1 ? [...roots[0].querySelectorAll("video")].filter(visible) : [];
     const durations = Object.values(note?.video?.media?.stream || {}).flatMap(rows => Array.isArray(rows) ? rows.map(row => row.duration / 1000) : []).filter(value => Number.isFinite(value) && value > 0);
     return { page_url: location.href, id: note?.noteId, currentId, noteType: note?.type, live:false, ad:false,
