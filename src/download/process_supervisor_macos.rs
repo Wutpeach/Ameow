@@ -2051,6 +2051,68 @@ mod macos_tests {
     }
 
     #[test]
+    fn transfer_cancel_receipt_waits_for_delayed_reader_join() {
+        let workspace = tempfile::tempdir().unwrap();
+        let mut spec = spec("fork-interrupt-cancelled");
+        spec.cwd = workspace.path().into();
+        let control = Control::default();
+        let mut owner = Owner::new(Arc::new(|_| {}), Arc::new(AtomicBool::new(false)));
+        owner.trusted_contract = Some(ManagedCompletion::cancellation_fixture());
+        owner.initialize(&Launch::new(&spec).unwrap(), &spec, &control).unwrap();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while !owner.descendants_unproven {
+            assert!(owner.tick(&spec, &control).unwrap().is_none());
+            assert!(Instant::now() < deadline);
+            thread::sleep(Duration::from_millis(5));
+        }
+        control.cancel(); owner.request_cancellation().unwrap();
+        wait_for_unreaped_exit(&owner, deadline);
+        owner.stdout_reader.take().unwrap().join().unwrap().unwrap();
+        let release = Arc::new(AtomicBool::new(false));
+        let reader_release = release.clone();
+        owner.stdout_reader = Some(thread::spawn(move || {
+            while !reader_release.load(Ordering::Acquire) { thread::sleep(Duration::from_millis(5)); }
+            Ok(())
+        }));
+        assert!(owner.tick(&spec, &control).unwrap().is_none());
+        assert!(owner.trusted_exit_proven && owner.facts.root_waited);
+        assert!(!owner.trusted_completion && !owner.facts.resources_releasable());
+        release.store(true, Ordering::Release);
+        loop {
+            if let Some(outcome) = owner.tick(&spec, &control).unwrap() {
+                assert!(outcome.unwrap().facts.resources_releasable());
+                break;
+            }
+            assert!(Instant::now() < deadline);
+            thread::sleep(Duration::from_millis(5));
+        }
+    }
+
+    #[test]
+    fn actual_wait_disagreement_retains_owner_even_after_readers_and_consumer_join() {
+        let spec = spec("fork-complete");
+        let control = Control::default();
+        let mut owner = Owner::new(Arc::new(|_| {}), Arc::new(AtomicBool::new(false)));
+        owner.trusted_contract = Some(ManagedCompletion::fixture(InvocationPhase::Resolve));
+        owner.initialize(&Launch::new(&spec).unwrap(), &spec, &control).unwrap();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        wait_for_unreaped_exit(&owner, deadline);
+        assert!(owner.snapshot_root_exit().unwrap());
+        assert!(owner.descendants_unproven && owner.trusted_exit_proven);
+        // Fault the pre-wait status; the actual kernel wait must reject it.
+        owner.trusted_wait_status = Some(1 << 8);
+        while !owner.facts.root_waited || !owner.facts.callback_consumer_joined {
+            assert!(owner.tick(&spec, &control).unwrap().is_none());
+            assert!(Instant::now() < deadline);
+            thread::sleep(Duration::from_millis(5));
+        }
+        assert!(owner.observation_lost && !owner.trusted_completion);
+        assert_eq!(owner.root_wait_status, Some(0));
+        assert!(!owner.facts.resources_releasable());
+        assert!(owner.facts.stdout_reader_joined && owner.facts.stderr_reader_joined);
+    }
+
+    #[test]
     fn transfer_interrupt_deadline_is_one_opportunity_and_never_resets() {
         let spec = spec("fork-ignore-interrupt");
         let control = Control::default();
