@@ -1,10 +1,11 @@
-//! Trust bootstrap for an official yt-dlp candidate. No local metadata is an authority.
+//! Trust bootstrap for official downloader candidates. No local metadata is an authority.
 use super::{
     contract::Downloader,
     network::{self, Route},
-    preparation::{PreparationPhase, PreparationSnapshot, PreparationStage, RuntimeComponent},
+    preparation::{ErrorCategory, PreparationFailure, PreparationPhase, PreparationSnapshot, PreparationStage, RuntimeComponent},
     process_supervisor::{Control, ProcessObservation},
     runtime::{self, RuntimeLease, RuntimeManager, TrustedRuntimeRequirements},
+    runtime_update::{RuntimeUpdateFailure, UpdateErrorCategory, UpdateService, UpdateStage},
     upstream::normalize_stable_version,
 };
 use sha2::{Digest, Sha256};
@@ -147,7 +148,7 @@ fn allowed(url: &Url) -> bool {
         && url.fragment().is_none()
 }
 
-fn get(url: &str, control: &Control) -> Result<reqwest::blocking::Response, String> {
+fn get(url: &str, control: &Control, failure: &mut RuntimeUpdateFailure) -> Result<reqwest::blocking::Response, String> {
     let mut url = Url::parse(url).map_err(|_| "E_UPDATE_URL")?;
     for _ in 0..8 {
         if control.is_cancelled() {
@@ -156,6 +157,10 @@ fn get(url: &str, control: &Control) -> Result<reqwest::blocking::Response, Stri
         if !allowed(&url) {
             return Err("E_UPDATE_URL".into());
         }
+        failure.service = UpdateService::from_url(url.as_str());
+        failure.http_status = None;
+        failure.retry_after_seconds = None;
+        failure.retry_at_unix_seconds = None;
         let route = network::resolve(url.as_str()).map_err(|_| "E_UPDATE_ROUTE")?;
         let mut client = reqwest::blocking::Client::builder()
             .no_proxy()
@@ -171,17 +176,19 @@ fn get(url: &str, control: &Control) -> Result<reqwest::blocking::Response, Stri
             .get(url.clone())
             .header(reqwest::header::USER_AGENT, "Ameow-Next/0.1")
             .send()
-            .map_err(|_| "E_UPDATE_NETWORK")?;
+            .map_err(|e| if e.is_timeout() { "E_UPDATE_TIMEOUT" } else if e.is_connect() { "E_UPDATE_CONNECT" } else { "E_UPDATE_NETWORK" })?;
+        failure.response(&response);
         if response.status().is_redirection() {
             let location = response
                 .headers()
                 .get(reqwest::header::LOCATION)
                 .and_then(|v| v.to_str().ok())
-                .ok_or("E_UPDATE_HTTP")?;
+                .ok_or_else(|| { failure.response(&response); "E_UPDATE_HTTP" })?;
             url = url.join(location).map_err(|_| "E_UPDATE_URL")?;
             continue;
         }
         if !response.status().is_success() {
+            failure.response(&response);
             return Err("E_UPDATE_HTTP".into());
         }
         return Ok(response);
@@ -232,7 +239,9 @@ fn read_bounded(
         if control.is_cancelled() {
             return Err("E_UPDATE_CANCELLED".into());
         }
-        let n = input.read(&mut buffer).map_err(|_| "E_UPDATE_NETWORK")?;
+        let n = input.read(&mut buffer).map_err(|error| {
+            if error.kind() == std::io::ErrorKind::TimedOut { "E_UPDATE_TIMEOUT" } else { "E_UPDATE_NETWORK" }
+        })?;
         if n == 0 {
             break;
         }
@@ -335,23 +344,80 @@ fn tool_name(downloader: Downloader) -> &'static str {
     }
 }
 
-pub(crate) fn prepare_selected(
+pub(crate) fn prepare_selected_diagnosed(
+    root: PathBuf, selection: &super::runtime_update::Selection, allow_acquire: bool,
+    requirements: &TrustedRuntimeRequirements, control: &Control,
+    observer: Arc<dyn Fn(ProcessObservation) + Send + Sync>, progress: impl FnMut(PreparationSnapshot),
+) -> Result<Arc<RuntimeLease>, RuntimeUpdateFailure> {
+    let mut failure = RuntimeUpdateFailure::new(selection.downloader, UpdateStage::Unknown, UpdateService::Unknown);
+    prepare_selected_inner(root, selection, allow_acquire, requirements, control, observer, progress, &mut failure)
+        .map_err(|error| {
+            if failure.category == UpdateErrorCategory::Unknown { failure.classify(&error); }
+            let component_name = failure.component.map(|component| match component {
+                RuntimeComponent::YtDlp => "yt-dlp", RuntimeComponent::GalleryDl => "gallery-dl",
+                RuntimeComponent::Deno => "deno", RuntimeComponent::Ffmpeg => "ffmpeg", RuntimeComponent::Runtime => "runtime",
+            });
+            failure.target_version = match failure.component {
+                Some(RuntimeComponent::YtDlp) => selection.version_for(Downloader::YtDlp).map(str::to_owned),
+                Some(RuntimeComponent::GalleryDl) => selection.version_for(Downloader::GalleryDl).map(str::to_owned),
+                _ => None,
+            }.or_else(|| runtime::manifest().ok().and_then(|manifest| manifest.components.into_iter()
+                .find(|component| Some(component.name.as_str()) == component_name).map(|component| component.version)));
+            failure.downloader = selection.downloader;
+            failure
+        })
+}
+
+fn set_context(failure: &mut RuntimeUpdateFailure, downloader: Downloader, stage: UpdateStage, service: UpdateService) {
+    *failure = RuntimeUpdateFailure::new(downloader, stage, service);
+}
+
+fn preparation_error(failure: &mut RuntimeUpdateFailure, error: &PreparationFailure) {
+    failure.component = Some(error.component);
+    if let Some(downloader) = match error.component { RuntimeComponent::YtDlp => Some(Downloader::YtDlp), RuntimeComponent::GalleryDl => Some(Downloader::GalleryDl), _ => None } {
+        failure.downloader = downloader;
+    }
+    failure.stage = match error.stage {
+        PreparationStage::Acquire => UpdateStage::Download,
+        PreparationStage::Verify | PreparationStage::Extract | PreparationStage::Probe | PreparationStage::Cache => UpdateStage::Verify,
+        PreparationStage::Publish => UpdateStage::Activate,
+    };
+    failure.service = UpdateService::Unknown;
+    failure.http_status = error.http_status;
+    failure.retry_after_seconds = None;
+    failure.retry_at_unix_seconds = None;
+    failure.category = match error.category {
+        ErrorCategory::Timeout => UpdateErrorCategory::Timeout,
+        ErrorCategory::Connect => UpdateErrorCategory::Connect,
+        ErrorCategory::ProxyRouting => UpdateErrorCategory::Route,
+        ErrorCategory::Http => UpdateErrorCategory::Http,
+        ErrorCategory::Size => UpdateErrorCategory::Size,
+        ErrorCategory::Hash => UpdateErrorCategory::Hash,
+        ErrorCategory::Probe => UpdateErrorCategory::Probe,
+        ErrorCategory::Permission | ErrorCategory::Storage => UpdateErrorCategory::Storage,
+        ErrorCategory::Cancelled => UpdateErrorCategory::Cancelled,
+        ErrorCategory::Extract | ErrorCategory::Unknown => UpdateErrorCategory::Unknown,
+    };
+}
+
+fn prepare_selected_inner(
     root: PathBuf, selection: &super::runtime_update::Selection, allow_acquire: bool,
     requirements: &TrustedRuntimeRequirements, control: &Control,
     observer: Arc<dyn Fn(ProcessObservation) + Send + Sync>, mut progress: impl FnMut(PreparationSnapshot),
+    failure: &mut RuntimeUpdateFailure,
 ) -> Result<Arc<RuntimeLease>, String> {
+    set_context(failure, selection.downloader, UpdateStage::Verify, UpdateService::Local);
     runtime::check_data_location(&root)?;
     runtime::safe_dir(&root).map_err(|_| "E_UPDATE_STORAGE")?;
     if allow_acquire && let Some(version) = selection.version_for(selection.downloader) {
-        let installability = super::upstream::query_installability(selection.downloader, version)
-            .map_err(|error| match error {
-                super::upstream::UpstreamError::Route => "E_UPDATE_ROUTE",
-                super::upstream::UpstreamError::Http(_) => "E_UPDATE_HTTP",
-                super::upstream::UpstreamError::InvalidResponse | super::upstream::UpstreamError::TooLarge => "E_UPDATE_CHECKSUM",
-                _ => "E_UPDATE_NETWORK",
-            })?;
-        if installability != super::upstream::Installability::Installable { return Err("E_UPDATE_REQUIRES_AMEOW".into()); }
+        let installability = super::upstream::query_installability_diagnosed(selection.downloader, version)
+            .map_err(|error| { *failure = error; failure.code() })?;
+        if installability != super::upstream::Installability::Installable {
+            set_context(failure, selection.downloader, UpdateStage::CheckVersion, UpdateService::Unknown);
+            return Err("E_UPDATE_REQUIRES_AMEOW".into());
+        }
     }
+    set_context(failure, selection.downloader, UpdateStage::Verify, UpdateService::Local);
     let temp = tempfile::Builder::new().prefix("candidate-").tempdir_in(&root).map_err(|_| "E_UPDATE_STORAGE")?;
     let mut catalog = runtime::manifest().map_err(|_| "E_UPDATE_MANIFEST")?;
     let mut artifacts = Vec::new();
@@ -359,6 +425,7 @@ pub(crate) fn prepare_selected(
     let mut guards = Vec::new();
     for downloader in [Downloader::YtDlp, Downloader::GalleryDl] {
         let Some(version) = selection.version_for(downloader) else { continue; };
+        set_context(failure, downloader, UpdateStage::FetchMetadata, UpdateService::Local);
         let normalized = match downloader {
             Downloader::YtDlp => normalize_stable_version(version),
             Downloader::GalleryDl => super::runtime_update::normalize_gallery_version(version),
@@ -372,9 +439,16 @@ pub(crate) fn prepare_selected(
         progress(snapshot.clone());
         let (proof, new_proof) = signed_release_for(&root, downloader, version, |url, limit| {
             let mut bytes = Vec::new();
-            read_bounded(get(url, control)?, limit, control, &mut bytes, |_| {})?;
+            set_context(failure, downloader, UpdateStage::FetchMetadata, UpdateService::from_url(url));
+            read_bounded(get(url, control, failure)?, limit, control, &mut bytes, |_| {})?;
             Ok(bytes)
+        }).map_err(|error| {
+            if matches!(error.as_str(), "E_UPDATE_SIGNATURE" | "E_UPDATE_CHECKSUM") {
+                set_context(failure, downloader, UpdateStage::Verify, UpdateService::Local);
+            }
+            error
         })?;
+        set_context(failure, downloader, UpdateStage::Verify, UpdateService::Local);
         let expected = proof.checksum_for(downloader, version)?;
         let asset = asset_name(downloader, version);
         let base = release_base(downloader, version);
@@ -390,13 +464,15 @@ pub(crate) fn prepare_selected(
             if !allow_acquire { return Err("E_UPDATE_CACHE".into()); }
             let artifact = temp.path().join(&asset);
             let mut file = File::create(&artifact).map_err(|_| "E_UPDATE_STORAGE")?;
-            let response = get(&format!("{base}/{asset}"), control)?;
+            set_context(failure, downloader, UpdateStage::Download, UpdateService::from_url(&base));
+            let response = get(&format!("{base}/{asset}"), control, failure)?;
             let total = response.content_length().filter(|n| *n > 0 && *n <= MAX_EXECUTABLE);
             let (size, actual) = read_bounded(response, MAX_EXECUTABLE, control, &mut file, |bytes| {
                 snapshot.observe(PreparationPhase::Downloading, Some(component_id), PreparationStage::Acquire, bytes, total, None);
                 progress(snapshot.clone());
             })?;
             file.sync_all().map_err(|_| "E_UPDATE_STORAGE")?;
+            set_context(failure, downloader, UpdateStage::Verify, UpdateService::Local);
             verify_hash(&actual, &expected)?;
             (artifact, size)
         };
@@ -418,17 +494,57 @@ pub(crate) fn prepare_selected(
         if downloader == Downloader::YtDlp { component.files[0].sha256 = expected; }
         component.files[0].version_contains = version.into();
         artifacts.push((downloader.label().to_owned(), artifact, file_name.to_owned()));
-        if new_proof { proofs.push((proof, if downloader == Downloader::YtDlp { version.to_owned() } else { format!("gallery-{version}") })); }
+        if new_proof { proofs.push((downloader, proof, if downloader == Downloader::YtDlp { version.to_owned() } else { format!("gallery-{version}") })); }
     }
+    set_context(failure, selection.downloader, UpdateStage::Verify, UpdateService::Local);
     let lease = RuntimeManager::candidates(root.clone(), catalog, artifacts, allow_acquire)
-        .prepare_observed(requirements, control, observer, progress).map_err(|e| e.to_string())?;
-    for (proof, name) in proofs { proof.persist(&root, &name)?; }
+        .prepare_observed(requirements, control, observer, |event| {
+            if let Some(component) = event.component {
+                failure.component = Some(component);
+                match component { RuntimeComponent::YtDlp => failure.downloader = Downloader::YtDlp, RuntimeComponent::GalleryDl => failure.downloader = Downloader::GalleryDl, _ => {} }
+            }
+            progress(event);
+        }).map_err(|error| { preparation_error(failure, &error); failure.code().to_owned() })?;
+    for (downloader, proof, name) in proofs {
+        set_context(failure, downloader, UpdateStage::Activate, UpdateService::Local);
+        proof.persist(&root, &name)?;
+    }
     Ok(lease)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn offline_missing_selected_asset_keeps_cache_error_and_its_own_target() {
+        let root = tempfile::tempdir().unwrap();
+        authentic_proof().persist(root.path(), "2026.10.26").unwrap();
+        let mut selection = super::super::runtime_update::Selection::default();
+        selection.select(Downloader::YtDlp, Some("2026.10.26".into()));
+        let requirements = TrustedRuntimeRequirements::compiled(&[(YT_FILE, &["--version"])], &[]);
+        let error = prepare_selected_diagnosed(root.path().to_owned(), &selection, false, &requirements,
+            &Control::default(), Arc::new(|_| {}), |_| {}).err().unwrap();
+        assert_eq!(error.category, UpdateErrorCategory::Cache);
+        assert_eq!(error.code(), "E_UPDATE_CACHE");
+        assert_eq!(error.target_version.as_deref(), Some("2026.10.26"));
+        assert_eq!(error.component, Some(RuntimeComponent::YtDlp));
+    }
+    #[test]
+    fn typed_preparation_failure_retains_component_stage_and_category() {
+        let mut diagnostic = RuntimeUpdateFailure::new(Downloader::YtDlp, UpdateStage::Download, UpdateService::GitHub);
+        diagnostic.http_status = Some(429);
+        diagnostic.retry_after_seconds = Some(20);
+        let error = PreparationFailure::new(RuntimeComponent::GalleryDl, PreparationStage::Probe, ErrorCategory::Probe);
+        preparation_error(&mut diagnostic, &error);
+        assert_eq!(diagnostic.downloader, Downloader::GalleryDl);
+        assert_eq!(diagnostic.stage, UpdateStage::Verify);
+        assert_eq!(diagnostic.category, UpdateErrorCategory::Probe);
+        assert_eq!(diagnostic.http_status, None);
+        assert_eq!(diagnostic.retry_after_seconds, None);
+        let deno = PreparationFailure::new(RuntimeComponent::Deno, PreparationStage::Probe, ErrorCategory::Probe);
+        preparation_error(&mut diagnostic, &deno);
+        assert_eq!(diagnostic.component, Some(RuntimeComponent::Deno));
+    }
     #[test]
     fn gallery_proof_is_authenticated_offline_and_names_the_platform_asset() {
         let root = tempfile::tempdir().unwrap();

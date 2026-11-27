@@ -2,6 +2,7 @@
 use super::{
     contract::Downloader,
     network::{self, Route},
+    runtime_update::{RuntimeUpdateFailure, UpdateErrorCategory, UpdateService, UpdateStage},
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -46,6 +47,9 @@ pub struct CachedRelease {
 
 #[derive(Clone, Debug, Default)]
 pub struct UpstreamSnapshot {
+    pub operation_generation: u64,
+    pub result_generation: u64,
+    pub started_at_ms: Option<u64>,
     pub pending: bool,
     pub worker_running: bool,
     pub checked_at_ms: Option<u64>,
@@ -54,6 +58,7 @@ pub struct UpstreamSnapshot {
     pub installability: Installability,
     pub last_success: Option<CachedRelease>,
     pub cache_error: bool,
+    pub failure: Option<RuntimeUpdateFailure>,
 }
 
 #[derive(Default)]
@@ -72,11 +77,19 @@ struct State {
 
 #[derive(Default, Serialize, Deserialize)]
 struct StoredComponent {
+    #[serde(default)]
+    operation_generation: u64,
+    #[serde(default)]
+    result_generation: u64,
+    #[serde(default)]
+    started_at_ms: Option<u64>,
     checked_at_ms: Option<u64>,
     last_attempt_ms: Option<u64>,
     result: Option<Result<CachedRelease, UpstreamError>>,
     last_success: Option<CachedRelease>,
     last_seen_version: Option<String>,
+    #[serde(default)]
+    failure: Option<RuntimeUpdateFailure>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -112,6 +125,9 @@ impl UpstreamChecker {
                 Ok(Some(stored)) => {
                     let mut state = checker.state.lock().unwrap_or_else(|e| e.into_inner());
                     for (component, stored) in state.components.iter_mut().zip(stored.components) {
+                        component.snapshot.operation_generation = stored.operation_generation;
+                        component.snapshot.result_generation = stored.result_generation;
+                        component.snapshot.started_at_ms = stored.started_at_ms;
                         component.last_attempt_ms = stored.last_attempt_ms;
                         component.last_seen_version = stored.last_seen_version;
                         component.snapshot.checked_at_ms = stored.checked_at_ms;
@@ -122,6 +138,7 @@ impl UpstreamChecker {
                             .map_or(Installability::Unknown, |r| r.installability);
                         component.snapshot.result = stored.result.map(|r| r.map(|r| r.version));
                         component.snapshot.last_success = stored.last_success;
+                        component.snapshot.failure = stored.failure.map(|mut failure| { failure.sanitize_versions(); failure });
                     }
                 }
                 Ok(None) => {}
@@ -157,6 +174,8 @@ impl UpstreamChecker {
                     .saturating_add(DEADLINE.as_millis() as u64),
             );
             snapshot.result = Some(Err(UpstreamError::Timeout));
+            snapshot.result_generation = snapshot.operation_generation;
+            snapshot.failure = Some(failure_for(downloader, UpstreamError::Timeout));
             snapshot.installability = Installability::Unknown;
         }
         snapshot.cooldown_remaining_ms = component.last_started.map_or(0, |started| {
@@ -170,7 +189,13 @@ impl UpstreamChecker {
     }
 
     pub fn request_for(&self, downloader: Downloader, manual: bool) -> bool {
-        self.request_component_with(downloader, manual, move || query_release(downloader))
+        self.request_component_diagnosed(downloader, manual, move |failure| query_release_with_failure(downloader, failure))
+    }
+
+    /// Returns the exact admitted or joined operation under the component lock.
+    pub fn request_operation_for(&self, downloader: Downloader, manual: bool) -> Option<super::runtime_update::ComponentOperation> {
+        self.request_component_operation(downloader, manual, move |failure| query_release_with_failure(downloader, failure))
+            .map(|(operation, _)| operation)
     }
 
     pub fn mark_seen(&self, downloader: Downloader, version: &str) -> bool {
@@ -245,17 +270,41 @@ impl UpstreamChecker {
         })
     }
 
+    #[cfg(test)]
     fn request_component_with(
         &self,
         downloader: Downloader,
         manual: bool,
         query: impl FnOnce() -> Result<CachedRelease, UpstreamError> + Send + 'static,
     ) -> bool {
+        self.request_component_diagnosed(downloader, manual, move |_| query())
+    }
+
+    fn request_component_diagnosed(
+        &self,
+        downloader: Downloader,
+        manual: bool,
+        query: impl FnOnce(&mut RuntimeUpdateFailure) -> Result<CachedRelease, UpstreamError> + Send + 'static,
+    ) -> bool {
+        self.request_component_operation(downloader, manual, query).is_some_and(|(_, started)| started)
+    }
+
+    fn request_component_operation(
+        &self,
+        downloader: Downloader,
+        manual: bool,
+        query: impl FnOnce(&mut RuntimeUpdateFailure) -> Result<CachedRelease, UpstreamError> + Send + 'static,
+    ) -> Option<(super::runtime_update::ComponentOperation, bool)> {
         let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
         let component = &mut state.components[index(downloader)];
         let now = now_ms();
-        if component.snapshot.pending
-            || component
+        if component.snapshot.pending {
+            return Some((super::runtime_update::ComponentOperation {
+                operation_generation: component.snapshot.operation_generation,
+                started_at_ms: component.snapshot.started_at_ms?,
+            }, false));
+        }
+        if component
                 .last_started
                 .is_some_and(|t| t.elapsed() < COOLDOWN)
             || !manual
@@ -263,9 +312,13 @@ impl UpstreamChecker {
                     .last_attempt_ms
                     .is_some_and(|at| now.saturating_sub(at) < AUTO_INTERVAL_MS)
         {
-            return false;
+            return None;
         }
+        let operation = super::runtime_update::next_operation(component.snapshot.operation_generation)?;
+        component.snapshot.operation_generation = operation.operation_generation;
+        component.snapshot.started_at_ms = Some(operation.started_at_ms);
         component.snapshot.pending = true;
+        component.snapshot.failure = None;
         component.last_started = Some(Instant::now());
         component.started_at_ms = now;
         component.last_attempt_ms = Some(now);
@@ -275,7 +328,8 @@ impl UpstreamChecker {
         if std::thread::Builder::new()
             .name(format!("{}-release-check", downloader.label()))
             .spawn(move || {
-                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(query))
+                let mut failure = RuntimeUpdateFailure::new(downloader, UpdateStage::Unknown, UpdateService::Unknown);
+                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| query(&mut failure)))
                     .unwrap_or(Err(UpstreamError::Network));
                 let mut state = checker.state.lock().unwrap_or_else(|e| e.into_inner());
                 let component = &mut state.components[index(downloader)];
@@ -300,7 +354,15 @@ impl UpstreamChecker {
                 if let Ok(release) = &result {
                     component.snapshot.last_success = Some(release.clone());
                 }
+                component.snapshot.failure = result.as_ref().err().map(|error| {
+                    if matches!(error, UpstreamError::Timeout) && component.last_started.is_some_and(|t| t.elapsed() >= DEADLINE) {
+                        failure = RuntimeUpdateFailure::new(downloader, UpdateStage::Unknown, UpdateService::Unknown);
+                    }
+                    classify_failure(&mut failure, error);
+                    failure
+                });
                 component.snapshot.result = Some(result.map(|release| release.version));
+                component.snapshot.result_generation = component.snapshot.operation_generation;
                 let saved = checker.persist(&state);
                 state.components[index(downloader)].snapshot.cache_error = !saved;
             })
@@ -310,11 +372,13 @@ impl UpstreamChecker {
             component.snapshot.pending = false;
             component.snapshot.checked_at_ms = Some(now_ms());
             component.snapshot.result = Some(Err(UpstreamError::Network));
+            component.snapshot.result_generation = component.snapshot.operation_generation;
+            component.snapshot.failure = Some(failure_for(downloader, UpstreamError::Network));
             component.snapshot.installability = Installability::Unknown;
             self.persist(&state);
-            return false;
+            return None;
         }
-        true
+        Some((operation, true))
     }
 }
 
@@ -336,9 +400,12 @@ fn load_cache(root: &Path) -> Result<Option<Stored>, ()> {
     }
     for (component, downloader) in stored
         .components
-        .iter()
+        .iter_mut()
         .zip([Downloader::YtDlp, Downloader::GalleryDl])
     {
+        if component.failure.as_ref().is_some_and(|failure| failure.downloader != downloader) {
+            component.failure = None;
+        }
         let valid =
             |version: &str| normalize_version(downloader, version).as_deref() == Some(version);
         if component
@@ -390,6 +457,9 @@ fn save_cache(root: &Path, state: &State) -> Result<(), ()> {
         components: std::array::from_fn(|i| {
             let component = &state.components[i];
             StoredComponent {
+                operation_generation: component.snapshot.operation_generation,
+                result_generation: component.snapshot.result_generation,
+                started_at_ms: component.snapshot.started_at_ms,
                 checked_at_ms: component.snapshot.checked_at_ms,
                 last_attempt_ms: component.last_attempt_ms,
                 result: component.snapshot.result.clone().map(|r| {
@@ -400,6 +470,7 @@ fn save_cache(root: &Path, state: &State) -> Result<(), ()> {
                 }),
                 last_success: component.snapshot.last_success.clone(),
                 last_seen_version: component.last_seen_version.clone(),
+                failure: component.snapshot.failure.clone(),
             }
         }),
     };
@@ -428,6 +499,24 @@ fn request_error(error: reqwest::Error) -> UpstreamError {
     } else {
         UpstreamError::Network
     }
+}
+
+fn classify_failure(failure: &mut RuntimeUpdateFailure, error: &UpstreamError) {
+    failure.category = match error {
+        UpstreamError::Route => UpdateErrorCategory::Route,
+        UpstreamError::Timeout => UpdateErrorCategory::Timeout,
+        UpstreamError::Connect => UpdateErrorCategory::Connect,
+        UpstreamError::Http(_) => UpdateErrorCategory::Http,
+        UpstreamError::InvalidResponse => UpdateErrorCategory::InvalidResponse,
+        UpstreamError::TooLarge => UpdateErrorCategory::TooLarge,
+        UpstreamError::Network => UpdateErrorCategory::Network,
+    };
+    if let UpstreamError::Http(status) = error { failure.http_status = Some(*status); }
+}
+fn failure_for(downloader: Downloader, error: UpstreamError) -> RuntimeUpdateFailure {
+    let mut failure = RuntimeUpdateFailure::new(downloader, UpdateStage::Unknown, UpdateService::Unknown);
+    classify_failure(&mut failure, &error);
+    failure
 }
 
 fn read_response(response: impl Read) -> Result<Vec<u8>, UpstreamError> {
@@ -460,7 +549,12 @@ fn read_response(response: impl Read) -> Result<Vec<u8>, UpstreamError> {
     Ok(bytes)
 }
 
+#[cfg(test)]
 fn get(url: &str, route: Route, timeout: Duration) -> Result<Vec<u8>, UpstreamError> {
+    get_diagnosed(url, route, timeout, &mut RuntimeUpdateFailure::default())
+}
+
+fn get_diagnosed(url: &str, route: Route, timeout: Duration, failure: &mut RuntimeUpdateFailure) -> Result<Vec<u8>, UpstreamError> {
     let mut builder = reqwest::blocking::Client::builder()
         .no_proxy()
         .redirect(reqwest::redirect::Policy::none())
@@ -477,7 +571,9 @@ fn get(url: &str, route: Route, timeout: Duration) -> Result<Vec<u8>, UpstreamEr
         .header(reqwest::header::ACCEPT, "application/json")
         .send()
         .map_err(request_error)?;
+    failure.response(&response);
     if !response.status().is_success() {
+        failure.response(&response);
         return Err(UpstreamError::Http(response.status().as_u16()));
     }
     if response.content_length().is_some_and(|n| n > MAX_BODY) {
@@ -489,13 +585,20 @@ fn get(url: &str, route: Route, timeout: Duration) -> Result<Vec<u8>, UpstreamEr
 fn fetch_json<T: serde::de::DeserializeOwned>(
     url: &str,
     started: Instant,
+    failure: &mut RuntimeUpdateFailure,
+    stage: UpdateStage,
 ) -> Result<T, UpstreamError> {
+    failure.stage = stage;
+    failure.service = UpdateService::from_url(url);
+    failure.http_status = None;
+    failure.retry_after_seconds = None;
+    failure.retry_at_unix_seconds = None;
     let route = network::resolve(url).map_err(|_| UpstreamError::Route)?;
     let remaining = DEADLINE.saturating_sub(started.elapsed());
     if remaining.is_zero() {
         return Err(UpstreamError::Timeout);
     }
-    serde_json::from_slice(&get(url, route, remaining.min(Duration::from_secs(15)))?)
+    serde_json::from_slice(&get_diagnosed(url, route, remaining.min(Duration::from_secs(15)), failure)?)
         .map_err(|_| UpstreamError::InvalidResponse)
 }
 
@@ -563,7 +666,8 @@ fn project_latest(project: &Project, downloader: Downloader) -> Result<String, U
 }
 
 pub fn query_latest() -> Result<String, UpstreamError> {
-    let project: Project = fetch_json("https://pypi.org/pypi/yt-dlp/json", Instant::now())?;
+    let mut failure = RuntimeUpdateFailure::new(Downloader::YtDlp, UpdateStage::Unknown, UpdateService::Unknown);
+    let project: Project = fetch_json("https://pypi.org/pypi/yt-dlp/json", Instant::now(), &mut failure, UpdateStage::CheckVersion)?;
     project_latest(&project, Downloader::YtDlp)
 }
 
@@ -579,30 +683,52 @@ fn parse_response(response: impl Read) -> Result<String, UpstreamError> {
 }
 
 pub fn query_release(downloader: Downloader) -> Result<CachedRelease, UpstreamError> {
+    let mut failure = RuntimeUpdateFailure::new(downloader, UpdateStage::Unknown, UpdateService::Unknown);
+    query_release_with_failure(downloader, &mut failure)
+}
+
+fn query_release_with_failure(downloader: Downloader, failure: &mut RuntimeUpdateFailure) -> Result<CachedRelease, UpstreamError> {
     let started = Instant::now();
     let project: Project = fetch_json(
         &format!("https://pypi.org/pypi/{}/json", downloader.label()),
         started,
+        failure,
+        UpdateStage::CheckVersion,
     )?;
     let version = project_latest(&project, downloader)?;
-    inspect_release(downloader, project, version, started)
+    failure.target_version = Some(version.clone());
+    inspect_release(downloader, project, version, started, failure)
 }
 
 /// Revalidate the exact clicked version; a newer release appearing meanwhile is not an incompatibility.
 pub fn query_installability(downloader: Downloader, version: &str) -> Result<Installability, UpstreamError> {
+    let mut failure = RuntimeUpdateFailure::new(downloader, UpdateStage::Unknown, UpdateService::Unknown);
+    query_installability_with_failure(downloader, version, &mut failure)
+}
+
+pub(crate) fn query_installability_diagnosed(downloader: Downloader, version: &str) -> Result<Installability, RuntimeUpdateFailure> {
+    let mut failure = RuntimeUpdateFailure::new(downloader, UpdateStage::Unknown, UpdateService::Unknown);
+    failure.target_version = normalize_version(downloader, version);
+    query_installability_with_failure(downloader, version, &mut failure).map_err(|error| {
+        classify_failure(&mut failure, &error);
+        failure
+    })
+}
+
+fn query_installability_with_failure(downloader: Downloader, version: &str, failure: &mut RuntimeUpdateFailure) -> Result<Installability, UpstreamError> {
     #[derive(Deserialize)]
     struct VersionMetadata { info: ProjectInfo, urls: Vec<Distribution> }
     let normalized = normalize_version(downloader, version).ok_or(UpstreamError::InvalidResponse)?;
     let started = Instant::now();
-    let metadata: VersionMetadata = fetch_json(&format!("https://pypi.org/pypi/{}/{normalized}/json", downloader.label()), started)?;
+    let metadata: VersionMetadata = fetch_json(&format!("https://pypi.org/pypi/{}/{normalized}/json", downloader.label()), started, failure, UpdateStage::CheckVersion)?;
     if metadata.info.name != downloader.label()
         || normalize_version(downloader, &metadata.info.version).as_deref() != Some(normalized.as_str())
         || !metadata.urls.iter().any(|file| !file.yanked) { return Err(UpstreamError::InvalidResponse); }
     let project = Project { releases: std::collections::HashMap::from([(metadata.info.version.clone(), metadata.urls)]), info: metadata.info };
-    Ok(inspect_release(downloader, project, normalized, started)?.installability)
+    Ok(inspect_release(downloader, project, normalized, started, failure)?.installability)
 }
 
-fn inspect_release(downloader: Downloader, project: Project, version: String, started: Instant) -> Result<CachedRelease, UpstreamError> {
+fn inspect_release(downloader: Downloader, project: Project, version: String, started: Instant, failure: &mut RuntimeUpdateFailure) -> Result<CachedRelease, UpstreamError> {
     let manifest = super::runtime::manifest().map_err(|_| UpstreamError::InvalidResponse)?;
     let runtime_version = |name: &str| {
         manifest
@@ -681,7 +807,7 @@ fn inspect_release(downloader: Downloader, project: Project, version: String, st
                 vec!["gallery-dl.exe", "SHA256SUMS", "SHA256SUMS.sig"],
             ),
         };
-        let release: Release = fetch_json(&url, started)?;
+        let release: Release = fetch_json(&url, started, failure, UpdateStage::FetchMetadata)?;
         let tag = match downloader {
             Downloader::YtDlp => version.clone(),
             Downloader::GalleryDl => format!("v{version}"),
@@ -873,6 +999,34 @@ pub fn compare_stable_versions(left: &str, right: &str) -> Option<std::cmp::Orde
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn check_receipts_join_one_generation_and_do_not_relabel_an_old_result() {
+        let root = tempfile::tempdir().unwrap();
+        let checker = UpstreamChecker::with_root(root.path().to_owned());
+        let (release, wait) = std::sync::mpsc::channel();
+        let first = checker.request_component_operation(Downloader::YtDlp, true, move |_| {
+            wait.recv().unwrap();
+            Ok(CachedRelease { version: "2026.11.23".into(), installability: Installability::Installable })
+        }).unwrap().0;
+        assert_eq!(checker.request_operation_for(Downloader::YtDlp, true), Some(first));
+        assert_eq!(checker.snapshot().result_generation, 0);
+        release.send(()).unwrap();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while checker.snapshot().worker_running { assert!(Instant::now() < deadline); std::thread::yield_now(); }
+        assert_eq!(checker.snapshot().result_generation, first.operation_generation);
+        checker.state.lock().unwrap().components[0].last_started = None;
+        let (release, wait) = std::sync::mpsc::channel();
+        let second = checker.request_component_operation(Downloader::YtDlp, true, move |_| { wait.recv().unwrap(); Err(UpstreamError::Http(403)) }).unwrap().0;
+        assert!(second.operation_generation > first.operation_generation);
+        assert_eq!(checker.snapshot().result_generation, first.operation_generation);
+        release.send(()).unwrap();
+        while checker.snapshot().worker_running { assert!(Instant::now() < deadline); std::thread::yield_now(); }
+        let loaded = UpstreamChecker::with_root(root.path().to_owned()).snapshot();
+        assert_eq!(loaded.operation_generation, second.operation_generation);
+        assert_eq!(loaded.result_generation, second.operation_generation);
+        assert_eq!(checker.snapshot_for(Downloader::GalleryDl).operation_generation, 0);
+    }
     use std::{io::Write, net::TcpListener, sync::mpsc};
 
     fn local_response(status: &str, headers: &str, body: &str) -> Result<String, UpstreamError> {
@@ -915,6 +1069,51 @@ mod tests {
             ),
             Err(UpstreamError::TooLarge)
         );
+    }
+
+    #[test]
+    fn failed_checks_keep_bounded_http_details_and_component_identity() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = [0; 2048];
+            let _ = stream.read(&mut request);
+            stream.write_all(b"HTTP/1.1 429 Too Many Requests\r\nRetry-After: 45\r\nX-RateLimit-Reset: 1700000000\r\nAuthorization: secret\r\nContent-Length: 0\r\n\r\n").unwrap();
+        });
+        let mut failure = RuntimeUpdateFailure::new(Downloader::GalleryDl, UpdateStage::FetchMetadata, UpdateService::Codeberg);
+        let error = get_diagnosed(&format!("http://{address}/private?token=secret"), Route::Direct, Duration::from_secs(5), &mut failure).unwrap_err();
+        server.join().unwrap();
+        classify_failure(&mut failure, &error);
+        assert_eq!(failure.downloader, Downloader::GalleryDl);
+        assert_eq!(failure.stage, UpdateStage::FetchMetadata);
+        assert_eq!(failure.service, UpdateService::Unknown);
+        assert_eq!(failure.category, UpdateErrorCategory::Http);
+        assert_eq!(failure.http_status, Some(429));
+        assert_eq!(failure.retry_after_seconds, Some(45));
+        assert_eq!(failure.retry_at_unix_seconds, Some(1700000000));
+        assert!(!serde_json::to_string(&failure).unwrap().contains("secret"));
+    }
+
+    #[test]
+    fn old_cache_and_independent_failure_records_are_compatible() {
+        let old = r#"{"checked_at_ms":null,"last_attempt_ms":null,"result":null,"last_success":null,"last_seen_version":null}"#;
+        assert!(serde_json::from_str::<StoredComponent>(old).unwrap().failure.is_none());
+        let checker = UpstreamChecker::default();
+        assert!(checker.request_component_diagnosed(Downloader::GalleryDl, true, |failure| {
+            failure.stage = UpdateStage::CheckVersion;
+            failure.service = UpdateService::PyPi;
+            Err(UpstreamError::Http(403))
+        }));
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while checker.snapshot_for(Downloader::GalleryDl).worker_running {
+            assert!(Instant::now() < deadline);
+            std::thread::yield_now();
+        }
+        assert!(checker.snapshot_for(Downloader::YtDlp).failure.is_none());
+        let failure = checker.snapshot_for(Downloader::GalleryDl).failure.unwrap();
+        assert_eq!((failure.downloader, failure.stage, failure.service, failure.http_status),
+            (Downloader::GalleryDl, UpdateStage::CheckVersion, UpdateService::PyPi, Some(403)));
     }
 
     #[test]

@@ -776,6 +776,8 @@ mod tests {
             model.runtime_update.selected = selected.selected();
         }
         assert!(matches!(backend.apply(QueueCommand::UpgradeDownloader { downloader: Downloader::GalleryDl, version: "1.32.21".into() }), CommandReply::Applied(true)));
+        let first_generation = backend.snapshot().runtime_update.operation_generation;
+        assert!(first_generation > 0);
         {
             let model = lock(&backend.shared.model);
             let next = model.update_request.as_ref().unwrap();
@@ -790,12 +792,70 @@ mod tests {
             let mut model = lock(&backend.shared.model);
             model.update_request = None; model.runtime_update.phase = RuntimeUpdatePhase::Failed;
         }
-        assert!(matches!(backend.apply(QueueCommand::RestoreRecommendedDownloader { downloader: Downloader::YtDlp }), CommandReply::Applied(true)));
+        let next_operation = backend.request_downloader_operation(Downloader::YtDlp, None)?;
+        assert!(next_operation.operation_generation > first_generation);
         let model = lock(&backend.shared.model);
+        assert_eq!(model.runtime_update.started_at_ms, Some(next_operation.started_at_ms));
+        assert_eq!(model.snapshot().component_update(Downloader::GalleryDl).operation_generation, 0);
         let next = model.update_request.as_ref().unwrap();
         assert_eq!(next.version_for(Downloader::YtDlp), None);
         assert_eq!(next.version_for(Downloader::GalleryDl), Some("1.32.20"));
         Ok(())
+    }
+
+    #[test]
+    fn copied_component_results_name_their_own_actual_versions() {
+        use super::super::{contract::Downloader, runtime_update::{RuntimeUpdatePhase, RuntimeUpdateFailure}};
+        let root = tempfile::tempdir().unwrap();
+        let backend = fake_backend(root.path());
+        {
+            let mut model = lock(&backend.shared.model);
+            model.verified_runtime_versions = vec![("yt-dlp".into(), "2026.11.23".into()), ("gallery-dl".into(), "1.32.21".into())];
+            model.runtime_update.downloader = Downloader::GalleryDl;
+            model.runtime_update.phase = RuntimeUpdatePhase::Activated;
+            model.runtime_update.requested_version = Some("1.32.21".into());
+            model.runtime_update.failure = Some(RuntimeUpdateFailure { downloader: Downloader::GalleryDl, ..Default::default() });
+            model.preparation.phase = PreparationPhase::Ready;
+            backend.shared.publish(&model);
+        }
+        let snapshot = backend.snapshot();
+        let video = snapshot.component_update(Downloader::YtDlp);
+        assert_eq!(video.phase, RuntimeUpdatePhase::Idle);
+        assert!(video.failure.is_none());
+        assert_eq!(video.active_version.as_deref(), Some("2026.11.23"));
+        let CommandReply::Diagnostic(text) = backend.apply(QueueCommand::CopyPreparationDiagnostic) else { panic!("diagnostic unavailable") };
+        let lines: Vec<serde_json::Value> = text.lines().take(2).map(|line| serde_json::from_str(line).unwrap()).collect();
+        assert_eq!(lines[0]["active"], "2026.11.23");
+        assert_eq!(lines[0]["phase"], "Idle");
+        assert_eq!(lines[1]["active"], "1.32.21");
+        assert_eq!(lines[1]["phase"], "Activated");
+        assert!(text.is_ascii() && text.len() <= 4096);
+        {
+            let mut model = lock(&backend.shared.model);
+            model.runtime_update.downloader = Downloader::YtDlp;
+            model.runtime_update.phase = RuntimeUpdatePhase::Failed;
+            model.runtime_update.requested_version = Some("2026.11.23".into());
+            model.runtime_update.error = Some("E_UPDATE_CACHE: previous selection retained".into());
+            model.runtime_update.failure = Some(RuntimeUpdateFailure {
+                downloader: Downloader::GalleryDl, component: Some(RuntimeComponent::GalleryDl),
+                target_version: Some("1.32.21".into()), active_version: Some("1.32.20".into()),
+                category: super::super::runtime_update::UpdateErrorCategory::Cache, ..Default::default()
+            });
+            let mut preparation_failure = PreparationFailure::new(RuntimeComponent::Runtime, PreparationStage::Publish, ErrorCategory::Permission);
+            preparation_failure.raw_os_error = Some(5);
+            preparation_failure.message = "private-token-should-not-be-copied".into();
+            model.preparation.failure = Some(preparation_failure);
+            backend.shared.publish(&model);
+        }
+        let CommandReply::Diagnostic(text) = backend.apply(QueueCommand::CopyPreparationDiagnostic) else { panic!("diagnostic unavailable") };
+        let action: serde_json::Value = serde_json::from_str(text.lines().next().unwrap()).unwrap();
+        assert_eq!(action["requested"], "2026.11.23");
+        assert_eq!(action["failure"]["target_version"], "1.32.21");
+        assert_eq!(action["failure"]["active_version"], "1.32.20");
+        assert_eq!(action["error"], "E_UPDATE_CACHE");
+        let current: serde_json::Value = serde_json::from_str(text.lines().nth(2).unwrap()).unwrap();
+        assert_eq!(current["current_preparation_failure"]["raw_os_error"], 5);
+        assert!(!text.contains("private-token"));
     }
     #[test]
     fn r7_preparation_projection_and_retry_gate() -> Result<(), String> {
@@ -2675,8 +2735,9 @@ impl QueueSnapshot {
         let mut state = self.runtime_update.clone();
         if state.downloader != downloader {
             state.downloader = downloader;
+            state.operation_generation = 0; state.started_at_ms = None;
             state.phase = super::runtime_update::RuntimeUpdatePhase::Idle;
-            state.requested_version = None; state.error = None;
+            state.requested_version = None; state.error = None; state.failure = None;
         }
         state.policy = self.runtime_update.selected.iter().find(|item| item.downloader == downloader)
             .map(|item| item.policy).unwrap_or_else(|| if self.runtime_update.downloader == downloader { self.runtime_update.policy } else { Default::default() });
@@ -3502,15 +3563,19 @@ impl DownloadCoordinator {
             QueueCommand::RetryPreparation => CommandReply::Applied(self.retry_preparation()),
             QueueCommand::CopyPreparationDiagnostic => {
                 let snapshot = self.snapshot();
+                let components = [super::contract::Downloader::YtDlp, super::contract::Downloader::GalleryDl]
+                    .map(|downloader| snapshot.component_update(downloader).diagnostic()).join("\n");
+                let current_failure = serde_json::json!({"current_preparation_failure": snapshot.preparation.failure.as_ref().map(|failure| {
+                    let safe = failure.safe();
+                    serde_json::json!({"component": safe.component, "stage": safe.stage, "category": safe.category,
+                        "http_status": safe.http_status, "operation": safe.operation, "raw_os_error": safe.raw_os_error})
+                })});
                 let text = format!(
-                    "Preparation state: owner_lost={} held={} preparing={} stopping={} stopped={}\nRuntime update: phase={:?} policy={:?} requested={:?} active={:?} error={:?}\n{}",
+                    "{components}\n{current_failure}\nPreparation state: owner_lost={} held={} preparing={} stopping={} stopped={}\n{}",
                     snapshot.preparation_owner_lost, snapshot.preparation_held, snapshot.preparing,
-                    snapshot.stopping, snapshot.stopped, snapshot.runtime_update.phase, snapshot.runtime_update.policy,
-                    snapshot.runtime_update.requested_version, snapshot.runtime_update.active_version, snapshot.runtime_update.error, snapshot.preparation.diagnostic()
+                    snapshot.stopping, snapshot.stopped, snapshot.preparation.diagnostic()
                 );
-                let mut end = 4096.min(text.len());
-                while !text.is_char_boundary(end) { end -= 1; }
-                CommandReply::Diagnostic(text[..end].to_owned())
+                CommandReply::Diagnostic(super::runtime_update::bounded_diagnostic(text))
             }
             QueueCommand::Submit { url } => self
                 .submit(url)
@@ -3541,11 +3606,16 @@ impl DownloadCoordinator {
         }
     }
     fn request_downloader_selection(&self, downloader: super::contract::Downloader, version: Option<String>) -> CommandReply {
+        self.request_downloader_operation(downloader, version).map(|_| CommandReply::Applied(true)).unwrap_or_else(CommandReply::Error)
+    }
+    /// Admission and its generation are one transaction; reading a later snapshot is not a receipt.
+    pub fn request_downloader_operation(&self, downloader: super::contract::Downloader, version: Option<String>) -> Result<super::runtime_update::ComponentOperation, String> {
         use super::{contract::Downloader, runtime_update::{RuntimeSelectionPolicy, RuntimeUpdatePhase, Selection}};
+        let _ordered = lock(&self.shared.command_gate);
         let mut model = lock(&self.shared.model);
         if model.stopping || model.stopped || model.app_update_draining || model.preparing || model.preparation_held || model.preparation_owner_lost
             || model.update_request.is_some() || model.runtime_update.phase == RuntimeUpdatePhase::Waiting {
-            return CommandReply::Error("E_RUNTIME_UPDATE: Update unavailable".into());
+            return Err("E_RUNTIME_UPDATE: Update unavailable".into());
         }
         if let Some(version) = &version {
             let current = model.verified_runtime_versions.iter().find(|(name, _)| name == downloader.label()).map(|(_, version)| version.as_str())
@@ -3555,8 +3625,10 @@ impl DownloadCoordinator {
                 Downloader::YtDlp => super::upstream::compare_stable_versions(version, current) == Some(std::cmp::Ordering::Greater),
                 Downloader::GalleryDl => gallery_newer(version, current),
             });
-            if valid_version.as_deref() != Some(version.as_str()) || !newer { return CommandReply::Error("E_RUNTIME_UPDATE: Invalid version".into()); }
+            if valid_version.as_deref() != Some(version.as_str()) || !newer { return Err("E_RUNTIME_UPDATE: Invalid version".into()); }
         }
+        let operation = super::runtime_update::next_operation(model.runtime_update.operation_generation)
+            .ok_or("E_RUNTIME_UPDATE: Operation generation exhausted")?;
         // The dispatch's committed projection is authoritative even when the next disk transaction cannot be written.
         let mut next = Selection::default();
         for selected in &model.runtime_update.selected {
@@ -3573,9 +3645,11 @@ impl DownloadCoordinator {
         next.select(downloader, version.clone());
         model.update_request = Some(next);
         model.runtime_update.requested_version = version;
-        model.runtime_update.phase = RuntimeUpdatePhase::Preparing; model.runtime_update.error = None;
+        model.runtime_update.operation_generation = operation.operation_generation;
+        model.runtime_update.started_at_ms = Some(operation.started_at_ms);
+        model.runtime_update.phase = RuntimeUpdatePhase::Preparing; model.runtime_update.error = None; model.runtime_update.failure = None;
         model.revision += 1; self.shared.publish(&model);
-        CommandReply::Applied(true)
+        Ok(operation)
     }
     pub fn retry_preparation(&self) -> bool {
         let _ordered = lock(&self.shared.command_gate);
@@ -3583,6 +3657,7 @@ impl DownloadCoordinator {
         if !model.can_retry_preparation() {
             return false;
         }
+        let Some(operation) = super::runtime_update::next_operation(model.runtime_update.operation_generation) else { return false; };
         if model.runtime_update.phase == super::runtime_update::RuntimeUpdatePhase::RecoveryRequired
             && (model.runtime_update.policy == super::runtime_update::RuntimeSelectionPolicy::UserSelected
                 || model.runtime_update.selected.iter().any(|item| item.policy == super::runtime_update::RuntimeSelectionPolicy::UserSelected)) {
@@ -3592,12 +3667,15 @@ impl DownloadCoordinator {
             model.runtime_update.requested_version = selection.version_for(selection.downloader).map(str::to_owned);
             model.runtime_update.phase = super::runtime_update::RuntimeUpdatePhase::Preparing;
             model.runtime_update.error = None;
+            model.runtime_update.failure = None;
         } else if model.runtime_update.policy == super::runtime_update::RuntimeSelectionPolicy::FollowAmeow {
             model.preparation_requested = true;
         } else {
             return false;
         }
         model.revision += 1;
+        model.runtime_update.operation_generation = operation.operation_generation;
+        model.runtime_update.started_at_ms = Some(operation.started_at_ms);
         self.shared.publish(&model);
         true
     }
@@ -3885,6 +3963,10 @@ fn dispatch(shared: Arc<Shared>) {
                 model.preparation_requested = false;
                 model.update_request = Some(selection.clone());
                 model.runtime_update.downloader = selection.downloader;
+                if let Some(operation) = super::runtime_update::next_operation(model.runtime_update.operation_generation) {
+                    model.runtime_update.operation_generation = operation.operation_generation;
+                    model.runtime_update.started_at_ms = Some(operation.started_at_ms);
+                }
                 model.runtime_update.selected = selection.selected();
                 model.runtime_update.policy = if selection.version_for(selection.downloader).is_some() { super::runtime_update::RuntimeSelectionPolicy::UserSelected } else { super::runtime_update::RuntimeSelectionPolicy::FollowAmeow };
                 model.runtime_update.requested_version = selection.version_for(selection.downloader).map(str::to_owned);
@@ -4177,7 +4259,7 @@ fn dispatch(shared: Arc<Shared>) {
                         return test(control, observer);
                     }
                     if let Some(request) = update {
-                        return super::runtime_update_trust::prepare_selected(
+                        return super::runtime_update_trust::prepare_selected_diagnosed(
                             worker.manager.root.clone(), &request, allow_acquire, worker.services.adapter.requirements(),
                             &control, observer, |event| {
                                 let mut model = lock(&worker.model);
@@ -4187,9 +4269,13 @@ fn dispatch(shared: Arc<Shared>) {
                                 model.revision += 1;
                                 worker.publish(&model);
                             },
-                        ).map_err(|error| {
+                        ).map_err(|mut error| {
                             let mut failure = Failure::new(FailureCode::Runtime, "runtime update");
-                            failure.reason = super::runtime_update::candidate_error(&error);
+                            failure.reason = super::runtime_update::candidate_error(error.code());
+                            let mut model = lock(&worker.model);
+                            error.active_version = error.component.and_then(|component| model.verified_runtime_versions.iter()
+                                .find(|(name, _)| name.eq_ignore_ascii_case(component.label())).map(|(_, version)| version.clone()));
+                            model.runtime_update.failure = Some(error);
                             failure
                         });
                     }
@@ -4289,6 +4375,7 @@ fn dispatch(shared: Arc<Shared>) {
                         model.runtime_update.selected = next.selected();
                         model.runtime_update.requested_version = None;
                         model.runtime_update.error = None;
+                        model.runtime_update.failure = None;
                         model.runtime_update.phase = super::runtime_update::RuntimeUpdatePhase::Activated;
                         model.preparation.observe(PreparationPhase::Ready, None, PreparationStage::Publish, 0, None, None);
                         prepared = Some(lease);
@@ -4302,6 +4389,11 @@ fn dispatch(shared: Arc<Shared>) {
                         }
                         model.runtime_update.phase = if prepared.is_some() { super::runtime_update::RuntimeUpdatePhase::RolledBack } else { super::runtime_update::RuntimeUpdatePhase::RecoveryRequired };
                         model.runtime_update.error = Some("Cannot save runtime selection; previous selection retained".into());
+                        let mut failure = super::runtime_update::RuntimeUpdateFailure::new(next.downloader, super::runtime_update::UpdateStage::Activate, super::runtime_update::UpdateService::Local);
+                        failure.classify("E_UPDATE_STORAGE");
+                        failure.target_version = lease.versions.iter().find(|(name, _)| name == next.downloader.label()).map(|(_, version)| version.clone());
+                        failure.active_version = model.verified_runtime_versions.iter().find(|(name, _)| name == next.downloader.label()).map(|(_, version)| version.clone());
+                        model.runtime_update.failure = Some(failure);
                     }
                 }
                 model.revision += 1;

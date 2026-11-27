@@ -1791,6 +1791,12 @@ impl Prototype {
                     if ui.complete_settings(reply, now) && !ui.hidden { self.model.directory_saved(now); }
                 }
                 UiReply::Diagnostic { job, text } => {
+                    let text = if job == 0 {
+                        use ameow_next::download::{contract::Downloader, runtime_update::{bounded_diagnostic, check_diagnostic}};
+                        let checks = [Downloader::YtDlp, Downloader::GalleryDl].map(|downloader|
+                            check_diagnostic(downloader, &ui.upstream.snapshot_for(downloader))).join("\n");
+                        bounded_diagnostic(format!("{checks}\n{text}"))
+                    } else { text };
                     let result = self
                         .native
                         .as_ref()

@@ -24,7 +24,7 @@ const MAX_UNPACKED: u64 = 512 * 1024 * 1024;
 struct Wheel { name: &'static str, url: &'static str, bytes: u64, sha256: &'static str }
 
 const WHEELS: &[Wheel] = &[
-    Wheel { name: "gallery.whl", url: "https://files.pythonhosted.org/packages/8f/f7/a80d1aa77cabd8a96aacd1c63c530774e15795fa92e9383757b3161af3d2/gallery_dl-1.32.20-py3-none-any.whl", bytes: 952644, sha256: "E09729C8F24F788AC64A663268603377FBF51D4B97818D49E2150C5D78067709" },
+    Wheel { name: "gallery.whl", url: "https://files.pythonhosted.org/packages/80/e3/889fb3ac6dabd28ff432763e0414ddb7d0d6a3b38df88d6e602e185548c8/gallery_dl-1.32.21-py3-none-any.whl", bytes: 957131, sha256: "F3F3E62BF3863CAE6E1635045748C50FC51D52C111CA64B068D618E9334E8811" },
     Wheel { name: "requests.whl", url: "https://files.pythonhosted.org/packages/a0/f4/c67b0b3f1b9245e8d266f0f112c500d50e5b4e83cb6f3b71b6528104182a/requests-2.34.2-py3-none-any.whl", bytes: 73075, sha256: "2A0D60C172F83AC6AB31E4554906C0F3B3588D37B5CB939B1C061F4907E278E0" },
     Wheel { name: "idna.whl", url: "https://files.pythonhosted.org/packages/58/a2/bb081bab032533a855d44de1d56f8e8426114ff1ba5d1f07a438a0a654f8/idna-3.20-py3-none-any.whl", bytes: 69583, sha256: "AB7AE7122974553370F0BDB919E1A960B2CD1BC1EF0276416D896DB81C14582C" },
     Wheel { name: "urllib3.whl", url: "https://files.pythonhosted.org/packages/92/9d/c4e665119135114480843e7ab388fa94d8480650450e6f8e26b70d323a4c/urllib3-2.8.0-py3-none-any.whl", bytes: 135717, sha256: "0CF3CAE568D36AA9576B28DFB35F11328F1CB974CA7647D9475EBB86C75AC6E3" },

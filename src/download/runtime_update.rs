@@ -29,6 +29,10 @@ pub enum RuntimeSelectionPolicy {
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RuntimeUpdateSnapshot {
     #[serde(default)]
+    pub operation_generation: u64,
+    #[serde(default)]
+    pub started_at_ms: Option<u64>,
+    #[serde(default)]
     pub downloader: Downloader,
     #[serde(default)]
     pub selected: Vec<DownloaderSelection>,
@@ -37,6 +41,199 @@ pub struct RuntimeUpdateSnapshot {
     pub requested_version: Option<String>,
     pub active_version: Option<String>,
     pub error: Option<String>,
+    #[serde(default)]
+    pub failure: Option<RuntimeUpdateFailure>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ComponentOperation {
+    pub operation_generation: u64,
+    pub started_at_ms: u64,
+}
+pub(crate) fn next_operation(generation: u64) -> Option<ComponentOperation> {
+    Some(ComponentOperation {
+        operation_generation: generation.checked_add(1)?,
+        started_at_ms: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default().as_millis().min(u64::MAX as u128) as u64,
+    })
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UpdateStage {
+    #[default]
+    Unknown,
+    CheckVersion,
+    FetchMetadata,
+    Download,
+    Verify,
+    Activate,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UpdateService {
+    #[default]
+    Unknown,
+    PyPi,
+    GitHubApi,
+    GitHub,
+    GitHubReleaseAssets,
+    Codeberg,
+    PythonHosted,
+    Local,
+}
+impl UpdateService {
+    pub(crate) fn from_url(url: &str) -> Self {
+        match url::Url::parse(url).ok().and_then(|url| url.host_str().map(str::to_owned)).as_deref() {
+            Some("pypi.org") => Self::PyPi,
+            Some("api.github.com") => Self::GitHubApi,
+            Some("github.com") => Self::GitHub,
+            Some("release-assets.githubusercontent.com") => Self::GitHubReleaseAssets,
+            Some("codeberg.org") => Self::Codeberg,
+            Some("files.pythonhosted.org") => Self::PythonHosted,
+            _ => Self::Unknown,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UpdateErrorCategory {
+    #[default]
+    Unknown,
+    Route, Timeout, Connect, Http, InvalidResponse, TooLarge, Network,
+    Checksum, Signature, Hash, Size, Storage, Cancelled, Requirements, Probe, Cache,
+}
+
+/// Closed fields only: never store request URLs, response bodies or credentials.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RuntimeUpdateFailure {
+    pub downloader: Downloader,
+    #[serde(default)]
+    pub component: Option<super::preparation::RuntimeComponent>,
+    #[serde(default)]
+    pub target_version: Option<String>,
+    #[serde(default)]
+    pub active_version: Option<String>,
+    pub stage: UpdateStage,
+    pub service: UpdateService,
+    pub category: UpdateErrorCategory,
+    pub http_status: Option<u16>,
+    pub retry_after_seconds: Option<u64>,
+    pub retry_at_unix_seconds: Option<u64>,
+}
+impl RuntimeUpdateFailure {
+    pub(crate) fn sanitize_versions(&mut self) {
+        let component = self.component;
+        let normalize = |version: Option<&str>| match component {
+            Some(super::preparation::RuntimeComponent::YtDlp) => safe_version(Downloader::YtDlp, version),
+            Some(super::preparation::RuntimeComponent::GalleryDl) => safe_version(Downloader::GalleryDl, version),
+            Some(component) => super::runtime::manifest().ok().and_then(|manifest| manifest.components.into_iter()
+                .find(|entry| entry.name.eq_ignore_ascii_case(component.label()) && Some(entry.version.as_str()) == version).map(|entry| entry.version)),
+            None => None,
+        };
+        self.target_version = normalize(self.target_version.as_deref());
+        self.active_version = normalize(self.active_version.as_deref());
+    }
+    fn diagnostic_value(&self) -> serde_json::Value {
+        let mut failure = self.clone();
+        failure.sanitize_versions();
+        serde_json::json!(failure)
+    }
+    pub(crate) fn code(&self) -> &'static str {
+        match self.category {
+            UpdateErrorCategory::Route => "E_UPDATE_ROUTE",
+            UpdateErrorCategory::Timeout => "E_UPDATE_TIMEOUT",
+            UpdateErrorCategory::Connect => "E_UPDATE_CONNECT",
+            UpdateErrorCategory::Http => "E_UPDATE_HTTP",
+            UpdateErrorCategory::InvalidResponse | UpdateErrorCategory::Checksum => "E_UPDATE_CHECKSUM",
+            UpdateErrorCategory::TooLarge | UpdateErrorCategory::Size => "E_UPDATE_SIZE",
+            UpdateErrorCategory::Network => "E_UPDATE_NETWORK",
+            UpdateErrorCategory::Signature => "E_UPDATE_SIGNATURE",
+            UpdateErrorCategory::Hash => "E_UPDATE_HASH",
+            UpdateErrorCategory::Storage => "E_UPDATE_STORAGE",
+            UpdateErrorCategory::Cancelled => "E_UPDATE_CANCELLED",
+            UpdateErrorCategory::Requirements => "E_UPDATE_REQUIRES_AMEOW",
+            UpdateErrorCategory::Probe => "E_UPDATE_PROBE",
+            UpdateErrorCategory::Cache => "E_UPDATE_CACHE",
+            UpdateErrorCategory::Unknown => "E_UPDATE_PREPARATION",
+        }
+    }
+    pub(crate) fn new(downloader: Downloader, stage: UpdateStage, service: UpdateService) -> Self {
+        Self { downloader, component: Some(super::preparation::RuntimeComponent::from_name(downloader.label())), stage, service, ..Self::default() }
+    }
+    pub(crate) fn response(&mut self, response: &reqwest::blocking::Response) {
+        self.service = UpdateService::from_url(response.url().as_str());
+        self.http_status = Some(response.status().as_u16());
+        self.retry_after_seconds = numeric_header(response.headers(), "retry-after");
+        self.retry_at_unix_seconds = response.headers().get("retry-after").and_then(|value| value.to_str().ok())
+            .and_then(http_date).or_else(|| numeric_header(response.headers(), "x-ratelimit-reset"));
+    }
+    pub(crate) fn classify(&mut self, code: &str) {
+        self.category = match code {
+            "E_UPDATE_ROUTE" => UpdateErrorCategory::Route,
+            "E_UPDATE_TIMEOUT" => UpdateErrorCategory::Timeout,
+            "E_UPDATE_CONNECT" => UpdateErrorCategory::Connect,
+            "E_UPDATE_NETWORK" => UpdateErrorCategory::Network,
+            "E_UPDATE_HTTP" => UpdateErrorCategory::Http,
+            "E_UPDATE_CHECKSUM" => UpdateErrorCategory::Checksum,
+            "E_UPDATE_SIGNATURE" => UpdateErrorCategory::Signature,
+            "E_UPDATE_HASH" => UpdateErrorCategory::Hash,
+            "E_UPDATE_SIZE" => UpdateErrorCategory::Size,
+            "E_UPDATE_STORAGE" => UpdateErrorCategory::Storage,
+            "E_UPDATE_CACHE" => UpdateErrorCategory::Cache,
+            "E_UPDATE_CANCELLED" => UpdateErrorCategory::Cancelled,
+            "E_UPDATE_REQUIREMENTS" | "E_UPDATE_REQUIRES_AMEOW" => UpdateErrorCategory::Requirements,
+            _ => UpdateErrorCategory::Unknown,
+        };
+    }
+}
+
+fn safe_version(downloader: Downloader, version: Option<&str>) -> Option<String> {
+    version.and_then(|version| super::upstream::normalize_version(downloader, version))
+}
+impl RuntimeUpdateSnapshot {
+    pub(crate) fn diagnostic(&self) -> String {
+        serde_json::json!({
+            "component": self.downloader, "phase": self.phase, "policy": self.policy,
+            "operation_generation": self.operation_generation, "started_at_ms": self.started_at_ms,
+            "requested": safe_version(self.downloader, self.requested_version.as_deref()),
+            "active": safe_version(self.downloader, self.active_version.as_deref()),
+            "error": self.error.as_deref().map(|error| candidate_error(error.split(':').next().unwrap_or_default()).split(':').next().unwrap_or_default().to_owned()),
+            "failed": self.error.is_some(), "failure": self.failure.as_ref().map(RuntimeUpdateFailure::diagnostic_value),
+        }).to_string()
+    }
+}
+
+pub fn check_diagnostic(downloader: Downloader, snapshot: &super::upstream::UpstreamSnapshot) -> String {
+    serde_json::json!({
+        "component_check": downloader, "pending": snapshot.pending, "checked_at_ms": snapshot.checked_at_ms,
+        "operation_generation": snapshot.operation_generation, "started_at_ms": snapshot.started_at_ms,
+        "result_generation": snapshot.result_generation,
+        "result": snapshot.result.as_ref().map(|result| match result {
+            Ok(version) => serde_json::json!({"version": safe_version(downloader, Some(version))}),
+            Err(error) => serde_json::json!({"error": error}),
+        }),
+        "failure": snapshot.failure.as_ref().map(RuntimeUpdateFailure::diagnostic_value),
+    }).to_string()
+}
+
+pub fn bounded_diagnostic(mut text: String) -> String {
+    text.retain(|c| c.is_ascii());
+    text.truncate(text.len().min(4096));
+    text
+}
+fn numeric_header(headers: &reqwest::header::HeaderMap, name: &str) -> Option<u64> {
+    let value = headers.get(name)?.to_str().ok()?;
+    (!value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit())).then(|| value.parse().ok()).flatten()
+}
+fn http_date(value: &str) -> Option<u64> {
+    use chrono::{DateTime, NaiveDateTime};
+    DateTime::parse_from_rfc2822(value).ok().map(|date| date.timestamp())
+        .or_else(|| ["%A, %d-%b-%y %H:%M:%S GMT", "%a %b %e %H:%M:%S %Y"].iter()
+            .find_map(|format| NaiveDateTime::parse_from_str(value, format).ok().map(|date| date.and_utc().timestamp())))
+        .and_then(|seconds| seconds.try_into().ok())
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -49,6 +246,9 @@ pub struct DownloaderSelection {
 pub(crate) fn candidate_error(error: &str) -> String {
     let (code, message) = match error {
         "E_UPDATE_NETWORK" => ("E_UPDATE_NETWORK", "Cannot reach the official release"),
+        "E_UPDATE_TIMEOUT" => ("E_UPDATE_TIMEOUT", "Official release request timed out"),
+        "E_UPDATE_CONNECT" => ("E_UPDATE_CONNECT", "Cannot connect to the official release"),
+        "E_UPDATE_PROBE" => ("E_UPDATE_PROBE", "Candidate version verification failed"),
         "E_UPDATE_HTTP" => ("E_UPDATE_HTTP", "Official release request failed"),
         "E_UPDATE_ROUTE" => ("E_UPDATE_ROUTE", "Cannot route to the official release"),
         "E_UPDATE_CHECKSUM" => ("E_UPDATE_CHECKSUM", "Official checksum is invalid"),
@@ -86,6 +286,39 @@ impl Default for Selection {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn update_diagnostics_read_old_snapshots_and_exclude_untrusted_strings() {
+        let old = r#"{"phase":"Failed","policy":"follow_ameow","requested_version":null,"active_version":null,"error":"old"}"#;
+        let mut snapshot: RuntimeUpdateSnapshot = serde_json::from_str(old).unwrap();
+        assert!(snapshot.failure.is_none());
+        snapshot.requested_version = Some("https://private.invalid/?token=secret".into());
+        snapshot.error = Some("Cookie: private-secret".into());
+        let text = snapshot.diagnostic();
+        assert!(!text.contains("secret"));
+        assert!(text.contains("\"requested\":null"));
+        let bounded = bounded_diagnostic(format!("{text}{}", "x".repeat(5000)));
+        assert_eq!(bounded.len(), 4096);
+        assert!(bounded.is_ascii());
+    }
+
+    #[test]
+    fn retry_headers_keep_only_numeric_hints() {
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert("retry-after", "30".parse().unwrap());
+        assert_eq!(numeric_header(&headers, "retry-after"), Some(30));
+        for unsafe_value in ["token=secret", "-1", "18446744073709551616"] {
+            headers.insert("retry-after", unsafe_value.parse().unwrap());
+            assert_eq!(numeric_header(&headers, "retry-after"), None);
+        }
+        assert_eq!(UpdateService::from_url("https://codeberg.org/private?token=secret"), UpdateService::Codeberg);
+        assert_eq!(UpdateService::from_url("https://github.com.evil/private"), UpdateService::Unknown);
+        for value in ["Sun, 06 Nov 1994 08:49:37 GMT", "Sunday, 06-Nov-94 08:49:37 GMT", "Sun Nov  6 08:49:37 1994"] {
+            assert_eq!(http_date(value), Some(784111777));
+        }
+        assert_eq!(http_date("Sun, 99 Nov 1994 08:49:37 GMT"), None);
+        assert_eq!(http_date("token=secret"), None);
+    }
 
     #[test]
     fn selection_is_atomic_and_rejects_invalid_intent() {

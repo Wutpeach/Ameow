@@ -22,19 +22,19 @@
     },
     {
       "name": "yt-dlp",
-      "version": "2026.10.26",
-      "url": "https://github.com/yt-dlp/yt-dlp/releases/download/2026.10.26/yt-dlp",
-      "bytes": 3073072,
-      "sha256": "E51E69E89489F199530F13D32A4342DA3DDB2CF34842F364603A066DB05AFBF3",
+      "version": "2026.11.23",
+      "url": "https://github.com/yt-dlp/yt-dlp/releases/download/2026.11.23/yt-dlp",
+      "bytes": 3073120,
+      "sha256": "E8665ED64D6B9172773E812F891FB707A0CB1EE8D9EF4FC1ACB00CABEE4C5256",
       "license": "Unlicense; bundled EJS and dependencies retain their licenses",
-      "source": "https://github.com/yt-dlp/yt-dlp/tree/2026.10.26",
+      "source": "https://github.com/yt-dlp/yt-dlp/tree/2026.11.23",
       "files": [
         {
           "archive_path": null,
           "name": "yt-dlp",
-          "sha256": "E51E69E89489F199530F13D32A4342DA3DDB2CF34842F364603A066DB05AFBF3",
+          "sha256": "E8665ED64D6B9172773E812F891FB707A0CB1EE8D9EF4FC1ACB00CABEE4C5256",
           "probe": "--version",
-          "version_contains": "2026.10.26"
+          "version_contains": "2026.11.23"
         }
       ]
     },
@@ -94,19 +94,19 @@
     },
     {
       "name": "gallery-dl",
-      "version": "1.32.20",
-      "url": "https://files.pythonhosted.org/packages/8f/f7/a80d1aa77cabd8a96aacd1c63c530774e15795fa92e9383757b3161af3d2/gallery_dl-1.32.20-py3-none-any.whl",
-      "bytes": 952644,
-      "sha256": "E09729C8F24F788AC64A663268603377FBF51D4B97818D49E2150C5D78067709",
+      "version": "1.32.21",
+      "url": "https://files.pythonhosted.org/packages/80/e3/889fb3ac6dabd28ff432763e0414ddb7d0d6a3b38df88d6e602e185548c8/gallery_dl-1.32.21-py3-none-any.whl",
+      "bytes": 957131,
+      "sha256": "F3F3E62BF3863CAE6E1635045748C50FC51D52C111CA64B068D618E9334E8811",
       "license": "GPL-2.0-only; wheel dependencies have separate licenses",
-      "source": "https://github.com/mikf/gallery-dl/tree/v1.32.20",
+      "source": "https://github.com/mikf/gallery-dl/tree/v1.32.21",
       "files": [
         {
           "archive_path": null,
           "name": "gallery-dl",
           "sha256": "006B2522083767789CFE0F1D9B4E5A8BEEC14C319642F348A06FC0786AB5C20C",
           "probe": "--version",
-          "version_contains": "1.32.20"
+          "version_contains": "1.32.21"
         }
       ]
     }

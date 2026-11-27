@@ -17,7 +17,7 @@ rights.
 | Material | Version | Observed license material |
 | --- | --- | --- |
 | Astral python-build-standalone CPython | 3.13.18+20261110, Apple Silicon `install_only` | CPython `python/lib/python3.13/LICENSE.txt`; the archive also includes pip 26.3 and its vendored license files, preserved in the companion text. Additional bundled native library notices and complete source correspondence remain to be inventoried. |
-| gallery-dl | 1.32.20 wheel | GPL-2.0-only; `gallery_dl-1.32.20.dist-info/licenses/LICENSE`. |
+| gallery-dl | 1.32.21 wheel | GPL-2.0-only; `gallery_dl-1.32.21.dist-info/licenses/LICENSE`. |
 | requests | 2.34.2 wheel | Apache-2.0; `requests-2.34.2.dist-info/licenses/LICENSE` and `NOTICE`. |
 | idna | 3.20 wheel | BSD 3-Clause; `idna-3.20.dist-info/licenses/LICENSE.md`. |
 | urllib3 | 2.8.0 wheel | MIT; `urllib3-2.8.0.dist-info/licenses/LICENSE.txt`. |

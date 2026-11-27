@@ -4,19 +4,19 @@
   "components": [
     {
       "name": "yt-dlp",
-      "version": "2026.10.26",
-      "url": "https://github.com/yt-dlp/yt-dlp/releases/download/2026.10.26/yt-dlp.exe",
-      "bytes": 23575744,
-      "sha256": "F5389D3698ECDE4EF06F4E6B1CE0294FE9AC1396228C8990B8D3416D6D177A7D",
+      "version": "2026.11.23",
+      "url": "https://github.com/yt-dlp/yt-dlp/releases/download/2026.11.23/yt-dlp.exe",
+      "bytes": 23627865,
+      "sha256": "622ED48023CAC1DAA52A3BF3A6AC38F03514DE214B5F0FA069389FD0F6D17E5C",
       "license": "GPL-3.0-or-later (official bundled executable); repository Unlicense; bundled EJS 0.8.0 Unlicense with ISC/MIT third-party notices",
-      "source": "https://github.com/yt-dlp/yt-dlp/tree/2026.10.26",
+      "source": "https://github.com/yt-dlp/yt-dlp/tree/2026.11.23",
       "files": [
         {
           "archive_path": null,
           "name": "yt-dlp.exe",
-          "sha256": "F5389D3698ECDE4EF06F4E6B1CE0294FE9AC1396228C8990B8D3416D6D177A7D",
+          "sha256": "622ED48023CAC1DAA52A3BF3A6AC38F03514DE214B5F0FA069389FD0F6D17E5C",
           "probe": "--version",
-          "version_contains": "2026.10.26"
+          "version_contains": "2026.11.23"
         }
       ]
     },
@@ -65,19 +65,19 @@
     },
     {
       "name": "gallery-dl",
-      "version": "1.32.20",
-      "url": "https://codeberg.org/mikf/gallery-dl/releases/download/v1.32.20/gallery-dl.exe",
-      "bytes": 22639307,
-      "sha256": "E14E498E0D95A216B3019B4F899D813EBB322868052F4F0ECFA3A0600DEB84B0",
+      "version": "1.32.21",
+      "url": "https://codeberg.org/mikf/gallery-dl/releases/download/v1.32.21/gallery-dl.exe",
+      "bytes": 22660844,
+      "sha256": "310018A5D4581A217419E30E1A55FEC4B15552687EFE4D3411A0BB42A4ADD8AE",
       "license": "GPL-2.0-only; standalone bundled dependencies retain their licenses",
-      "source": "https://github.com/mikf/gallery-dl/tree/v1.32.20",
+      "source": "https://github.com/mikf/gallery-dl/tree/v1.32.21",
       "files": [
         {
           "archive_path": null,
           "name": "gallery-dl.exe",
-          "sha256": "E14E498E0D95A216B3019B4F899D813EBB322868052F4F0ECFA3A0600DEB84B0",
+          "sha256": "310018A5D4581A217419E30E1A55FEC4B15552687EFE4D3411A0BB42A4ADD8AE",
           "probe": "--version",
-          "version_contains": "1.32.20"
+          "version_contains": "1.32.21"
         }
       ]
     }
