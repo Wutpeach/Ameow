@@ -141,6 +141,13 @@ pub(crate) fn douyin_video_id(input: &str) -> Option<String> {
     let id = path.strip_prefix("/video/")?;
     valid_douyin_id(id).then(|| id.to_owned())
 }
+pub(crate) fn xiaohongshu_note_id(input: &str) -> Option<String> {
+    let url = Url::parse(input).ok()?;
+    if !matches!(url.scheme(), "http" | "https") || url.host_str() != Some("www.xiaohongshu.com") || url.port().is_some() { return None; }
+    let path = url.path().trim_end_matches('/');
+    let id = path.strip_prefix("/explore/").or_else(|| path.strip_prefix("/discovery/item/"))?;
+    (id.len() == 24 && id.bytes().all(|b| b.is_ascii_digit() || matches!(b, b'a'..=b'f'))).then(|| id.to_owned())
+}
 fn normalize_douyin_url(url: Url) -> Result<Url, String> {
     if !douyin_host(&url) { return Ok(url); }
     let path = url.path().strip_suffix('/').unwrap_or(url.path());

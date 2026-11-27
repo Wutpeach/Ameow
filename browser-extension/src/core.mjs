@@ -1,5 +1,5 @@
 import { getDomain } from 'tldts';
-import { PAGE_ORIGINS } from './page-core.mjs';
+import { PAGE_ORIGINS, REQUIRED_PAGE_HOSTS } from './page-core.mjs';
 export const HOST = 'org.ameow.browser_sessions';
 export const SYNC_ERRORS = Object.freeze({
   E_COOKIE_READ: '浏览器会话读取失败', E_BRIDGE: '浏览器连接失败',
@@ -151,8 +151,9 @@ export class Sessions {
   }
   async releasePermission(site) {
     // Chromium removes a narrower grant with its encompassing origin. Keep the
-    // HTTPS permission for the required page-tool hosts; never request it again.
-    const keepHttps = Object.keys(PAGE_ORIGINS).some(host => within(host, site));
+    // HTTPS permission for required or enabled page tools; never request it again.
+    const state = await this.api.storage.local.get('page_tools');
+    const keepHttps = Object.keys(PAGE_ORIGINS).some(host => within(host, site) && (REQUIRED_PAGE_HOSTS.includes(host) || state.page_tools?.[host] !== false));
     const origins = scope(site).filter(origin => !keepHttps || !origin.startsWith('https:'));
     if (origins.length) await this.api.permissions.remove({ origins });
   }

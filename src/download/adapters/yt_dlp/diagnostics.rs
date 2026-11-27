@@ -65,7 +65,21 @@ fn proxy_failure(cause: &str) -> bool {
             .next()
             .is_some_and(|exception| exception.trim_end().ends_with("))"))
 }
+fn format_unavailable(cause: &str) -> bool {
+    let Some(message) = cause.strip_prefix("error: ") else { return false; };
+    let message = if let Some(rest) = message.strip_prefix('[') {
+        let Some((extractor, rest)) = rest.split_once("] ") else { return false; };
+        let Some((object, message)) = rest.split_once(": ") else { return false; };
+        let native_key = |key: &str, limit| !key.is_empty() && key.len() <= limit
+            && key.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'.'));
+        if !native_key(extractor, 64) || !native_key(object, 256) { return false; }
+        message
+    } else { message };
+    matches!(message, "requested format is not available"
+        | "requested format is not available. use --list-formats for a list of available formats")
+}
 fn reported_error(cause: &str) -> EngineReport {
+    if format_unavailable(cause) { return EngineReport::FormatUnavailable; }
     if proxy_failure(cause) { return EngineReport::ProxyConnection; }
     // Never classify words embedded in a URL/path as a downloader error.
     let text = cause.split_whitespace().filter(|s| !s.contains("://") && !s.contains('\\') && !s.starts_with('/'))
@@ -167,6 +181,11 @@ pub fn classify(phase: &Phase, evidence: &str) -> Failure {
         "E_URL_UNSAFE"
     } else if evidence.starts_with("E_NETWORK_TEMPORARY:") {
         "E_NETWORK_TEMPORARY"
+    } else if failed_engine && evidence.len() <= 4096
+        && matches!(phase, Phase::Resolving | Phase::Downloading)
+        && engine_failure.as_ref().is_some_and(|failure| failure.report == EngineReport::FormatUnavailable)
+    {
+        "E_FORMAT_UNAVAILABLE"
     } else if engine
         && cause
             .strip_prefix("error: unsupported url: ")

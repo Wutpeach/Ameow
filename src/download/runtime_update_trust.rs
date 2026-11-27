@@ -400,6 +400,13 @@ fn preparation_error(failure: &mut RuntimeUpdateFailure, error: &PreparationFail
     };
 }
 
+fn matches_recommended(selection: &super::runtime_update::Selection, catalog: &runtime::Manifest) -> bool {
+    [Downloader::YtDlp, Downloader::GalleryDl].into_iter().all(|downloader| {
+        selection.version_for(downloader).is_none_or(|version| catalog.components.iter()
+            .any(|component| component.name == downloader.label() && component.version == version))
+    })
+}
+
 fn prepare_selected_inner(
     root: PathBuf, selection: &super::runtime_update::Selection, allow_acquire: bool,
     requirements: &TrustedRuntimeRequirements, control: &Control,
@@ -409,6 +416,12 @@ fn prepare_selected_inner(
     set_context(failure, selection.downloader, UpdateStage::Verify, UpdateService::Local);
     runtime::check_data_location(&root)?;
     runtime::safe_dir(&root).map_err(|_| "E_UPDATE_STORAGE")?;
+    let mut catalog = runtime::manifest().map_err(|_| "E_UPDATE_MANIFEST")?;
+    // Matching selections use compiled trust, so a new recommended dependency can be prepared on restart.
+    if matches_recommended(selection, &catalog) {
+        return RuntimeManager::new(root).prepare_observed(requirements, control, observer, progress)
+            .map_err(|error| { preparation_error(failure, &error); failure.code().to_owned() });
+    }
     if allow_acquire && let Some(version) = selection.version_for(selection.downloader) {
         let installability = super::upstream::query_installability_diagnosed(selection.downloader, version)
             .map_err(|error| { *failure = error; failure.code() })?;
@@ -419,7 +432,6 @@ fn prepare_selected_inner(
     }
     set_context(failure, selection.downloader, UpdateStage::Verify, UpdateService::Local);
     let temp = tempfile::Builder::new().prefix("candidate-").tempdir_in(&root).map_err(|_| "E_UPDATE_STORAGE")?;
-    let mut catalog = runtime::manifest().map_err(|_| "E_UPDATE_MANIFEST")?;
     let mut artifacts = Vec::new();
     let mut proofs = Vec::new();
     let mut guards = Vec::new();
@@ -515,6 +527,26 @@ fn prepare_selected_inner(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn matching_selected_versions_use_compiled_recommendation_without_changing_intent() {
+        let catalog = runtime::manifest().unwrap();
+        let mut selection = super::super::runtime_update::Selection::default();
+        for downloader in [Downloader::YtDlp, Downloader::GalleryDl] {
+            let version = catalog.components.iter().find(|component| component.name == downloader.label()).unwrap().version.clone();
+            selection.select(downloader, Some(version));
+            let before = serde_json::to_vec(&selection).unwrap();
+            assert!(matches_recommended(&selection, &catalog));
+            assert_eq!(serde_json::to_vec(&selection).unwrap(), before);
+        }
+        selection.select(Downloader::YtDlp, Some("2026.10.26".into()));
+        assert!(!matches_recommended(&selection, &catalog));
+        selection.select(Downloader::YtDlp, None);
+        assert!(matches_recommended(&selection, &catalog));
+        selection.select(Downloader::GalleryDl, Some("1.32.20".into()));
+        assert!(!matches_recommended(&selection, &catalog));
+        selection.select(Downloader::GalleryDl, None);
+        assert!(matches_recommended(&selection, &catalog));
+    }
     #[test]
     fn offline_missing_selected_asset_keeps_cache_error_and_its_own_target() {
         let root = tempfile::tempdir().unwrap();

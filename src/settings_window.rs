@@ -2194,6 +2194,7 @@ impl Prototype {
                     ("bilibili.com", 3, 0, Some(SyncResult { at, error: None })),
                     ("youtube.com", 0, 2, Some(SyncResult { at, error: None })),
                     ("bsky.app", 2, 0, Some(SyncResult { at, error: Some(SyncError::Bridge) })),
+                    ("douyin.com", 3, 0, Some(SyncResult { at, error: None })),
                     ("imgur.com", 0, 0, Some(SyncResult { at, error: None })),
                     ("x.com", 2, 0, None),
                     ("vimeo.com", 4, 0, Some(SyncResult { at, error: None })),

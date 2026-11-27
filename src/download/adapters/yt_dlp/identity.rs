@@ -3,6 +3,10 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 pub fn attest(accepted: &Accepted, metadata: &Value) -> Result<Identity, String> {
         if let Object::Generic { url } = &accepted.object {
+            if let Some(expected) = crate::download::request::xiaohongshu_note_id(url)
+                && (metadata["id"].as_str() != Some(expected.as_str())
+                    || metadata["extractor_key"].as_str() != Some("XiaoHongShu"))
+            { return Err("E_PAGE_TARGET: native Xiaohongshu note identity does not match the request".into()); }
             if let Some(expected) = crate::download::request::douyin_video_id(url)
                 && (metadata["id"].as_str() != Some(expected.as_str())
                     || metadata["extractor_key"].as_str() != Some("Douyin"))
@@ -159,6 +163,19 @@ mod tests {
         for metadata in [json!({}), json!({"id":"7702352846469090603", "extractor_key":"Douyin"}),
             json!({"id":"7702352846469090602", "extractor_key":"Other"})]
         { assert!(attest(&accepted, &metadata).unwrap_err().contains("E_PAGE_TARGET")); }
+    }
+    #[test]
+    fn xiaohongshu_identity_preserves_share_parameters_and_rejects_another_note() {
+        let url = "https://www.xiaohongshu.com/explore/6b08a8be000000002903d864?xsec_token=synthetic&xsec_source=pc_feed";
+        let accepted = generic(url);
+        let metadata = json!({"id":"6b08a8be000000002903d864","extractor_key":"XiaoHongShu","title":"Synthetic note"});
+        let proof = proof(&accepted, &metadata).unwrap();
+        assert_eq!(canonical_url(&accepted, &proof.identity), url);
+        for invalid in [json!({}), json!({"id":"6b08a8be000000002903d865","extractor_key":"XiaoHongShu"}),
+            json!({"id":"6b08a8be000000002903d864","extractor_key":"Generic"})]
+        { assert!(attest(&accepted, &invalid).unwrap_err().contains("E_PAGE_TARGET")); }
+        assert_eq!(crate::download::request::xiaohongshu_note_id("https://www.xiaohongshu.com.evil.test/explore/6b08a8be000000002903d864"), None);
+        assert_eq!(crate::download::request::xiaohongshu_note_id("https://www.xiaohongshu.com:444/explore/6b08a8be000000002903d864"), None);
     }
     #[test]
     fn generic_identity_allows_native_normalization_and_optional_labels() {

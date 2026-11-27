@@ -15,6 +15,7 @@
   {"name": "full.directory-hover", "surface": "full", "state": "directory-hover", "description": "目录可接收：灰色文件夹柔光无环；动态重播进入，Reduced稳定显示"},
   {"name": "full.directory-saved", "surface": "full", "state": "directory-saved", "description": "目录已更新：绿色文件夹与成功环/光晕/胶囊；动态补环、1500ms停留、180ms原位淡出及收起，再选重播"},
   {"name": "full.failure", "surface": "full", "state": "failure", "description": "Full 失败反馈"},
+  {"name": "full.quality-unavailable", "surface": "full", "state": "quality-unavailable", "description": "现有失败圆环：画质不可用短文案，无新增原因浮层"},
   {"name": "full.partial", "surface": "full", "state": "partial", "description": "Full 部分完成反馈"},
   {"name": "full.cancelled", "surface": "full", "state": "cancelled", "description": "Full 取消反馈"},
   {"name": "full.resolving", "surface": "full", "state": "resolving", "description": "Full 解析中"},

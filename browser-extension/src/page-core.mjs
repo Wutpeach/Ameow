@@ -1,6 +1,8 @@
+export const REQUIRED_PAGE_HOSTS = ["www.youtube.com", "www.bilibili.com"];
 export const PAGE_ORIGINS = {
   "www.youtube.com": "https://www.youtube.com/*",
   "www.bilibili.com": "https://www.bilibili.com/*",
+  "www.xiaohongshu.com": "https://www.xiaohongshu.com/*",
 };
 export function pageHost(value) {
   try { const u = new URL(value); return u.protocol === "https:" && !u.username && !u.password && Object.hasOwn(PAGE_ORIGINS, u.hostname) ? u.hostname : null; } catch { return null; }
@@ -26,6 +28,12 @@ export function canonicalTarget(url, evidence) {
     const id = u.searchParams.get("v");
     if (u.pathname !== "/watch" || u.searchParams.getAll("v").length !== 1 || !/^[\w-]{11}$/.test(id || "") || id !== evidence.id) return null;
     return { key: `youtube:${id}`, url: `https://www.youtube.com/watch?v=${id}`, duration: evidence.duration };
+  }
+  if (host === "www.xiaohongshu.com") {
+    const match = u.pathname.match(/^\/(?:explore|discovery\/item)\/([a-f0-9]{24})\/?$/);
+    if (u.port || !match || match[1] !== evidence.id || match[1] !== evidence.currentId || evidence.noteType !== "video" || !evidence.bound) return null;
+    u.hash = "";
+    return { key: "xiaohongshu:" + match[1], url: u.href, duration: evidence.duration };
   }
   const match = u.pathname.match(/^\/video\/(BV[A-Za-z0-9]{10}|av\d+)\/?$/);
   const part = Number(u.searchParams.get("p") || 1);

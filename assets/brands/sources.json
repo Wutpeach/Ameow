@@ -113,6 +113,19 @@
         }
       },
       "individualLicense": null
+    },
+    {
+      "sha256": "6f54ac8d325faacea8935bdc44cbed60206a6b408641799e5fea1cba7c1a0af7",
+      "immutableSourceUrl": "https://github.com/simple-icons/simple-icons/blob/32e030086fdc605196391aab28519b14dc4295b4/icons/tiktok.svg",
+      "title": "TikTok",
+      "slug": "tiktok",
+      "viewBox": "0 0 24 24",
+      "metadata": {
+        "title": "TikTok",
+        "hex": "000000",
+        "source": "https://tiktok.com"
+      },
+      "individualLicense": null
     }
   ]
 }

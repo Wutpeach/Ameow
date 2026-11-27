@@ -131,6 +131,14 @@ pub fn snapshot(scene: &Scene) -> QueueSnapshot {
             j.message = "Trying alternate downloader".into();
             snapshot(vec![j])
         }
+        "quality-unavailable" => {
+            let mut j = job(5, JobPhase::Failure, Some(5), None);
+            let failure = ameow_next::download::diagnostics::Failure::new(
+                ameow_next::download::diagnostics::FailureCode::FormatUnavailable, "resolve");
+            j.message = format!("{}: {}", failure.code, failure.reason);
+            j.failure = Some(failure);
+            snapshot(vec![j])
+        }
         "unsupported-object" => {
             let mut j = job(5, JobPhase::Failure, Some(5), None);
             j.title = "此链接暂不支持完整提取".into();

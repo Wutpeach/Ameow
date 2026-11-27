@@ -1057,6 +1057,7 @@ fn local_text(language: crate::ui_text::Language, text: &str) -> String {
         "清理待确认" => "Cleanup?",
         "下载完成" => "Done",
         "下载失败" => "Failed",
+        "画质不可用" => "No format",
         "暂不支持" => "Unsupported",
         "链接不可用" => "Invalid link",
         "尝试备用组件" => "Trying alternate",
@@ -1181,6 +1182,7 @@ pub fn phase_label(job: &JobSnapshot) -> String {
         JobPhase::Inspected => "解析完成".into(),
         JobPhase::Success => "下载完成".into(),
         JobPhase::Failure => match job.failure.as_ref().map(|f| f.code.as_str()) {
+            Some("E_FORMAT_UNAVAILABLE") => "画质不可用".into(),
             Some("E_OBJECT_UNSUPPORTED" | "E_UNSUPPORTED_URL") => "暂不支持".into(),
             Some("E_URL_UNSAFE") => "链接不可用".into(),
             _ => "下载失败".into(),
@@ -2964,6 +2966,18 @@ impl ExitIssue {
 }
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn quality_unavailable_uses_existing_failure_labels_and_actions() {
+        use super::*;
+        let scene = crate::preview::find("full.quality-unavailable").unwrap();
+        let snapshot = crate::preview::snapshot(&scene);
+        let job = &snapshot.jobs[0];
+        assert_eq!(job.phase, JobPhase::Failure);
+        assert_eq!(phase_label(job), "画质不可用");
+        assert_eq!(queue_row_status(job, &snapshot, None, 0), "画质不可用");
+        assert_eq!(local_text(crate::ui_text::Language::English, &phase_label(job)), "No format");
+        assert_eq!(queue_row_icons(job, false), queue_row_icons(&crate::queue_fixture::job(5, JobPhase::Failure, Some(5), None), false));
+    }
     use super::{ErrorCategory, PreparationPhase, PreparationStage};
     #[test]
     fn optional_component_update_stays_in_settings_but_cleanup_fault_remains_visible() {

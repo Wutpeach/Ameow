@@ -11,6 +11,7 @@
 .ameow-peek-player { width:100%!important; height:100%!important; min-width:0!important; min-height:0!important; max-width:none!important; max-height:none!important; position:relative!important; top:0!important; left:0!important; margin:0!important; border-radius:0!important; }
 .ameow-peek-player .ytp-chrome-bottom, .ameow-peek-player .ytp-chrome-top, .ameow-peek-player .ytp-gradient-bottom, .ameow-peek-player .ytp-gradient-top, .ameow-peek-player .ytp-pause-overlay, .ameow-peek-player .bpx-player-control-wrap, .ameow-peek-player .bpx-player-top-wrap, .ameow-peek-player .bpx-player-dm-wrap { visibility:hidden!important; pointer-events:none!important; }
 .ameow-peek-player > ameow-page-tools { visibility:hidden!important; }
+.ameow-peek-player :is(.xgplayer-controls,.xgplayer-start,.xgplayer-replay,.xgplayer-loading,.xgplayer-loading-url) { visibility:hidden!important; pointer-events:none!important; }
 .ameow-peek > ameow-peek-controls { display:block; flex:none; width:100%; position:relative; z-index:2; }
 @media(max-width:600px) { .ameow-peek { width:calc(100vw - 16px)!important; height:calc(100dvh - 32px)!important; } }
 @media(prefers-reduced-motion:reduce) { .ameow-peek::backdrop { transition-duration:60ms; } }

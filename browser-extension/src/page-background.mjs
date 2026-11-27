@@ -1,14 +1,25 @@
 import { HOST } from "./core.mjs";
-import { PAGE_ORIGINS, pageHost, canonicalTarget, clipRange } from "./page-core.mjs";
+import { PAGE_ORIGINS, REQUIRED_PAGE_HOSTS, pageHost, canonicalTarget, clipRange } from "./page-core.mjs";
 
 // This function runs in the page world. Return only current work/time evidence.
-function readPlayer() {
+export function readPlayer() {
   const visible = el => el && el.getBoundingClientRect().width > 120 && el.getBoundingClientRect().height > 60;
   if (location.hostname === "www.youtube.com") {
     const root = document.querySelector("#movie_player"), videos = [...(root?.querySelectorAll("video") || [])].filter(visible);
     const data = root?.getVideoData?.();
     return { page_url: location.href, id: data?.video_id, live: Boolean(data?.isLive || data?.isWindowedLive),
       ad: Boolean(root?.classList.contains("ad-showing")), duration: videos[0]?.duration, count: videos.length };
+  }
+  if (location.hostname === "www.xiaohongshu.com") {
+    const state = window.__INITIAL_STATE__?.note, id = location.pathname.match(/^\/(?:explore|discovery\/item)\/([a-f0-9]{24})\/?$/)?.[1];
+    const current = state?.currentNoteId, currentId = typeof current === "string" ? current : current?.value;
+    const note = id && state?.noteDetailMap?.[id]?.note;
+    const roots = [...document.querySelectorAll(".player-el.xhsplayer-skin-default")].filter(visible);
+    const videos = roots.length === 1 ? [...roots[0].querySelectorAll("video")].filter(visible) : [];
+    const durations = Object.values(note?.video?.media?.stream || {}).flatMap(rows => Array.isArray(rows) ? rows.map(row => row.duration / 1000) : []).filter(value => Number.isFinite(value) && value > 0);
+    return { page_url: location.href, id: note?.noteId, currentId, noteType: note?.type, live:false, ad:false,
+      duration:videos[0]?.duration, count:videos.length,
+      bound:visible(document.querySelector("#noteContainer")) && Boolean(videos[0]?.currentSrc) && durations.some(value => Math.abs(value - videos[0]?.duration) <= .25) };
   }
   const root = document.querySelector(".bpx-player-container"), videos = [...(root?.querySelectorAll("video, bwp-video") || [])].filter(visible);
   const params = window.player?.getManifest?.();
@@ -57,6 +68,8 @@ export class PageTools {
     if (!enabled) {
       const tabs = await this.api.tabs.query({ url: [PAGE_ORIGINS[host]] });
       for (const tab of tabs) if (tab.id != null) await this.api.tabs.sendMessage(tab.id, { action: "page-stop" }).catch(() => {});
+      const grants = (await this.api.storage.local.get("grants")).grants || {};
+      if (!REQUIRED_PAGE_HOSTS.includes(host) && !grants[host.replace(/^www\./, "")]) await this.api.permissions.remove({ origins:[PAGE_ORIGINS[host]] });
     }
     return { enabled };
   }

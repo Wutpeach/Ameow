@@ -14,8 +14,7 @@ svg { fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; st
 .capsule { position:absolute; inset:0; border:1px solid #ffffff30; border-radius:999px; background:rgb(25 26 29 / .84); pointer-events:none; }
 .toolbar button { position:absolute; top:0; height:32px; min-height:32px; display:flex; align-items:center; justify-content:center; gap:6px; border-radius:999px; background:transparent; color:#fff; padding:0; white-space:nowrap; }
 .toolbar button:hover { background:#ffffff20; }
-.toolbar:has(button:focus-visible) .capsule { outline:2px solid var(--focus); outline-offset:2px; }
-.toolbar button:focus-visible { outline-offset:-2px; }
+.toolbar button:focus-visible { outline:1px solid currentColor; outline-offset:-3px; }
 .toolbar svg { width:16px; height:16px; flex:none; }
 .toolbar .download { right:0; width:82px; clip-path:inset(0 0 0 50px round 999px); transition:clip-path 110ms cubic-bezier(.2,.8,.2,1); }
 .toolbar[data-expanded] .download { clip-path:inset(0 round 999px); transition-duration:200ms; }
@@ -36,7 +35,7 @@ svg { fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; st
 [hidden] { display:none!important; }
 .controls :is(input:not([type=range]),textarea,[contenteditable]:not([contenteditable=false])) { -webkit-user-select:text; user-select:text; }
 .timeline { width:auto; margin:0 16px; }
-.track { position:relative; height:50px; }
+.track { position:relative; height:50px; touch-action:none; }
 .ticks { position:absolute; inset:0 0 auto; height:14px; font-size:10px; line-height:11px; color:var(--muted); cursor:crosshair; }
 .ticks span { position:absolute; transform:translateX(-50%); }
 .ticks span:first-child { transform:none; }
@@ -61,13 +60,12 @@ svg { fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; st
 .track .handle.single[data-side=out] { cursor:e-resize; }
 .track .handle.single:hover::before,.track .handle.single[data-dragging]::before { content:""; position:absolute; inset:0 50% 0 0; border-radius:4px; background:color-mix(in srgb,var(--focus) 20%,transparent); pointer-events:none; }
 .track .handle.single[data-side=out]::before { inset:0 0 0 50%; }
-/* Marker grips sit above the rail, the playhead on it, and range pan below it. */
-.playhead { position:absolute; top:28px; width:28px; height:12px; margin-left:-14px; border-radius:4px; pointer-events:auto; cursor:ew-resize; touch-action:none; z-index:4; }
-.playhead::after { content:""; position:absolute; left:14px; top:-14px; width:1px; height:36px; background:var(--text); pointer-events:none; }
-.playhead::before { content:""; position:absolute; left:9px; top:0; width:11px; height:10px; background:var(--text); clip-path:polygon(0 0,100% 0,100% 55%,50% 100%,0 55%); pointer-events:none; }
-.playhead:hover,.playhead[data-dragging],.track:has(input:focus-visible) .playhead { background:color-mix(in srgb,var(--text) 16%,transparent); }
-.track:has(input:focus-visible) .playhead { outline:2px solid var(--focus); outline-offset:2px; }
-.playhead[data-dragging] { cursor:grabbing; }
+/* The ruler seeks; marker grips and selection pan keep their own hit areas. */
+.playhead { position:absolute; top:28px; width:12px; height:22px; margin-left:-6px; pointer-events:none; z-index:4; }
+.playhead::after { content:""; position:absolute; left:6px; top:0; width:1px; height:22px; background:var(--text); }
+.playhead::before { content:""; position:absolute; left:3px; top:0; width:7px; height:5px; background:var(--text); clip-path:polygon(0 0,100% 0,50% 100%); }
+.track input:focus-visible { outline:none; }
+.track:has(input:focus-visible) .playhead::before,.track:has(input:focus-visible) .playhead::after { background:var(--focus); }
 .buffered { position:absolute; top:30px; left:0; right:0; height:3px; pointer-events:none; }
 .buffered span { position:absolute; height:100%; background:var(--muted); opacity:.3; }
 .track[data-selection] .rail { opacity:.45; }
@@ -85,7 +83,7 @@ svg { fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; st
 .icon { position:relative; width:32px; height:32px; min-height:32px; padding:0; display:grid; place-items:center; flex:none; background:transparent; color:var(--muted); }
 .icon svg { width:16px; height:16px; }
 .icon[data-action=marker][aria-pressed=true] { color:var(--focus); background:color-mix(in srgb,var(--focus) 12%,transparent); }
-button[data-tip]::after { content:attr(data-tip); position:absolute; bottom:calc(100% + 86px); left:50%; transform:translateX(-50%); width:max-content; max-width:160px; padding:3px 6px; border-radius:4px; background:var(--text); color:var(--surface); font-size:11px; line-height:16px; white-space:nowrap; pointer-events:none; opacity:0; transition:opacity 80ms ease-out; z-index:8; }
+button[data-tip]::after { content:attr(data-tip); position:absolute; bottom:calc(100% + 6px); left:50%; transform:translateX(-50%); width:max-content; max-width:160px; padding:3px 6px; border-radius:4px; background:var(--text); color:var(--surface); font-size:11px; line-height:16px; white-space:nowrap; pointer-events:none; opacity:0; transition:opacity 80ms ease-out; z-index:8; }
 button[data-tip]:hover::after,button[data-tip]:focus-visible::after { opacity:1; }
 .tools > :first-child::after { left:0; transform:none; }
 .actions > :last-child::after { left:auto; right:0; transform:none; }
@@ -100,9 +98,21 @@ button[data-tip]:hover::after,button[data-tip]:focus-visible::after { opacity:1;
 .precision[aria-pressed=true] rect { fill:var(--text); }
 .precision[aria-pressed=true] .precision-check { opacity:1; stroke:var(--surface); }
 .precision[data-tip]::after { width:220px; max-width:calc(100vw - 32px); white-space:normal; text-align:left; left:auto; right:0; transform:none; }
+.shortcuts { position:fixed; inset:auto; margin:0; padding:12px; width:300px; max-width:calc(100vw - 24px); max-height:calc(100vh - 24px); overflow:auto; border:1px solid var(--line); border-radius:8px; background:var(--surface); color:var(--text); box-shadow:0 3px 12px #0003; font:13px/1.5 "Segoe UI","Microsoft YaHei UI",sans-serif; }
+.shortcuts:focus { outline:none; }
+.shortcuts header { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.shortcuts strong { font-size:13px; font-weight:600; }
+.shortcuts header button { display:grid; place-items:center; min-height:28px; width:28px; padding:0; background:transparent; }
+.shortcuts header button:hover { background:var(--hover); }
+.shortcuts header svg { width:14px; height:14px; }
+.shortcuts dl { display:grid; grid-template-columns:max-content minmax(0,1fr); align-items:baseline; gap:10px 12px; margin:12px 0 0; }
+.shortcuts dt,.shortcuts dd { margin:0; }
+.shortcuts dd { color:var(--muted); }
+.shortcuts kbd { font:11px/1.5 "Segoe UI",sans-serif; white-space:nowrap; border:1px solid var(--line); border-radius:3px; padding:2px 4px; background:var(--control); }
+:host(:has(.shortcuts:popover-open)) button[data-tip]::after { opacity:0; }
 .status { margin:8px 0 0; color:var(--error); }
 .status:empty { display:none; }
 ::selection { background:var(--focus); color:#fff; }
 @media(prefers-color-scheme:dark) { :host { --surface:#232427; --text:#e4e5e7; --muted:#a5a8ad; --control:#2b2c2f; --hover:#36383c; --line:#2e3033; --focus:#3d9aff; --success:#3cbb72; --error:#ee5c61; } }
-@media(max-width:420px) { .controls { -webkit-user-select:none; user-select:none; padding:8px; } .control-row,.tools,.actions { gap:4px; } }
+@media(max-width:420px) { .controls { -webkit-user-select:none; user-select:none; padding:8px; } .control-row,.tools,.actions { gap:2px; } .tools .icon { width:28px; } .precision { width:auto; padding:0 4px; font-size:12px; } .submit { padding:0 6px; font-size:12px; gap:4px; } }
 @media(prefers-reduced-motion:reduce) { button > svg,button > img,.download-icon,.download-icon svg,.download-label,.toolbar,.toolbar .download,.toolbar .select { transition:none!important; } .toolbar .select { transform:none!important; } .band { transition-duration:60ms; } }

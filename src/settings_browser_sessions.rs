@@ -76,11 +76,12 @@ fn brand(site: &str) -> (&str, &'static str) {
         "x.com" | "twitter.com" => ("X", "brands/x.svg"),
         "vimeo.com" => ("Vimeo", "brands/vimeo.svg"),
         "xiaohongshu.com" => ("小红书", "brands/xiaohongshu.svg"),
+        "douyin.com" => ("抖音", "brands/tiktok.svg"),
         _ => (site, "icons/info.svg"),
     }
 }
 fn brand_size(site: &str) -> f32 {
-    match site { "youtube.com" | "youtu.be" => 30., "x.com" | "twitter.com" => 26., "bilibili.com" | "bsky.app" | "imgur.com" | "vimeo.com" | "xiaohongshu.com" => 28., _ => 26. }
+    match site { "youtube.com" | "youtu.be" => 30., "x.com" | "twitter.com" => 26., "bilibili.com" | "bsky.app" | "imgur.com" | "vimeo.com" | "xiaohongshu.com" | "douyin.com" => 28., _ => 26. }
 }
 fn failed(site: &SiteView) -> bool { site.last_result.as_ref().is_some_and(|r| r.error.is_some()) }
 fn session_diagnostic(site: &SiteView, l: Language) -> String {
@@ -457,6 +458,7 @@ mod tests {
             ("bsky.app", "brands/bluesky.svg"), ("imgur.com", "brands/imgur.svg"),
             ("x.com", "brands/x.svg"), ("twitter.com", "brands/x.svg"),
             ("vimeo.com", "brands/vimeo.svg"), ("xiaohongshu.com", "brands/xiaohongshu.svg"),
+            ("douyin.com", "brands/tiktok.svg"),
             ("example.com", "icons/info.svg"),
         ] {
             let (_, path) = brand(domain);
@@ -465,6 +467,7 @@ mod tests {
             assert!(assets.list(path).unwrap().iter().any(|asset| asset.to_string() == path));
         }
         assert_eq!(brand("example.com").0, "example.com");
+        assert_eq!(brand("douyin.com").0, "抖音");
     }
     #[::core::prelude::v1::test]
     fn setup_waits_for_current_reply_and_ignores_results_after_leaving() {

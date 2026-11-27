@@ -13,6 +13,7 @@ const icons = {
   marker: '<svg viewBox="0 0 24 24"><path d="M7 3h10a1 1 0 0 1 1 1v10l-6 6-6-6V4a1 1 0 0 1 1-1Z"/></svg>',
   focus: '<svg viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/><path d="M9 9h6v6H9Z"/></svg>',
   whole: '<svg viewBox="0 0 24 24"><path d="M3 8V3h5m8 0h5v5M3 16v5h5m13-5v5h-5"/></svg>',
+  keyboard: '<svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M6 12h.01M10 12h.01M14 12h.01M18 12h.01M7 16h10"/></svg>',
   download: cat,
   waiting: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
   play: '<svg viewBox="0 0 24 24"><path d="m8 5 11 7-11 7Z"/></svg>',
@@ -47,7 +48,7 @@ function iconButton(root, action, label, icon, className = "icon") {
   return button;
 }
 function mediaForPage(boundVideo) {
-  const selector = location.hostname === "www.youtube.com" ? "#movie_player" : ".bpx-player-container";
+  const selector = location.hostname === "www.youtube.com" ? "#movie_player" : location.hostname === "www.xiaohongshu.com" ? ".player-el.xhsplayer-skin-default" : ".bpx-player-container";
   const roots = [...document.querySelectorAll(selector)].filter(el => el.getBoundingClientRect().width > 120);
   if (roots.length !== 1) return null;
   const media = [...roots[0].querySelectorAll("video, bwp-video")].filter(el => el.getBoundingClientRect().width > 120 && el.getBoundingClientRect().height > 60);
@@ -203,7 +204,7 @@ class PageVideoTools {
     this.returnFocus = this.root.activeElement || document.activeElement;
     this.savedScroll = { left: window.scrollX, top: window.scrollY, behavior: "instant" };
     const from = this.player.getBoundingClientRect();
-    this.sourceAspect = from.width / from.height;
+    this.sourceAspect = location.hostname === "www.xiaohongshu.com" && this.video.videoWidth > 0 && this.video.videoHeight > 0 ? this.video.videoWidth / this.video.videoHeight : from.width / from.height;
     this.placeholder = document.createElement("div");
     this.placeholder.style.cssText = "width:" + from.width + "px;height:" + from.height + "px;pointer-events:none";
     this.player.before(this.placeholder);
@@ -231,6 +232,7 @@ class PageVideoTools {
     this.markerButton = tool(tools, "marker", t("添加标记", "Add marker"), icons.marker);
     this.markerButton.onclick = () => this.markCurrent();
     tool(tools, "view", t("聚焦选区", "Focus selection"), icons.focus, "icon view-toggle");
+    this.setupShortcuts(tools, tool);
     this.precisionButton = iconButton(actions, "precise", t("精确切分", "Precise cutting"), icons.precision + "<span>" + t("精确", "Precise") + "</span>", "icon precision");
     this.precisionButton.onclick = () => {
       if (this.pending) return;
@@ -251,6 +253,11 @@ class PageVideoTools {
       if (!this.controls || !this.dialog?.open || this.closing || e.isComposing) return;
       const path = e.composedPath(), editing = path.some(n => n instanceof Element && n.matches("input:not([type=range]),textarea,select,[contenteditable]:not([contenteditable='false']),[role='textbox']"));
       const interactive = path.some(n => n instanceof Element && n.matches("input,button,select,textarea,a[href],[contenteditable]:not([contenteditable='false']),[role='button'],[role='slider']"));
+      if (this.shortcuts.matches(":popover-open")) {
+        this.handledKeys.add(e.code); e.stopImmediatePropagation();
+        if (e.key === "Escape") { e.preventDefault(); e.stopImmediatePropagation(); this.closeShortcuts(); }
+        return;
+      }
       if (e.key === "Escape") { e.preventDefault(); e.stopImmediatePropagation(); this.closePeek(); }
       else if (!editing && !e.ctrlKey && !e.metaKey && !e.altKey && ["i", "o", "I", "O"].includes(e.key)) {
         this.handledKeys.add(e.code); e.preventDefault(); e.stopImmediatePropagation(); this.setMark(e.key.toLowerCase() === "i" ? "start_ms" : "end_ms");
@@ -292,6 +299,45 @@ class PageVideoTools {
   markCurrent() {
     if (this.draft.start_ms !== null || this.draft.end_ms !== null) this.clearSelection();
     else this.setDraft(Math.round(this.video.currentTime * 1000), null);
+  }
+  setupShortcuts(tools, tool) {
+    const label = t("快捷键", "Keyboard shortcuts");
+    const button = this.shortcutsButton = tool(tools, "shortcuts", label, icons.keyboard);
+    button.setAttribute("aria-expanded", "false"); button.setAttribute("aria-controls", "peek-shortcuts");
+    const panel = this.shortcuts = document.createElement("section");
+    panel.id = "peek-shortcuts"; panel.className = "shortcuts"; panel.popover = "auto"; panel.tabIndex = -1;
+    panel.setAttribute("role", "dialog"); panel.setAttribute("aria-labelledby", "shortcuts-title");
+    panel.innerHTML = '<header><strong id="shortcuts-title">' + label + '</strong><button type="button" aria-label="' + t("关闭快捷键帮助", "Close keyboard shortcuts") + '"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button></header><dl></dl>';
+    for (const [key, description] of [
+      ["Space", t("播放 / 暂停", "Play / pause")],
+      ["I / O", t("设置入点 / 出点", "Set in / out point")],
+      ["F", t("聚焦 / 返回完整时间轴", "Focus / full timeline")],
+      ["← / →", t("微调焦点标记或选区 1 ms", "Move focused marker or selection by 1 ms")],
+      ["Shift + ← / →", t("微调焦点标记或选区 1 s", "Move focused marker or selection by 1 s")],
+      ["Home / End", t("焦点标记或选区移到边界", "Move focused marker or selection to an edge")],
+      ["Esc", t("关闭帮助 / 关闭浮窗", "Close help / close Peek")],
+    ]) {
+      const term = document.createElement("dt"), text = document.createElement("dd"), kbd = document.createElement("kbd");
+      kbd.textContent = key; term.append(kbd); text.textContent = description; panel.querySelector("dl").append(term, text);
+    }
+    this.controls.append(panel);
+    panel.querySelector("button").onclick = () => this.closeShortcuts();
+    panel.addEventListener("beforetoggle", event => button.setAttribute("aria-expanded", String(event.newState === "open")));
+    button.onclick = () => {
+      if (panel.matches(":popover-open")) this.closeShortcuts();
+      else { panel.showPopover(); this.positionShortcuts(); panel.focus({ preventScroll:true }); this.hideTrackTime(); }
+    };
+  }
+  positionShortcuts() {
+    const panel = this.shortcuts; if (!panel?.matches(":popover-open")) return;
+    const anchor = this.shortcutsButton.getBoundingClientRect(), bounds = panel.getBoundingClientRect();
+    panel.style.left = Math.max(12, Math.min(innerWidth - bounds.width - 12, anchor.left)) + "px";
+    const top = anchor.top - bounds.height - 8;
+    panel.style.top = Math.max(12, Math.min(innerHeight - bounds.height - 12, top >= 12 ? top : anchor.bottom + 8)) + "px";
+  }
+  closeShortcuts() {
+    this.shortcuts.hidePopover(); this.shortcutsButton.setAttribute("aria-expanded", "false");
+    this.shortcutsButton.focus({ preventScroll:true });
   }
   setDraft(start, end) {
     this.draft = { start_ms: start, end_ms: end }; this.status("");
@@ -368,17 +414,16 @@ class PageVideoTools {
     track.addEventListener("pointermove", e => { if (!this.draggingTrack && !e.target.closest(".handle")) this.showTrackTime(at(e.clientX)); });
     track.addEventListener("pointerleave", () => { if (!this.draggingTrack) this.hideTrackTime(); });
     track.addEventListener("pointerdown", e => {
-      if (e.target === track || e.target.matches(".ticks,.ticks span")) { this.video.currentTime = at(e.clientX) / 1000; this.updatePlayback(); }
-    });
-    const head = this.controls.querySelector(".playhead");
-    head.onpointerdown = e => {
-      if (e.button !== 0) return;
-      e.preventDefault(); e.stopPropagation(); head.setPointerCapture(e.pointerId); this.seek.focus({ preventScroll: true });
+      if (e.button !== 0 || !(e.target === track || e.target.closest(".ticks"))) return;
+      e.preventDefault(); track.setPointerCapture(e.pointerId); this.seek.focus({ preventScroll: true });
       const seekTo = x => { this.seek.value = at(x) / 1000; this.video.currentTime = Number(this.seek.value); this.updatePlayback(); this.showTrackTime(this.video.currentTime * 1000); };
-      this.draggingTrack = true; head.dataset.dragging = ""; seekTo(e.clientX);
-      head.onpointermove = event => seekTo(event.clientX);
-      head.onpointerup = head.onpointercancel = head.onlostpointercapture = () => { head.onpointermove = null; delete head.dataset.dragging; this.draggingTrack = false; this.hideTrackTime(); };
-    };
+      this.draggingTrack = true; seekTo(e.clientX);
+      track.onpointermove = event => seekTo(event.clientX);
+      track.onpointerup = track.onpointercancel = track.onlostpointercapture = () => {
+        track.onpointermove = track.onpointerup = track.onpointercancel = track.onlostpointercapture = null;
+        this.draggingTrack = false; this.hideTrackTime();
+      };
+    });
     const shift = (delta, start = this.draft.start_ms, end = this.draft.end_ms) => {
       if (start === null || end === null || end <= start) return;
       delta = Math.max(-start, Math.min(Math.round(this.video.duration * 1000) - end, Math.round(delta)));
@@ -476,6 +521,7 @@ class PageVideoTools {
       this.dialog.style.setProperty("height", height + footer + "px", "important");
     }
     this.renderTicks();
+    this.positionShortcuts();
   }
   closePeek(immediate = false) {
     if (!this.dialog || this.closing && !immediate) return;
@@ -505,7 +551,7 @@ class PageVideoTools {
     // Peek let the capsule idle; restore its focus target before the dialog returns focus.
     if (originalConnected) this.wake();
     this.dialog.close(); this.dialog.remove();
-    this.dialog = null; this.controls = null; this.submitButton = null; this.closing = false;
+    this.dialog = null; this.controls = null; this.shortcuts = null; this.shortcutsButton = null; this.submitButton = null; this.closing = false;
     this.syncNativeFeedback();
     window.dispatchEvent(new Event("resize"));
     if (originalConnected) {
@@ -566,7 +612,7 @@ class PageVideoTools {
     }
     const toggle = this.controls.querySelector(".view-toggle"); toggle.disabled = !this.view && (!marked || this.draft.start_ms !== null && this.draft.end_ms !== null && !valid);
     const label = this.view ? t("返回完整时间轴", "Return to full timeline") : valid ? t("聚焦选区", "Focus selection") : t("聚焦标记", "Focus marker");
-    toggle.innerHTML = this.view ? icons.whole : icons.focus; toggle.setAttribute("aria-label", label); toggle.dataset.tip = toggle.disabled ? (marked ? t("先设置有效选区", "Set a valid selection first") : t("先添加标记", "Add a marker first")) : label + " · F"; toggle.setAttribute("aria-pressed", String(Boolean(this.view)));
+    toggle.innerHTML = this.view ? icons.whole : icons.focus; toggle.setAttribute("aria-label", label); toggle.dataset.tip = toggle.disabled ? (marked ? t("先设置有效选区", "Set a valid selection first") : t("先添加标记", "Add a marker first")) : label; toggle.setAttribute("aria-pressed", String(Boolean(this.view)));
     toggle.setAttribute("aria-keyshortcuts", "F");
     const window = this.timeWindow(); this.seek.min = window.start; this.seek.max = window.end;
     const band = this.controls.querySelector(".band"); band.style.opacity = valid ? ".22" : "0";

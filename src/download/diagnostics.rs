@@ -26,6 +26,7 @@ pub enum EngineReport {
     ConnectionReset,
     DiskFull,
     PermissionDenied,
+    FormatUnavailable,
 }
 impl EngineReport {
     fn description(&self) -> String {
@@ -38,6 +39,7 @@ impl EngineReport {
             Self::ConnectionReset => "connection reset (reported by downloader)".into(),
             Self::DiskFull => "disk full (reported by downloader)".into(),
             Self::PermissionDenied => "file permission denied (reported by downloader)".into(),
+            Self::FormatUnavailable => "requested format unavailable (reported by downloader)".into(),
             _ => "unknown; no classified engine error was retained".into(),
         }
     }
@@ -93,6 +95,7 @@ pub enum FailureCode {
     UnsafeUrl,
     UnsupportedUrl,
     FallbackFailed,
+    FormatUnavailable,
 }
 impl Failure {
     pub(crate) fn safe(&self) -> Self {
@@ -117,6 +120,7 @@ impl Failure {
                 FailureCode::UnsafeUrl => "E_URL_UNSAFE",
                 FailureCode::UnsupportedUrl => "E_UNSUPPORTED_URL",
                 FailureCode::FallbackFailed => "E_FALLBACK_FAILED",
+                FailureCode::FormatUnavailable => "E_FORMAT_UNAVAILABLE",
             },
             stage,
         )
@@ -216,6 +220,10 @@ pub(crate) fn known(code: &str, stage: &str) -> Failure {
             "The resolver returned complete but invalid metadata JSON",
             "Check the public video page and copy the safe diagnostics",
         ),
+        "E_FORMAT_UNAVAILABLE" => (
+            "No video format matches the selected quality",
+            "Choose a different quality and submit the link again; retrying this task keeps its original quality",
+        ),
         "E_ENGINE_FAILED" => (
             "The download engine exited unsuccessfully; the cause is unconfirmed",
             "Check the public video page and copy the safe diagnostics",
@@ -255,6 +263,7 @@ pub(crate) fn known(code: &str, stage: &str) -> Failure {
             | "E_METADATA_TOO_LARGE"
             | "E_METADATA_INVALID_JSON"
             | "E_ENGINE_FAILED"
+            | "E_FORMAT_UNAVAILABLE"
             | "E_ENGINE_OUTPUT_LIMIT"
             | "E_HTTP_FORBIDDEN"
     ) {

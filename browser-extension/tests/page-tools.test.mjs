@@ -17,6 +17,29 @@ test('time display preserves milliseconds and malformed or out-of-bounds drafts 
   for (const [ms, text] of [[1250, '0:01.250'], [72500, '1:12.500'], [3723004, '1:02:03.004']]) assert.equal(formatTime(ms), text);
   for (const value of [{ start_ms: null, end_ms: 10 }, { start_ms: 5, end_ms: 5 }, { start_ms: 0, end_ms: 11000 }, { start_ms: 0, end_ms: 1, mode: 'copy' }]) assert.throws(() => clipRange(value, 10));
 });
+
+test('Xiaohongshu binds the current single video and keeps the complete sharing query', () => {
+  const id='6b08a8be000000002903d864', url='https://www.xiaohongshu.com/explore/'+id+'?xsec_token=synthetic&xsec_source=pc_feed&source=webshare';
+  const evidence={id,currentId:id,noteType:'video',duration:29.35467,count:1,bound:true};
+  assert.equal(canonicalTarget(url,evidence).url,url);
+  assert.equal(canonicalTarget(url,evidence).key,'xiaohongshu:'+id);
+  for(const change of [{id:'6b08a8be000000002903d865'},{currentId:'6b08a8be000000002903d865'},{noteType:'normal'},{count:2},{bound:false},{duration:NaN}]) assert.equal(canonicalTarget(url,{...evidence,...change}),null);
+  for(const url of ['https://www.xiaohongshu.com:444/explore/'+id,'https://www.xiaohongshu.com/explore/bad','https://www.xiaohongshu.com/user/profile/'+id]) assert.equal(canonicalTarget(url,evidence),null);
+  assert.equal(pageHost('https://www.xiaohongshu.com.evil.test/explore/'+id),null);
+});
+
+test('Xiaohongshu optional access is retained only while tools or a session still need it', async () => {
+  const saved={page_tools:{'www.xiaohongshu.com':true},grants:{}},removed=[];
+  const api={storage:{local:{get:async()=>structuredClone(saved),set:async value=>Object.assign(saved,value)}},permissions:{remove:async ({origins})=>removed.push(...origins)}};
+  const sessions=new Sessions(api);
+  await sessions.releasePermission('xiaohongshu.com');assert.deepEqual(removed,['http://*.xiaohongshu.com/*']);
+  removed.length=0;saved.page_tools['www.xiaohongshu.com']=false;
+  await sessions.releasePermission('xiaohongshu.com');assert.deepEqual(removed,['https://*.xiaohongshu.com/*','http://*.xiaohongshu.com/*']);
+  const pages=new PageTools(api);pages.reconcile=async()=>{};api.tabs={query:async()=>[]};removed.length=0;
+  await pages.set('www.xiaohongshu.com',false);assert.deepEqual(removed,['https://www.xiaohongshu.com/*']);
+  saved.grants['xiaohongshu.com']={grant_id:'retained'};removed.length=0;
+  await pages.set('www.xiaohongshu.com',false);assert.deepEqual(removed,[]);
+});
 test('an older native bridge refuses clip submission before any submit operation', async () => {
   const calls = [], target = { key: 'youtube:jNQXAC9IVRw', url: 'https://www.youtube.com/watch?v=jNQXAC9IVRw', duration: 19 };
   const pages = new PageTools({ runtime: { sendNativeMessage: async (_host, message) => { calls.push(message.operation.operation); return { ok: true, bridge: { capabilities: ['ping', 'report_failure'] } }; } } });

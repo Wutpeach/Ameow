@@ -39,6 +39,38 @@ fn safe_engine_facts_preserve_exit_and_report_without_the_error_payload() {
 
 const CONNECT: &str =
     include_str!("../../../../tests/fixtures/network-diagnostics/yt-proxy-connect.txt");
+
+#[test]
+fn requested_format_unavailable_has_safe_reason_and_requires_complete_native_evidence() {
+    let native = "ERROR: [XiaoHongShu] 6b08a8be000000002903d864: Requested format is not available. Use --list-formats for a list of available formats";
+    for (phase, label) in [(Phase::Resolving, "resolve"), (Phase::Downloading, "transfer")] {
+        for error in [native, "ERROR: Requested format is not available"] {
+            let failure = classify(&phase, &format!("{label} engine exit 1: {error}"));
+            assert_eq!(failure.code, "E_FORMAT_UNAVAILABLE");
+            assert_eq!(failure.engine.as_ref().unwrap().report, EngineReport::FormatUnavailable);
+            let text = copy_text(2, "unknown", &[failure]);
+            assert!(text.contains("E_FORMAT_UNAVAILABLE") && text.contains("No video format matches the selected quality"));
+            assert!(text.contains("submit the link again") && text.contains("keeps its original quality"));
+            assert!(text.contains("requested format unavailable (reported by downloader)"));
+            assert!(!text.contains("6b08a8be") && !text.contains("--list-formats"));
+        }
+    }
+    for error in [
+        "[debug] Requested format is not available",
+        "WARNING: Requested format is not available",
+        "ERROR: failed at https://example.invalid/Requested-format-is-not-available",
+        "ERROR: Unexpected reply: Requested format is not available",
+        "ERROR: [XiaoHongShu] https://private.invalid/token: Requested format is not available",
+        "ERROR: [XiaoHongShu] OBJECT: Requested format is not available\nERROR: HTTP Error 403: Forbidden",
+        "[truncated stderr]",
+    ] {
+        assert_ne!(classify(&Phase::Resolving, &format!("resolve engine exit 1: {error}")).code, "E_FORMAT_UNAVAILABLE", "{error}");
+    }
+    assert_ne!(classify(&Phase::Resolving, &format!("resolve engine exit 0: {native}")).code, "E_FORMAT_UNAVAILABLE");
+    assert_ne!(classify(&Phase::Validating, &format!("resolve engine exit 1: {native}")).code, "E_FORMAT_UNAVAILABLE");
+    let truncated = engine_stderr(native.as_bytes(), true);
+    assert_eq!(classify(&Phase::Resolving, &format!("resolve engine exit 1: {truncated}")).code, "E_ENGINE_FAILED");
+}
 const TIMEOUT: &str =
     include_str!("../../../../tests/fixtures/network-diagnostics/yt-proxy-timeout.txt");
 
