@@ -32,7 +32,17 @@ fn receipt_path(root: &Path, id: &str) -> Result<PathBuf, String> {
 }
 /// Read a bounded receipt by the operation id supplied by this instance.
 pub fn read_receipt(root: &Path, id: &str) -> Result<Receipt, String> {
-    let bytes = std::fs::read(receipt_path(root, id)?).map_err(|_| "E_LIFECYCLE_RECEIPT")?;
+    use std::io::Read;
+    let path = receipt_path(root, id)?;
+    let guard = receipt_guard(root)?;
+    guard
+        .lock_shared()
+        .map_err(|error| receipt_io_error("read lock", &error))?;
+    let file = std::fs::File::open(path).map_err(|_| "E_LIFECYCLE_RECEIPT")?;
+    let mut bytes = Vec::new();
+    file.take(4097)
+        .read_to_end(&mut bytes)
+        .map_err(|_| "E_LIFECYCLE_RECEIPT")?;
     if bytes.len() > 4096 {
         return Err("E_LIFECYCLE_RECEIPT".into());
     }
@@ -45,13 +55,39 @@ pub fn read_receipt(root: &Path, id: &str) -> Result<Receipt, String> {
     }
     Ok(receipt)
 }
+fn receipt_io_error(operation: &str, error: &std::io::Error) -> String {
+    format!(
+        "E_LIFECYCLE_RECEIPT: {operation} (os={:?}, kind={:?})",
+        error.raw_os_error(),
+        error.kind()
+    )
+}
+fn receipt_guard(root: &Path) -> Result<std::fs::File, String> {
+    // Windows can deny replacement while another process has the receipt open.
+    // Lock a stable sibling so readers and the atomic rename cannot overlap.
+    std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(root.join("lifecycle-receipt.lock"))
+        .map_err(|error| receipt_io_error("lock file", &error))
+}
 fn write_receipt(root: &Path, receipt: &Receipt) -> Result<(), String> {
     use std::io::Write;
     let path = receipt_path(root, &receipt.id)?;
-    let mut file = tempfile::NamedTempFile::new_in(root).map_err(|_| "E_LIFECYCLE_RECEIPT")?;
+    let guard = receipt_guard(root)?;
+    guard
+        .lock()
+        .map_err(|error| receipt_io_error("write lock", &error))?;
+    let mut file = tempfile::NamedTempFile::new_in(root)
+        .map_err(|error| receipt_io_error("create", &error))?;
     serde_json::to_writer(&mut file, receipt).map_err(|_| "E_LIFECYCLE_RECEIPT")?;
-    file.flush().map_err(|_| "E_LIFECYCLE_RECEIPT")?;
-    file.persist(path).map_err(|_| "E_LIFECYCLE_RECEIPT")?;
+    file.flush()
+        .map_err(|error| receipt_io_error("flush", &error))?;
+    file.into_temp_path()
+        .persist(path)
+        .map_err(|error| receipt_io_error("replace", &error.error))?;
     Ok(())
 }
 
@@ -396,6 +432,50 @@ fn observer(args: &[std::ffi::OsString]) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn receipt_atomic_handoff_preserves_complete_data_while_observed() {
+        let root = tempfile::tempdir().unwrap();
+        let mut receipt = Receipt {
+            pid: std::process::id(),
+            id: "a".repeat(32),
+            instance_id: "b".repeat(32),
+            action: "quit".into(),
+            phase: "starting_observer".into(),
+            done: false,
+            success: None,
+            error: None,
+            new_instance_id: None,
+        };
+        write_receipt(root.path(), &receipt).unwrap();
+        let observing = std::sync::atomic::AtomicBool::new(true);
+        std::thread::scope(|scope| {
+            let reader = scope.spawn(|| {
+                while observing.load(std::sync::atomic::Ordering::Relaxed) {
+                    let current = read_receipt(root.path(), &"a".repeat(32)).unwrap();
+                    assert_eq!(current.instance_id, "b".repeat(32));
+                    std::thread::yield_now();
+                }
+            });
+            for phase in ["waiting_for_exit", "armed", "completed"]
+                .into_iter()
+                .cycle()
+                .take(200)
+            {
+                receipt.phase = phase.into();
+                if let Err(error) = write_receipt(root.path(), &receipt) {
+                    observing.store(false, std::sync::atomic::Ordering::Relaxed);
+                    reader.join().unwrap();
+                    panic!("{error}");
+                }
+            }
+            observing.store(false, std::sync::atomic::Ordering::Relaxed);
+            reader.join().unwrap();
+        });
+        assert_eq!(
+            read_receipt(root.path(), &receipt.id).unwrap().phase,
+            receipt.phase
+        );
+    }
     #[test]
     fn receipt_is_bounded_and_bound_to_the_requested_operation() {
         let root = tempfile::tempdir().unwrap();

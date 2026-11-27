@@ -996,6 +996,7 @@ fn purge_data(data: &Path, report: &mut Report) -> Result<(), String> {
         "app-update-settings.json",
         "app-install-receipt.json",
         "lifecycle-receipt.json",
+        "lifecycle-receipt.lock",
         "runtime-selection.json",
         "preparation-history.json",
         "prepare.lock",

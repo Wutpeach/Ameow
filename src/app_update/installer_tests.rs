@@ -173,7 +173,7 @@ fn explicit_data_cleanup_keeps_recorded_output_and_unknown_user_files() {
     )
     .unwrap();
     fs::write(data.join("unrelated.bin"), b"user file").unwrap();
-    for name in ["app-install-receipt.json", "lifecycle-receipt.json"] {
+    for name in ["app-install-receipt.json", "lifecycle-receipt.json", "lifecycle-receipt.lock"] {
         fs::write(data.join(name), b"owned maintenance receipt").unwrap();
     }
     let mut report = Report::default();
@@ -185,6 +185,7 @@ fn explicit_data_cleanup_keeps_recorded_output_and_unknown_user_files() {
     assert!(!data.join("ui-settings.json").exists());
     assert!(!data.join("app-install-receipt.json").exists());
     assert!(!data.join("lifecycle-receipt.json").exists());
+    assert!(!data.join("lifecycle-receipt.lock").exists());
 }
 
 #[test]
