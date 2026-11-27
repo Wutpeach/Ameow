@@ -17,7 +17,7 @@ NONCE = '17' * 32
 @unittest.skipUnless(sys.platform == 'darwin' and sys.version_info >= (3, 13),
                      'requires managed Mac Python >=3.13')
 class CancellationDriver(unittest.TestCase):
-    def run_case(self, body, cancel=True, stale=False, timeout=17):
+    def run_case(self, body, cancel=True, stale=False, timeout=17, tools=None):
         with tempfile.TemporaryDirectory(prefix='ameow-transfer-driver-') as root:
             root = Path(root)
             archive = root / 'fixture.pyz'
@@ -26,9 +26,10 @@ class CancellationDriver(unittest.TestCase):
             if stale:
                 (root / 'transfer-cancel.json').write_text('{"nonce":"old"}')
             command = [sys.executable, '-I', '-B', '-c', DRIVER.read_text(), NONCE,
-                       json.dumps(['/bin/sleep']), str(archive)]
+                       json.dumps(['/bin/sleep'] if tools is None else tools), str(archive)]
             process = subprocess.Popen(command, cwd=root, stdout=subprocess.PIPE,
-                                       stderr=subprocess.PIPE, start_new_session=True)
+                                       stderr=subprocess.PIPE, start_new_session=True,
+                                       env=dict(os.environ, PATH=''))
             began = time.monotonic()
             try:
                 if cancel:
@@ -74,6 +75,46 @@ subprocess.run(['/bin/sleep', '0.02'], check=True)
 open('ready', 'w').close()
 time.sleep(30)
 ''')
+
+    def test_missing_platform_probes_are_not_unknown_execution(self):
+        self.assert_cancelled('''
+import subprocess, time
+for executable in ('file', 'uname', 'file'):
+    try:
+        subprocess.run([executable], check=True)
+    except FileNotFoundError:
+        pass
+open('ready', 'w').close()
+time.sleep(30)
+''')
+
+    def test_interrupted_unknown_spawn_cannot_discharge_its_attempt(self):
+        code, receipt, _, _, _ = self.run_case('''
+import os, signal, subprocess
+original = subprocess.Popen.__init__
+def interrupted_init(self, *args, **kwargs):
+    original(self, *args, **kwargs)
+    open('ready', 'w').close()
+    os.kill(os.getpid(), signal.SIGINT)
+subprocess.Popen.__init__ = interrupted_init
+subprocess.Popen(['/bin/sleep', '0.2'])
+''', tools=[])
+        self.assertEqual(code, 130)
+        self.assertIsNone(receipt)
+
+    def test_missing_probe_cannot_clear_prior_unknown_execution(self):
+        code, receipt, _, _, _ = self.run_case('''
+import subprocess, time
+subprocess.run(['/usr/bin/true'], check=True)
+try:
+    subprocess.run(['file'], check=True)
+except FileNotFoundError:
+    pass
+open('ready', 'w').close()
+time.sleep(30)
+''')
+        self.assertEqual(code, 130)
+        self.assertIsNone(receipt)
 
     def test_unregistered_spawn_window_uses_real_wait(self):
         # SIGINT after actual child construction, before the caller receives its

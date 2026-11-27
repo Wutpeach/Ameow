@@ -1,6 +1,7 @@
 """Embedded Transfer entry; this is trusted application code, not a Python sandbox."""
 import atexit
 import _thread
+import errno
 import inspect
 import json
 import os
@@ -22,6 +23,8 @@ original_init = subprocess.Popen.__init__
 init_signature = inspect.signature(original_init)
 original_start = threading.Thread.start
 original_joinable = threading._start_joinable_thread
+spawn_context = threading.local()
+unleased_attempts = set()
 
 
 def reject_new_work():
@@ -39,9 +42,23 @@ def checked_init(self, *args, **kwargs):
             or bound.get('start_new_session')
             or bound.get('process_group') not in (None, -1)):
         qualified = False
+    attempt = dict(token=object(), executable=None)
+    previous = getattr(spawn_context, 'attempt', None)
+    spawn_context.attempt = attempt
     # No object registration is used as settlement evidence. SIGINT may interrupt
     # this call after a real child exists; the later kernel wait barrier covers it.
-    return original_init(self, *args, **kwargs)
+    try:
+        return original_init(self, *args, **kwargs)
+    except FileNotFoundError as error:
+        # Popen's audit event precedes exec. yt-dlp's verbose platform probes
+        # (file/uname) can be absent on the empty PATH without executing them.
+        # Discharge only this exact ENOENT attempt; never restore other taints.
+        if (error.errno == errno.ENOENT and error.filename is not None
+                and os.fsdecode(error.filename) == attempt['executable']):
+            unleased_attempts.discard(attempt['token'])
+        raise
+    finally:
+        spawn_context.attempt = previous
 
 
 def checked_start(self, *args, **kwargs):
@@ -73,7 +90,12 @@ def audit(event, args):
             reject_new_work()
         executable = os.fsdecode(args[0])
         if executable not in tools:
-            qualified = False
+            attempt = getattr(spawn_context, 'attempt', None)
+            if attempt is None or len(unleased_attempts) >= 64:
+                qualified = False
+            else:
+                attempt['executable'] = executable
+                unleased_attempts.add(attempt['token'])
     elif event in ('os.fork', 'os.forkpty', 'os.posix_spawn', 'os.exec', 'os.system'):
         qualified = False
         if closing:
@@ -125,7 +147,7 @@ def cancellation_receipt():
             return False
         else:
             time.sleep(0.01)
-    if not qualified or time.monotonic() >= deadline:
+    if not qualified or unleased_attempts or time.monotonic() >= deadline:
         return False
     record = dict(schema=1, nonce=nonce, root_pid=os.getpid(), kind='cancelled',
                   work_creation_closed=True, workers_joined=True,

@@ -28,6 +28,8 @@
 
 Popen 构造参数检查和 Python audit hook 仅用于资格/封闭：shell、preexec_fn、独立 session/process group、非本租约工具、直接 fork/exec/posix_spawn 等使取消资格失效；活动下载时不新增下载拒绝。收尾开始后拒绝新的这类工作。封闭持续经过 atexit 与解释器终结；receipt 之后不得重新开放。实际 CPython/yt-dlp 调用路径若不兼容此合同，测试如实失败，不能扩大允许集来凑通过。
 
+audit 的 Popen 事件发生在 exec 之前，不能把一次未成功执行的探测冒称未知程序已经运行。每次构造持有独立的待决 token；只有同一次原始 CPython 构造返回 ENOENT、filename 与该次 audit 的 executable 完全一致时，才解除这一次“未租约执行尝试”。不修改全局 taint，不增加可信工具，不接受其他 OSError、信号中断窗口或未知实际执行。shell/preexec/session/raw-spawn 等独立 taint 仍保留；成功未知执行即使已 wait，也阻止取消证明。此处修正已由实际受管平台标识探测 file/uname/file 暴露的执行前通知误判。
+
 内核 ECHILD 只证明直接子进程，不能单独证明全部后代。后代仍依赖原有受控同步拓扑、连续观察及未 reap 根时组内仅剩根的证据；逃离组/未知工具/观察丢失不得借新路径释放。
 
 ### 3. 独立、一次性、无敏感媒体信息的取消证明

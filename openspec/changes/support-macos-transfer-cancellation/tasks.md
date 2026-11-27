@@ -3,11 +3,11 @@
 ## 1. 隔离机制验证与驱动
 
 - [x] 1.1 核实际受管 Python/yt-dlp 的取消、FFmpeg/Deno 子进程 wait 及线程退出路径，形成定向审计回执；在隔离 zipapp 用取消、存活 child/worker、未知派生和创建中断窗口验证取消证明机制。
-- [x] 1.2 实现 Adapter 内嵌 Transfer 驱动、一次性调用标识、封闭/线程/真实父子 wait 屏障及独立有界记录；驱动定向测试覆盖成功不变、实际取消、陈旧输出和收尾后新工作不得写证明。
+- [x] 1.2 实现 Adapter 内嵌 Transfer 驱动、一次性调用标识、封闭/线程/真实父子 wait 屏障及独立有界记录；驱动定向测试覆盖成功不变、实际取消、陈旧输出、收尾后新工作不得写证明，以及未执行ENOENT探测与未知实际执行/中断窗口的区别。
 
 ## 2. 合同与监督器整合
 
-- [ ] 2.1 整合精确调用绑定、受信租约工具路径、取消记录校验和一次十五秒 root-only interrupt；Rust 定向测试覆盖缺失/坏/旧记录、错误 root、未发送取消、信号根、wait 不一致、观察丢失、延迟 join 和期限不重置，保留 Resolve 两秒及非受信 Transfer Held。
+- [x] 2.1 整合精确调用绑定、受信租约工具路径、取消记录校验和一次十五秒 root-only interrupt；Rust 定向测试覆盖缺失/坏/旧记录、错误 root、未发送取消、信号根、wait 不一致、观察丢失、延迟 join 和期限不重置，保留 Resolve 两秒及非受信 Transfer Held。
 - [x] 2.2 独立审查最终实现并修正确认问题，按 OpenSpec 同步正式要求，运行 change/spec strict validation；Windows 必要定向构建/测试通过并核两项原 dirty 未变。
 
 ## 3. Mac 真实闭环
