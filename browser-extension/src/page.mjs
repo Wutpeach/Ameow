@@ -214,7 +214,7 @@ class PageVideoTools {
     document.documentElement.style.setProperty("overflow", "hidden", "important");
     this.dialog = document.createElement("dialog"); this.dialog.className = "ameow-peek";
     this.restoreNativeFeedback();
-    this.dialog.setAttribute("aria-label", "Ameow 选择片段");
+    this.dialog.setAttribute("aria-label", t("Ameow 选择片段", "Ameow select a clip"));
     this.stage = document.createElement("div"); this.stage.className = "ameow-peek-stage";
     this.dialog.append(this.stage); document.body.append(this.dialog);
     const playing = !this.video.paused;
@@ -226,19 +226,20 @@ class PageVideoTools {
     const tool = (root, action, label, svg, className = "icon") => {
       const button = iconButton(root, action, label, svg, className); button.dataset.tip = label; return button;
     };
-    this.playButton = tool(tools, "play", "播放", icons.play);
+    this.playButton = tool(tools, "play", t("播放", "Play"), icons.play);
     this.playButton.onclick = () => this.togglePlayback();
-    this.markerButton = tool(tools, "marker", "添加标记", icons.marker);
+    this.markerButton = tool(tools, "marker", t("添加标记", "Add marker"), icons.marker);
     this.markerButton.onclick = () => this.markCurrent();
-    tool(tools, "view", "聚焦选区", icons.focus, "icon view-toggle");
+    tool(tools, "view", t("聚焦选区", "Focus selection"), icons.focus, "icon view-toggle");
     this.precisionButton = iconButton(actions, "precise", t("精确切分", "Precise cutting"), icons.precision + "<span>" + t("精确", "Precise") + "</span>", "icon precision");
     this.precisionButton.onclick = () => {
       if (this.pending) return;
       this.precise = !this.precise; this.updateFields(); this.status("");
     };
-    this.submitButton = tool(actions, "submit", "下载片段", icons.download + '<span aria-hidden="true">下载</span>', "icon submit");
+    this.submitButton = tool(actions, "submit", t("下载片段", "Download clip"), icons.download + '<span aria-hidden="true">' + t("下载", "Download") + "</span>", "icon submit");
     this.submitButton.onclick = () => void this.submit({ ...this.draft, ...(this.precise ? { precise: true } : {}) });
     this.seek = this.controls.querySelector('.track input'); this.seek.max = this.video.duration;
+    this.seek.setAttribute("aria-label", t("播放位置", "Playback position"));
     this.seek.setAttribute("aria-description", t("方向键调整播放位置", "Use arrow keys to adjust playback position"));
     this.seek.onfocus = () => this.showTrackTime(this.video.currentTime * 1000);
     this.seek.oninput = () => { this.video.currentTime = Number(this.seek.value); this.updatePlayback(); };
@@ -284,9 +285,9 @@ class PageVideoTools {
   setSubmitStatus(state) {
     if (!this.submitButton) return;
     if (state) this.submitButton.dataset.status = state; else delete this.submitButton.dataset.status;
-    const label = state === "pending" ? "等待 Ameow 受理…" : state === "accepted" ? "已加入队列" : "下载片段";
+    const label = state === "pending" ? t("等待 Ameow 受理…", "Waiting for Ameow to accept…") : state === "accepted" ? t("已加入队列", "Added to queue") : t("下载片段", "Download clip");
     this.submitButton.setAttribute("aria-label", label); this.submitButton.dataset.tip = label;
-    this.submitButton.innerHTML = (state === "pending" ? icons.waiting : state === "accepted" ? icons.check : icons.download) + '<span aria-hidden="true">下载</span>';
+    this.submitButton.innerHTML = (state === "pending" ? icons.waiting : state === "accepted" ? icons.check : icons.download) + '<span aria-hidden="true">' + t("下载", "Download") + "</span>";
   }
   markCurrent() {
     if (this.draft.start_ms !== null || this.draft.end_ms !== null) this.clearSelection();
@@ -299,9 +300,9 @@ class PageVideoTools {
   setupMarkerHandles() {
     const keys = ["start_ms", "end_ms"];
     for (const [index, handle] of this.sliders.entries()) {
-      handle.innerHTML = icons.marker; handle.setAttribute("aria-describedby", "marker-time");
+      handle.innerHTML = icons.marker; handle.setAttribute("aria-label", index ? t("拖动出点", "Move out point") : t("拖动入点", "Move in point")); handle.setAttribute("aria-describedby", "marker-time");
       const time = () => this.draft[keys[index]];
-      const tip = () => { if (time() !== null) this.showTrackTime(time(), (index ? "出点 " : "入点 ") + formatTime(time())); };
+      const tip = () => { if (time() !== null) this.showTrackTime(time(), (index ? t("出点 ", "Out ") : t("入点 ", "In ")) + formatTime(time())); };
       handle.onfocus = tip;
       handle.onpointerenter = handle.onpointermove = e => {
         if (this.draggingTrack) return;
@@ -317,7 +318,7 @@ class PageVideoTools {
         const selected = single ? (e.clientX < rect.left + rect.width / 2 ? 0 : 1) : index;
         const from = this.draft[keys[index]], other = this.draft[keys[1 - index]], origin = e.clientX;
         const width = this.controls.querySelector(".track").clientWidth, span = this.timeWindow().span * 1000;
-        const show = value => this.showTrackTime(value, (selected ? "出点 " : "入点 ") + formatTime(value));
+        const show = value => this.showTrackTime(value, (selected ? t("出点 ", "Out ") : t("入点 ", "In ")) + formatTime(value));
         handle.dataset.side = selected ? "out" : "in";
         this.draggingTrack = true; handle.dataset.dragging = ""; show(from);
         const drag = event => {
@@ -343,7 +344,7 @@ class PageVideoTools {
             const edited = this.draft[keys[selected]] === null ? index : selected;
             this.sliders[edited].focus({ preventScroll: true });
             const value = this.draft[keys[edited]];
-            this.showTrackTime(value, (edited ? "出点 " : "入点 ") + formatTime(value));
+            this.showTrackTime(value, (edited ? t("出点 ", "Out ") : t("入点 ", "In ")) + formatTime(value));
           } else this.hideTrackTime();
         };
         handle.onpointerup = handle.onpointercancel = handle.onlostpointercapture = finish;
@@ -362,6 +363,7 @@ class PageVideoTools {
   }
   setupTimeline() {
     const track = this.controls.querySelector(".track"), body = this.controls.querySelector(".range-body");
+    body.setAttribute("aria-label", t("平移选区", "Move selection"));
     const at = x => Math.max(0, Math.min(this.video.duration * 1000, (this.timeWindow().start + (x - track.getBoundingClientRect().left) / track.clientWidth * this.timeWindow().span) * 1000));
     track.addEventListener("pointermove", e => { if (!this.draggingTrack && !e.target.closest(".handle")) this.showTrackTime(at(e.clientX)); });
     track.addEventListener("pointerleave", () => { if (!this.draggingTrack) this.hideTrackTime(); });
@@ -450,7 +452,7 @@ class PageVideoTools {
     const active = this.controls?.activeElement;
     if (active?.matches(".handle") && !active.hidden && !this.closing) {
       const out = active.classList.contains("out"), value = this.draft[out ? "end_ms" : "start_ms"];
-      this.showTrackTime(value, (out ? "出点 " : "入点 ") + formatTime(value)); return;
+      this.showTrackTime(value, (out ? t("出点 ", "Out ") : t("入点 ", "In ")) + formatTime(value)); return;
     }
     const bubble = this.controls?.querySelector(".time-bubble"); if (bubble) bubble.hidden = true;
   }
@@ -542,8 +544,8 @@ class PageVideoTools {
     this.precisionButton.setAttribute("aria-description", this.precisionButton.dataset.tip);
     const marked = this.draft.start_ms !== null || this.draft.end_ms !== null;
     this.markerButton.setAttribute("aria-pressed", String(marked));
-    this.markerButton.setAttribute("aria-label", marked ? "清除标记" : "添加标记");
-    this.markerButton.dataset.tip = marked ? "清除标记" : "添加标记";
+    this.markerButton.setAttribute("aria-label", marked ? t("清除标记", "Clear markers") : t("添加标记", "Add marker"));
+    this.markerButton.dataset.tip = marked ? t("清除标记", "Clear markers") : t("添加标记", "Add marker");
     const duration = this.controls.querySelector(".duration");
     duration.textContent = valid ? formatTime(this.draft.end_ms - this.draft.start_ms) : "";
     for (const [index, key] of ["start_ms", "end_ms"].entries()) {
@@ -559,7 +561,7 @@ class PageVideoTools {
       handle.classList.toggle("single", this.draft.start_ms === null || this.draft.end_ms === null);
       handle.setAttribute("aria-valuemax", Math.round(this.video.duration * 1000));
       handle.setAttribute("aria-valuenow", ms);
-      handle.setAttribute("aria-valuetext", this.draft[key] === null ? "未设置" : formatTime(ms));
+      handle.setAttribute("aria-valuetext", this.draft[key] === null ? t("未设置", "Not set") : formatTime(ms));
       handle.toggleAttribute("data-unset", this.draft[key] === null);
     }
     const toggle = this.controls.querySelector(".view-toggle"); toggle.disabled = !this.view && (!marked || this.draft.start_ms !== null && this.draft.end_ms !== null && !valid);
@@ -586,12 +588,12 @@ class PageVideoTools {
     if (this.controls.activeElement !== this.seek) this.seek.value = this.video.currentTime;
     this.seek.setAttribute("aria-valuetext", formatTime(this.video.currentTime * 1000));
     this.playButton.innerHTML = this.video.paused ? icons.play : icons.pause;
-    this.playButton.setAttribute("aria-label", this.video.paused ? "播放" : "暂停"); this.playButton.dataset.tip = this.video.paused ? "播放" : "暂停";
+    this.playButton.setAttribute("aria-label", this.video.paused ? t("播放", "Play") : t("暂停", "Pause")); this.playButton.dataset.tip = this.video.paused ? t("播放", "Play") : t("暂停", "Pause");
     this.renderTicks();
     const position = this.trackPercent(this.video.currentTime * 1000), head = this.controls.querySelector(".playhead");
     head.hidden = position < 0 || position > 100; head.style.left = position + "%";
     const waiting = this.video.seeking || !this.video.paused && this.video.readyState < 3;
-    this.controls.querySelector(".buffering").textContent = waiting ? "缓冲中…" : "";
+    this.controls.querySelector(".buffering").textContent = waiting ? t("缓冲中…", "Buffering…") : "";
     const buffered = this.controls.querySelector(".buffered"); buffered.replaceChildren();
     for (let i = 0; i < this.video.buffered.length; i++) {
       const left = Math.max(0, this.trackPercent(this.video.buffered.start(i) * 1000)), right = Math.min(100, this.trackPercent(this.video.buffered.end(i) * 1000));
@@ -601,7 +603,7 @@ class PageVideoTools {
     }
     const time = this.controls.querySelector(".time");
     time.textContent = (position < 0 ? "◀ " : position > 100 ? "▶ " : "") + formatTime(this.video.currentTime * 1000) + " / " + formatTime(this.video.duration * 1000);
-    time.setAttribute("aria-label", position < 0 ? "播放位置在视窗之前" : position > 100 ? "播放位置在视窗之后" : "播放位置");
+    time.setAttribute("aria-label", position < 0 ? t("播放位置在视窗之前", "Playback position is before the view") : position > 100 ? t("播放位置在视窗之后", "Playback position is after the view") : t("播放位置", "Playback position"));
   }
   unbind() {
     this.closePeek(true);
