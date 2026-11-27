@@ -92,9 +92,13 @@ fn embedded_notices_preserve_full_materials_and_package_attribution() {
         for license in package["texts"].as_array().unwrap() {
             assert!(text.contains(license["sha256"].as_str().unwrap()));
         }
+        if let Some(notice) = package["distributionNotice"].as_str() {
+            assert!(text.contains(notice));
+        }
     }
     assert!(text.contains("Cole Bemis"));
-    assert!(text.contains("Exact license-text source remains unresolved."));
+    assert!(packages["packageTextGaps"].as_array().unwrap().is_empty());
+    assert!(!text.contains("Exact license-text source remains unresolved."));
     assert!(!text.contains("<!-- include:"));
 }
 
