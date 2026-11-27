@@ -308,7 +308,7 @@ mod tests {
         ).unwrap();
         let mut selection = Selection::default();
         selection.select(Downloader::YtDlp, Some("2026.10.26".into()));
-        let selected = runtime_update_trust::prepare_selected(
+        let selected = runtime_update_trust::prepare_selected_diagnosed(
             cache, &selection, true, &requirements, &Control::default(), Arc::new(|_| {}), |_| {},
         ).unwrap();
         assert_ne!(recommended.versions, selected.versions);
