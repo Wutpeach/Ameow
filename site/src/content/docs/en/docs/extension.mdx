@@ -30,6 +30,8 @@ Windows users upgrading from an older version to 0.5.2 should [fully reinstall](
 
 The **Clip/download toolbar** is on by default. Allow page access to show download and clip actions in the player. You can turn them off in the extension; your choice is remembered per site. Session sync needs separate authorization for the current site, so check the scope shown by the extension before confirming.
 
+Xiaohongshu page access is requested when needed. Open the extension on a video note, turn on the toolbar, and allow access to the current site. This enables page tools; session sync still needs separate authorization.
+
 <ExtensionDemo lang="en" />
 
 <span id="sessions"></span>
@@ -53,7 +55,9 @@ First check that you are still signed in to the site in the source browser. To r
 
 ## Download a whole video from the page
 
-On a single on-demand Bilibili or YouTube video, hover over the Ameow icon at the top-right of the player. Choose Download or Clip. If the icon is missing, check page tools and page access in the extension.
+On a single on-demand Bilibili or YouTube video, or a Xiaohongshu video note, hover over the Ameow icon at the top-right of the player. Choose Download or Clip. If the icon is missing, check page tools and page access in the extension.
+
+Keep the complete Xiaohongshu share link, including its query parameters. Image notes, ambiguous multiple players, or an unconfirmed current work do not show the toolbar. Closing the note removes the actions; changing notes clears the previous selection.
 
 <span id="clips"></span>
 
@@ -63,12 +67,12 @@ Move the playhead and press Marker to add a point. Drag either side to set the i
 
 <ClipDemo lang="en" />
 
-Check the range and select the Download (下载) button at the lower-right. Each submission contains one range from one work; fast cutting is the default and may place actual boundaries near keyframes. Enable Precise to re-encode, which takes longer. Reopening Peek on the same work retains the choice; changing works resets it to off.
+Check the range and select Download at the lower-right. Each submission contains one range from one work; fast cutting is the default and may place actual boundaries near keyframes. Enable Precise to re-encode, which takes longer. Reopening Peek on the same work retains the choice; changing works resets it to off.
 
 <details>
 <summary>More controls</summary>
 
-I and O set the respective boundary at the current playback position. Time inputs can be selected and edited; display-only text cannot. Focus selection (聚焦选区) enlarges the visible window without changing the range when returning to the whole video. Reopening Peek on the same work retains the draft; changing videos clears it. Esc closes Peek and restores the page. Clearing a draft does not cancel a submitted task. Data usage and waiting time depend on the source.
+Click the keyboard icon at the lower left to see the shortcuts. Esc closes help first; press it again to close Peek. Click or drag on the time ruler to seek without changing the selection. I and O set the respective boundary at the current playback position. Drag a marker or use the arrow keys to adjust it; display-only text cannot be selected. Press F or select the focus button to focus near one marker or on the full selection. Press again to return to the full timeline. Focus is unavailable without a marker and preserves the range and playback position. Reopening Peek on the same work retains the draft; changing videos clears it. Esc closes Peek and restores the page. Clearing a draft does not cancel a submitted task. Data usage and waiting time depend on the source.
 
 </details>
 

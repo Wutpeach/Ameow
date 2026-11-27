@@ -66,10 +66,10 @@ Have a public media URL ready and set the CLI path as above. After submission su
 <TabItem label="Windows">
 <div>
 
-This PowerShell example asks for the link:
+Replace `$Url` with the actual media URL, then run:
 
 ~~~powershell
-$Url = Read-Host 'Public media URL'
+$Url = 'https://example.com/media' # Replace with the real media URL
 $Receipt = & $Cli --json submit $Url | ConvertFrom-Json
 $Receipt
 ~~~
@@ -107,7 +107,7 @@ task='INSTANCE:JOB'
 </TabItem>
 </Tabs>
 
-If no instance is available, `submit` starts the adjacent ordinary app, through the Launcher on Windows. The desktop instance still owns the tasks. Other task and status commands do not start the app. Use `--no-start` to disable automatic startup when submitting.
+In 0.5.2, if no instance is available, `submit` starts the adjacent ordinary app through the stable entry on Windows. The desktop instance still owns the tasks. Other task and status commands do not start the app. Use `--no-start` to disable automatic startup when submitting.
 
 | Command | Purpose |
 | --- | --- |
@@ -127,6 +127,125 @@ A cancellation receipt with `applied: true` acknowledges intent only. `Held` or 
 
 ## Updates and source builds
 
-Windows single-EXE automatic updates replace only the desktop app; update the CLI through a complete installer or portable package. On Mac, the CLI updates with the full app bundle and participates in signature checks. Use the app and CLI from the same version; protocol mismatches return an explicit error.
+Starting with 0.5.2, the complete Windows portable package also serves as the in-app update payload, so the CLI updates with the complete app. On Mac, the CLI updates with the full app bundle and participates in signature checks. Use the app and CLI from the same version; protocol mismatches return an explicit error.
 
 To build from source now, use a separate directory as described in [CLI developer resources](../developer/#cli). Ordinary control does not require `dev-tools`. The separate `ameow-cli dev` entry requires a debug build with `--features dev-tools`; release builds explicitly reject that feature. It is not a setting you can enable in a distributed release.
+
+
+## 0.5.3 development build: agent workflow
+
+These examples require a 0.5.3 development build containing these features. The released 0.5.2 package does not provide media inspection, precise clipping, or the maintenance commands below. Use matching desktop and CLI builds and replace the example paths and URL with real values.
+
+~~~powershell
+$Cli = 'D:/Apps/Ameow/ameow-cli.exe'
+$Url = 'https://example.com/media'
+$Output = 'D:/Downloads' # An existing, writable directory
+$Info = & $Cli --json inspect $Url --quality balanced | ConvertFrom-Json
+if (-not $Info.ok) { throw $Info.error.message }
+& $Cli --json wait $Info.result.task_id --timeout 300
+if ($LASTEXITCODE -ne 0) { throw "Media inspection did not settle successfully" }
+$Job = & $Cli --json submit $Url --quality balanced --output $Output --start-ms 10000 --end-ms 30000 --precise | ConvertFrom-Json
+if (-not $Job.ok) { throw $Job.error.message }
+& $Cli --json wait $Job.result.task_id --timeout 300
+~~~
+
+On Mac, with jq installed, the same workflow can read a task ID without interactive input:
+
+~~~sh
+cli='/Applications/Ameow.app/Contents/MacOS/ameow-cli'
+url='https://example.com/media' # Replace with a real, accessible URL
+output="$HOME/Downloads"
+info=$("$cli" --json inspect "$url" --quality balanced)
+printf '%s\n' "$info" | jq -e '.ok' >/dev/null || exit 1
+task=$(printf '%s\n' "$info" | jq -r '.result.task_id')
+"$cli" --json wait "$task" --timeout 300 || exit 1
+job=$("$cli" --json submit "$url" --quality balanced --output "$output" --start-ms 10000 --end-ms 30000 --precise)
+printf '%s\n' "$job" | jq -e '.ok' >/dev/null || exit 1
+task=$(printf '%s\n' "$job" | jq -r '.result.task_id')
+"$cli" --json wait "$task" --timeout 300
+~~~
+
+A successful submission includes these fields; actual identities vary:
+
+~~~json
+{"ok":true,"result":{"task_id":"INSTANCE:1","job_id":1}}
+~~~
+
+Inspection reads media information without downloading a file. It defaults to highest; choose `balanced` or `saver` to inspect another preset. Two millisecond endpoints select a fast clip by default; `--precise` explicitly requests precise clipping. Final task `files` contain actual paths, byte lengths, and SHA-256 hashes. Check the exit code and `resources_released` before using them.
+
+Use `owner.capabilities` to check support. Unknown duration and media measurements are `null`; `selected` describes source media selected by that quality preset. Its `video_codec` is the source codec, and `bytes` / `size_source` describe source size or an estimate. Read settled `files` for the final output paths, byte lengths, and SHA-256 hashes. Fast clips may include nearby keyframe boundaries; use `--precise` to follow the requested interval more closely.
+
+~~~powershell
+& $Cli --json list
+& $Cli --json cancel $Job.result.task_id
+& $Cli --json wait $Job.result.task_id --timeout 300
+& $Cli --json retry $Job.result.task_id # When retry is allowed, read task_id from the new receipt
+~~~
+
+Read preferences and session status first. Run `settings set` separately when you need to change a saved default:
+
+~~~powershell
+& $Cli --json settings
+& $Cli --json sessions
+~~~
+
+~~~powershell
+& $Cli --json settings set quality balanced
+~~~
+
+Synchronous preferences such as quality finish when the receipt returns `saved: true`; no operation wait is needed.
+
+Check components, wait, and read each actual check result:
+
+~~~powershell
+& $Cli --json components check
+& $Cli --json components wait --timeout 60
+& $Cli --json components
+~~~
+
+Update a component only after a successful check identifies an installable newer version:
+
+~~~powershell
+& $Cli --json components update yt-dlp
+& $Cli --json components wait --timeout 300
+~~~
+
+Restore the recommended version separately when recovery is needed:
+
+~~~powershell
+& $Cli --json components restore yt-dlp
+& $Cli --json components wait --timeout 300
+~~~
+
+Check the app, wait, and read its status:
+
+~~~powershell
+& $Cli --json app status
+& $Cli --json app check
+& $Cli --json app wait --timeout 60
+& $Cli --json app status
+~~~
+
+Download only when the check identifies an installable newer version. Read the stage again after the download:
+
+~~~powershell
+& $Cli --json app download
+& $Cli --json app wait --timeout 300
+& $Cli --json app status
+~~~
+
+Install only at the `Ready` app update stage. Installation restarts the app normally; retain the receipt identities to wait for the actual result:
+
+~~~powershell
+$Install = & $Cli --json app install | ConvertFrom-Json
+if (-not $Install.ok) { throw $Install.error.message }
+& $Cli --json --instance-id $Install.instance_id --operation-id $Install.result.operation.id app wait --timeout 300
+~~~
+
+Run maintenance actions individually as needed: they can change preferences or download and install components and the app. `settings set` saves a default; submit options affect only that task. `sessions` reports status and missing conditions; authorize sites through the existing browser flow. Specify `yt-dlp` or `gallery-dl` for component actions. Query `components` again for each actual result and `app status` for the app update stage. `app quit` and `app restart` follow desktop stop rules; active tasks are not force-killed. Acceptance or disconnection alone does not mean an operation finished.
+
+Use `ameow-cli --help`, `ameow-cli help submit`, and `ameow-cli components --help` to discover parameters, results, and recovery.
+
+When an app-update preference returns an asynchronous operation, use `settings wait --timeout 30` to confirm the save. A maintenance receipt contains `operation.id`, `action`, `phase`, `done`, `success`, and `error`; only `done: true` plus `success: true` confirms completion. A failed wait exits 4; timeout exits 6 and leaves the operation running.
+
+Retain the original `instance_id` and `operation.id` for `app install`, `app quit`, and `app restart`. Query or wait after the owner exits with `--instance-id ORIGINAL_INSTANCE --operation-id OPERATION_ID app status` or `app wait --timeout 300`. Installation confirms the accepted installed version; restart confirms a new owner handshake, and quit confirms process exit. The latest installation and lifecycle receipts are retained independently; a newer operation replaces the prior receipt. A timeout or missing receipt leaves the result unconfirmed.

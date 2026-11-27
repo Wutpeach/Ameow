@@ -25,7 +25,7 @@ Mac requires Apple Silicon and macOS 13 or later. Intel Macs, Universal, and Lin
 The installer follows the Windows display language for Chinese or English and uses English for other languages. Set the [app language](../desktop/settings/) separately.
 
 <Aside title="Moving the portable folder">
-Exit Ameow first, move the complete folder, then check shortcuts and login startup. Uninstall keeps user data by default.
+Exit Ameow first, move the complete folder, then check shortcuts and login startup. The program folder and user data folder are separate.
 </Aside>
 
 ## Mac
@@ -41,6 +41,24 @@ Check for application updates in [Settings → About](../desktop/settings/), the
 
 **Windows users should fully reinstall when upgrading from an older version to 0.5.2.** Exit Ameow, uninstall the old version and clear its old program folder, or install into a new empty folder. Extract the portable version into a new empty folder too, and update old shortcuts. Keep your settings, component cache and downloaded files. Older Windows in-app updates cannot perform this directory layout change. Mac continues to update the complete App as prompted and does not need the Windows program-folder cleanup.
 
+<Aside title="The 0.5.3 installer">
+0.5.3 has not been released; the downloads above are still 0.5.2. The 0.5.3 installer can recognize an older layout and upgrade in the same folder. It also supports upgrades from the complete 0.5.2 layout and repairs of the same signed version. Exit Ameow normally, run the new installer, and choose the existing folder. User data and unrelated files are kept. If a file is in use, access is denied, or ownership cannot be established, the installer explains what remains incomplete. Keep the folder and follow the retry instructions. This does not extend the capabilities of older in-app updaters.
+</Aside>
+
 Starting with 0.5.2, both complete Windows packages include the app, CLI, browser connection component and extension; future in-app updates replace the complete set. The complete portable ZIP also serves in-app updates, with no separate single-program update ZIP. Mac continues to update the full App. The two signed update JSON files are for automatic updates and need no manual download.
 
 After updating, set up the extension from Components, reload Ameow at the current path in browser extension management, then refresh the pages you are using. See [extension setup](../extension/#connection).
+
+## Windows storage and uninstall
+
+| Location | Contents |
+| --- | --- |
+| The actual installation folder; `%LOCALAPPDATA%\Programs\Ameow` by default | Program files, complete version slots, the browser extension, and application update staging |
+| `%LOCALAPPDATA%\Ameow` | Settings, authorized sessions, browser connection files, download components and cached archives, component checks, diagnostics, and the `jobs` workspace |
+| Your chosen destination | Finished downloads |
+
+Windows determines the current user’s `LOCALAPPDATA` location. Choosing another installation folder does not move user data. Downloads and clips may temporarily use space on the user data drive even when finished files go to another drive. This version does not add cache location selection, storage beside the installation, or data migration.
+
+Uninstall keeps user data by default. Starting with the 0.5.3 installer, you can select **Also delete user data** to clear settings, authorized browser sessions, download component caches, diagnostics, and Ameow’s temporary task data. **Finished downloads are always kept, including files in the default folder, a custom folder, or a previously used destination. Your browser’s own accounts and cookies are kept too.** You do not need to change the default download location to preserve finished files. Reinstalling requires setup and authorization again. Upgrades do not enable this cleanup.
+
+When another Ameow copy is detected using shared data or browser connections, those resources are kept. Items that cannot be safely removed, are in use, or lack permission are listed; close the programs using them before retrying. Cleanup covers Ameow-managed files and registrations, not execution history maintained by Windows.

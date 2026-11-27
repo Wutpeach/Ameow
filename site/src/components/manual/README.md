@@ -17,7 +17,7 @@ blurred ghost. Pointer capture handles mouse/touch drop and cancellation; clicki
 or keyboard selection remains an equivalent action. It changes example state only.
 The Compact/Full motion owner in surface-motion.js is retained.
 
-The compact popup and Peek use the 0.5.2 product build from 630bfd64.
+The compact popup and Peek reuse the product extension bundle.
 session-assets.json records exact
 HTML/CSS/compiled JS/license/build identities. sources/popup.html keeps the original
 HTML; the served wrapper adds only CSP, local paths and safe sample responses.

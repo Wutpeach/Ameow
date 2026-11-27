@@ -4,14 +4,6 @@
     if (!value || Object.keys(value).some((k) => !["start_ms", "end_ms", "precise"].includes(k)) || Object.hasOwn(value, "precise") && typeof value.precise !== "boolean" || !Number.isSafeInteger(value.start_ms) || !Number.isSafeInteger(value.end_ms) || value.start_ms < 0 || value.end_ms <= value.start_ms || Number.isFinite(duration) && value.end_ms > Math.round(duration * 1e3)) throw Error("E_CLIP_RANGE");
     return { start_ms: value.start_ms, end_ms: value.end_ms, ...value.precise ? { precise: true } : {} };
   }
-  function parseTime(value) {
-    if (!/^\d+(?::\d{1,2}){0,2}(?:\.\d{1,3})?$/.test(value.trim())) return null;
-    const parts = value.trim().split(":");
-    if (parts.slice(1).some((p) => Number(p) >= 60)) return null;
-    const seconds = parts.reduce((sum, p) => sum * 60 + Number(p), 0);
-    const ms = Math.round(seconds * 1e3);
-    return Number.isSafeInteger(ms) ? ms : null;
-  }
   function formatTime(ms) {
     if (ms === null || !Number.isFinite(ms)) return "";
     ms = Math.max(0, Math.round(ms));
@@ -20,7 +12,7 @@
   }
 
   // src/page-ui.css
-  var page_ui_default = ':host { --surface:#fff; --text:#292a2c; --muted:#62656b; --control:#f2f2f3; --hover:#ecedef; --line:#ecedef; --focus:#0285ff; --success:#199a4d; --error:#b8323c; font:13px/1.5 "Segoe UI","Microsoft YaHei UI",sans-serif; color:var(--text); color-scheme:light dark; }\r\n* { box-sizing:border-box; }\r\nbutton,input { font:inherit; color:inherit; }\r\nbutton { cursor:pointer; border:0; border-radius:6px; background:var(--control); min-height:36px; padding:6px 12px; transition:background 150ms ease-out,opacity 110ms ease-out; }\r\nbutton:hover { background:var(--hover); }\r\nbutton:disabled { opacity:.45; cursor:default; }\r\nbutton:focus-visible,input:focus-visible { outline:2px solid var(--focus); outline-offset:3px; }\r\nbutton > svg,button > img { width:18px; height:18px; display:block; pointer-events:none; transition:transform 110ms cubic-bezier(.2,.8,.2,1); }\r\nbutton:active > svg,button:active > img { transform:scale(.88); }\r\nsvg { fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }\r\n.toolbar { position:absolute; right:0; width:32px; height:32px; color:#fff; pointer-events:auto; opacity:1; font:400 13px/20px "Segoe UI","Microsoft YaHei UI",sans-serif; transition:width 110ms cubic-bezier(.2,.8,.2,1),opacity 180ms ease-out; }\r\n.toolbar[data-expanded] { width:156px; transition:width 200ms cubic-bezier(.16,1,.3,1),opacity 180ms ease-out; }\r\n.toolbar[data-dim] { opacity:.6; }\r\n.capsule { position:absolute; inset:0; border:1px solid #ffffff30; border-radius:999px; background:rgb(25 26 29 / .84); pointer-events:none; }\r\n.toolbar button { position:absolute; top:0; height:32px; min-height:32px; display:flex; align-items:center; justify-content:center; gap:6px; border-radius:999px; background:transparent; color:#fff; padding:0; white-space:nowrap; }\r\n.toolbar button:hover { background:#ffffff20; }\r\n.toolbar:has(button:focus-visible) .capsule { outline:2px solid var(--focus); outline-offset:2px; }\r\n.toolbar button:focus-visible { outline-offset:-2px; }\r\n.toolbar svg { width:16px; height:16px; flex:none; }\r\n.toolbar .download { right:0; width:82px; clip-path:inset(0 0 0 50px round 999px); transition:clip-path 110ms cubic-bezier(.2,.8,.2,1); }\r\n.toolbar[data-expanded] .download { clip-path:inset(0 round 999px); transition-duration:200ms; }\r\n.download-icon { position:absolute; top:8px; right:8px; display:grid; place-items:center; width:16px; height:16px; transition:transform 110ms cubic-bezier(.2,.8,.2,1); }\r\n.toolbar[data-expanded] .download-icon { transform:translateX(-44px); transition-duration:200ms; }\r\n.download-icon svg { width:16px; height:16px; fill:currentColor; stroke:none; transition:transform 110ms ease-out; }\r\n.toolbar .download:active svg { transform:scale(.88); }\r\n.download-label { position:absolute; top:6px; right:12px; width:26px; line-height:20px; white-space:nowrap; overflow:hidden; opacity:0; transition:opacity 90ms ease-out; }\r\n.toolbar[data-expanded] .download-label { opacity:1; transition:opacity 150ms ease-out 40ms; }\r\n.toolbar .select { right:84px; width:70px; opacity:0; transform:translateX(16px); pointer-events:none; transition:opacity 110ms ease-out,transform 110ms cubic-bezier(.2,.8,.2,1); }\r\n.toolbar .select span { flex:none; white-space:nowrap; }\r\n.toolbar[data-expanded] .select { opacity:1; transform:translateX(0); pointer-events:auto; transition-duration:180ms; }\r\n.toolbar[data-status="accepted"] .download svg { fill:none; stroke:currentColor; color:#81eaa7; }\r\n.toolbar[data-status="pending"] .download { opacity:.65; }\r\n.feedback { position:absolute; right:0; top:40px; width:max-content; max-width:min(300px,70vw); padding:8px 12px; border-radius:6px; background:var(--surface); color:var(--text); box-shadow:0 3px 12px #0003; }\r\n.feedback:empty { display:none; }\r\n.controls { -webkit-user-select:none; user-select:none; padding:8px 10px; background:var(--surface); color:var(--text); font:400 13px/20px "Segoe UI","Microsoft YaHei UI",sans-serif; }\r\n[hidden] { display:none!important; }\r\n.controls :is(input:not([type=range]),textarea,[contenteditable]:not([contenteditable=false])) { -webkit-user-select:text; user-select:text; }\r\n.timeline { width:auto; margin:0 16px; }\r\n.track { position:relative; height:50px; }\r\n.ticks { position:absolute; inset:0 0 auto; height:14px; font-size:10px; line-height:11px; color:var(--muted); cursor:crosshair; }\r\n.ticks span { position:absolute; transform:translateX(-50%); }\r\n.ticks span:first-child { transform:none; }\r\n.ticks span::after { content:""; display:block; width:1px; height:3px; background:var(--muted); opacity:.45; margin:auto; }\r\n.rail,.band { position:absolute; top:30px; left:0; right:0; height:3px; border-radius:2px; pointer-events:none; }\r\n.rail { background:var(--line); }\r\n.band { top:28px; height:7px; background:var(--focus); opacity:0; transition:opacity 110ms ease-out; }\r\n.track input { position:absolute; top:24px; left:0; width:100%; height:24px; min-width:0; margin:0; appearance:none; background:transparent; cursor:crosshair; }\r\n.track input::-webkit-slider-runnable-track { height:3px; background:transparent; }\r\n.track input::-webkit-slider-thumb { appearance:none; width:8px; height:8px; border-radius:50%; background:transparent; margin-top:-2.5px; }\r\n.track .handle { position:absolute; top:4px; width:24px; height:24px; min-height:24px; padding:0; border-radius:4px; background:transparent; cursor:ew-resize; touch-action:none; z-index:3; }\r\n.handle.in { transform:translateX(-100%); }\r\n.handle svg { position:absolute; top:7px; width:14px; height:18px; stroke-width:1.8; color:var(--focus); fill:var(--surface); pointer-events:none; }\r\n.handle.in svg { right:-7px; }\r\n.handle.out svg { left:-7px; }\r\n/* Keep the 14px frame centered on timestampX; align cap tip with the existing full Marker. */\r\n.handle[data-shape=in] svg,.handle[data-shape=out] svg { height:14px; top:8.1542px; }\r\n.track .handle.single { width:40px; transform:translateX(-50%); cursor:ew-resize; }\r\n.track .handle.single svg { left:13px; right:auto; }\r\n.track .handle:hover,.track .handle:focus-visible,.track .handle[data-dragging] { background:color-mix(in srgb,var(--focus) 12%,transparent); }\r\n.track .handle.single[data-side=in] { cursor:w-resize; }\r\n.track .handle.single[data-side=out] { cursor:e-resize; }\r\n.track .handle.single:hover::before,.track .handle.single[data-dragging]::before { content:""; position:absolute; inset:0 50% 0 0; border-radius:4px; background:color-mix(in srgb,var(--focus) 20%,transparent); pointer-events:none; }\r\n.track .handle.single[data-side=out]::before { inset:0 0 0 50%; }\r\n.playhead { position:absolute; top:28px; width:12px; height:22px; margin-left:-6px; pointer-events:auto; cursor:ew-resize; touch-action:none; z-index:4; }\r\n.playhead::after { content:""; position:absolute; left:6px; top:0; width:1px; height:22px; background:var(--text); }\r\n.playhead::before { content:""; position:absolute; left:3px; top:0; width:7px; height:5px; background:var(--text); clip-path:polygon(0 0,100% 0,50% 100%); }\r\n.buffered { position:absolute; top:30px; left:0; right:0; height:3px; pointer-events:none; }\r\n.buffered span { position:absolute; height:100%; background:var(--muted); opacity:.3; }\r\n.track[data-selection] .rail { opacity:.45; }\r\n.track .range-body { position:absolute; top:40px; height:10px; min-height:10px; min-width:24px; transform:translateX(-50%); border-radius:3px; padding:0; background:color-mix(in srgb,var(--focus) 22%,transparent); cursor:grab; touch-action:none; z-index:2; }\r\n.track .range-body:hover,.track .range-body[data-dragging] { background:color-mix(in srgb,var(--focus) 45%,transparent); }\r\n.track .range-body::after { content:""; display:block; width:8px; height:2px; border-radius:2px; margin:auto; background:var(--focus); opacity:.65; }\r\n.track .range-body[data-dragging] { cursor:grabbing; }\r\n.time-bubble { position:absolute; bottom:54px; padding:3px 6px; white-space:nowrap; border-radius:4px; background:var(--text); color:var(--surface); font-size:11px; line-height:16px; font-variant-numeric:tabular-nums; pointer-events:none; z-index:7; }\r\n.track-times { display:flex; justify-content:space-between; gap:8px; height:14px; color:var(--muted); font-size:10px; line-height:14px; font-variant-numeric:tabular-nums; white-space:nowrap; }\r\n.time { min-width:0; overflow:hidden; text-overflow:ellipsis; }\r\n.duration,.buffering { flex:none; }\r\n.duration:empty,.buffering:empty { display:none; }\r\n.control-row,.tools,.actions { display:flex; align-items:center; gap:6px; min-width:0; }\r\n.control-row { justify-content:space-between; margin-top:6px; }\r\n.icon { position:relative; width:32px; height:32px; min-height:32px; padding:0; display:grid; place-items:center; flex:none; background:transparent; color:var(--muted); }\r\n.icon svg { width:16px; height:16px; }\r\n.icon[data-action=marker][aria-pressed=true] { color:var(--focus); background:color-mix(in srgb,var(--focus) 12%,transparent); }\r\nbutton[data-tip]::after { content:attr(data-tip); position:absolute; bottom:calc(100% + 5px); left:50%; transform:translateX(-50%); width:max-content; max-width:160px; padding:3px 6px; border-radius:4px; background:var(--text); color:var(--surface); font-size:11px; line-height:16px; white-space:nowrap; pointer-events:none; opacity:0; transition:opacity 80ms ease-out; z-index:8; }\r\nbutton[data-tip]:hover::after,button[data-tip]:focus-visible::after { opacity:1; }\r\n.tools > :first-child::after { left:0; transform:none; }\r\n.actions > :last-child::after { left:auto; right:0; transform:none; }\r\n.submit { width:auto; display:flex; align-items:center; justify-content:center; gap:6px; padding:0 12px; border-radius:999px; background:var(--text); color:var(--surface); }\r\n.submit:not([data-status]) svg,.submit:not([data-status]) path { fill:currentColor; stroke:none; }\r\n.submit:not(:disabled):hover { opacity:.85; background:var(--text); }\r\n.submit[data-status=accepted] { background:var(--success); color:#fff; }\r\n.precision { width:64px; display:flex; justify-content:center; gap:4px; border-radius:999px; color:var(--muted); font-size:13px; line-height:20px; }\r\n.precision svg { width:16px; height:16px; stroke-width:1.5; }\r\n.precision-check { opacity:0; }\r\n.precision[aria-pressed=true] { color:var(--text); background:var(--control); }\r\n.precision[aria-pressed=true] rect { fill:var(--text); }\r\n.precision[aria-pressed=true] .precision-check { opacity:1; stroke:var(--surface); }\r\n.precision[data-tip]::after { width:220px; max-width:calc(100vw - 32px); white-space:normal; text-align:left; left:auto; right:0; transform:none; }\r\n.time-editor { display:flex; gap:10px; margin-top:8px; }\r\n.field { display:flex; align-items:center; gap:6px; min-width:0; flex:1; height:32px; background:var(--control); border-radius:6px; color:var(--muted); padding-left:8px; font-size:11px; }\r\n.field input { width:100%; height:32px; min-width:0; background:transparent; color:var(--text); border:1px solid transparent; border-radius:5px; padding:4px 6px 4px 0; font-size:12px; line-height:20px; font-variant-numeric:tabular-nums; caret-color:var(--focus); }\r\n.field input[aria-invalid=true] { border-color:var(--error); }\r\n.status { margin:8px 0 0; color:var(--error); }\r\n.status:empty { display:none; }\r\n::selection { background:var(--focus); color:#fff; }\r\n@media(prefers-color-scheme:dark) { :host { --surface:#232427; --text:#e4e5e7; --muted:#a5a8ad; --control:#2b2c2f; --hover:#36383c; --line:#2e3033; --focus:#3d9aff; --success:#3cbb72; --error:#ee5c61; } }\r\n@media(max-width:420px) { .controls { -webkit-user-select:none; user-select:none; padding:8px; } .control-row,.tools,.actions { gap:4px; } }\r\n@media(prefers-reduced-motion:reduce) { button > svg,button > img,.download-icon,.download-icon svg,.download-label,.toolbar,.toolbar .download,.toolbar .select { transition:none!important; } .toolbar .select { transform:none!important; } .band { transition-duration:60ms; } }\r\n';
+  var page_ui_default = ':host { --surface:#fff; --text:#292a2c; --muted:#62656b; --control:#f2f2f3; --hover:#ecedef; --line:#ecedef; --focus:#0285ff; --success:#199a4d; --error:#b8323c; font:13px/1.5 "Segoe UI","Microsoft YaHei UI",sans-serif; color:var(--text); color-scheme:light dark; }\r\n* { box-sizing:border-box; }\r\nbutton,input { font:inherit; color:inherit; }\r\nbutton { cursor:pointer; border:0; border-radius:6px; background:var(--control); min-height:36px; padding:6px 12px; transition:background 150ms ease-out,opacity 110ms ease-out; }\r\nbutton:hover { background:var(--hover); }\r\nbutton:disabled { opacity:.45; cursor:default; }\r\nbutton:focus-visible,input:focus-visible { outline:2px solid var(--focus); outline-offset:3px; }\r\nbutton > svg,button > img { width:18px; height:18px; display:block; pointer-events:none; transition:transform 110ms cubic-bezier(.2,.8,.2,1); }\r\nbutton:active > svg,button:active > img { transform:scale(.88); }\r\nsvg { fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }\r\n.toolbar { position:absolute; right:0; width:32px; height:32px; color:#fff; pointer-events:auto; opacity:1; font:400 13px/20px "Segoe UI","Microsoft YaHei UI",sans-serif; transition:width 110ms cubic-bezier(.2,.8,.2,1),opacity 180ms ease-out; }\r\n.toolbar[data-expanded] { width:156px; transition:width 200ms cubic-bezier(.16,1,.3,1),opacity 180ms ease-out; }\r\n.toolbar[data-dim] { opacity:.6; }\r\n.capsule { position:absolute; inset:0; border:1px solid #ffffff30; border-radius:999px; background:rgb(25 26 29 / .84); pointer-events:none; }\r\n.toolbar button { position:absolute; top:0; height:32px; min-height:32px; display:flex; align-items:center; justify-content:center; gap:6px; border-radius:999px; background:transparent; color:#fff; padding:0; white-space:nowrap; }\r\n.toolbar button:hover { background:#ffffff20; }\r\n.toolbar button:focus-visible { outline:1px solid currentColor; outline-offset:-3px; }\r\n.toolbar svg { width:16px; height:16px; flex:none; }\r\n.toolbar .download { right:0; width:82px; clip-path:inset(0 0 0 50px round 999px); transition:clip-path 110ms cubic-bezier(.2,.8,.2,1); }\r\n.toolbar[data-expanded] .download { clip-path:inset(0 round 999px); transition-duration:200ms; }\r\n.download-icon { position:absolute; top:8px; right:8px; display:grid; place-items:center; width:16px; height:16px; transition:transform 110ms cubic-bezier(.2,.8,.2,1); }\r\n.toolbar[data-expanded] .download-icon { transform:translateX(-44px); transition-duration:200ms; }\r\n.download-icon svg { width:16px; height:16px; fill:currentColor; stroke:none; transition:transform 110ms ease-out; }\r\n.toolbar .download:active svg { transform:scale(.88); }\r\n.download-label { position:absolute; top:6px; right:12px; width:26px; line-height:20px; white-space:nowrap; overflow:hidden; opacity:0; transition:opacity 90ms ease-out; }\r\n.toolbar[data-expanded] .download-label { opacity:1; transition:opacity 150ms ease-out 40ms; }\r\n.toolbar .select { right:84px; width:70px; opacity:0; transform:translateX(16px); pointer-events:none; transition:opacity 110ms ease-out,transform 110ms cubic-bezier(.2,.8,.2,1); }\r\n.toolbar .select span { flex:none; white-space:nowrap; }\r\n.toolbar[data-expanded] .select { opacity:1; transform:translateX(0); pointer-events:auto; transition-duration:180ms; }\r\n.toolbar[data-status="accepted"] .download svg { fill:none; stroke:currentColor; color:#81eaa7; }\r\n.toolbar[data-status="pending"] .download { opacity:.65; }\r\n.feedback { position:absolute; right:0; top:40px; width:max-content; max-width:min(300px,70vw); padding:8px 12px; border-radius:6px; background:var(--surface); color:var(--text); box-shadow:0 3px 12px #0003; }\r\n.feedback:empty { display:none; }\r\n.controls { -webkit-user-select:none; user-select:none; padding:8px 10px; background:var(--surface); color:var(--text); font:400 13px/20px "Segoe UI","Microsoft YaHei UI",sans-serif; }\r\n[hidden] { display:none!important; }\r\n.controls :is(input:not([type=range]),textarea,[contenteditable]:not([contenteditable=false])) { -webkit-user-select:text; user-select:text; }\r\n.timeline { width:auto; margin:0 16px; }\r\n.track { position:relative; height:50px; touch-action:none; }\r\n.ticks { position:absolute; inset:0 0 auto; height:14px; font-size:10px; line-height:11px; color:var(--muted); cursor:crosshair; }\r\n.ticks span { position:absolute; transform:translateX(-50%); }\r\n.ticks span:first-child { transform:none; }\r\n.ticks span::after { content:""; display:block; width:1px; height:3px; background:var(--muted); opacity:.45; margin:auto; }\r\n.rail,.band { position:absolute; top:30px; left:0; right:0; height:3px; border-radius:2px; pointer-events:none; }\r\n.rail { background:var(--line); }\r\n.band { top:28px; height:7px; background:var(--focus); opacity:0; transition:opacity 110ms ease-out; }\r\n.track input { position:absolute; top:24px; left:0; width:100%; height:24px; min-width:0; margin:0; appearance:none; background:transparent; cursor:crosshair; }\r\n.track input::-webkit-slider-runnable-track { height:3px; background:transparent; }\r\n.track input::-webkit-slider-thumb { appearance:none; width:8px; height:8px; border-radius:50%; background:transparent; margin-top:-2.5px; }\r\n.track .handle { position:absolute; top:4px; width:24px; height:24px; min-height:24px; padding:0; border-radius:4px; background:transparent; cursor:ew-resize; touch-action:none; z-index:3; }\r\n.handle.in { transform:translateX(-100%); }\r\n.handle svg { position:absolute; top:7px; width:14px; height:18px; stroke-width:1.8; color:var(--focus); fill:var(--surface); pointer-events:none; }\r\n.handle.in svg { right:-7px; }\r\n.handle.out svg { left:-7px; }\r\n/* Keep the 14px frame centered on timestampX; align cap tip with the existing full Marker. */\r\n.handle[data-shape=in] svg,.handle[data-shape=out] svg { height:14px; top:8.1542px; }\r\n.track .handle.single { width:40px; transform:translateX(-50%); cursor:ew-resize; }\r\n.track .handle.single svg { left:13px; right:auto; }\r\n.track .handle:hover,.track .handle:focus-visible,.track .handle[data-dragging] { background:color-mix(in srgb,var(--focus) 12%,transparent); }\r\n.track .handle.single[data-side=in] { cursor:w-resize; }\r\n.track .handle.single[data-side=out] { cursor:e-resize; }\r\n.track .handle.single:hover::before,.track .handle.single[data-dragging]::before { content:""; position:absolute; inset:0 50% 0 0; border-radius:4px; background:color-mix(in srgb,var(--focus) 20%,transparent); pointer-events:none; }\r\n.track .handle.single[data-side=out]::before { inset:0 0 0 50%; }\r\n/* The ruler seeks; marker grips and selection pan keep their own hit areas. */\r\n.playhead { position:absolute; top:28px; width:12px; height:22px; margin-left:-6px; pointer-events:none; z-index:4; }\r\n.playhead::after { content:""; position:absolute; left:6px; top:0; width:1px; height:22px; background:var(--text); }\r\n.playhead::before { content:""; position:absolute; left:3px; top:0; width:7px; height:5px; background:var(--text); clip-path:polygon(0 0,100% 0,50% 100%); }\r\n.track input:focus-visible { outline:none; }\r\n.track:has(input:focus-visible) .playhead::before,.track:has(input:focus-visible) .playhead::after { background:var(--focus); }\r\n.buffered { position:absolute; top:30px; left:0; right:0; height:3px; pointer-events:none; }\r\n.buffered span { position:absolute; height:100%; background:var(--muted); opacity:.3; }\r\n.track[data-selection] .rail { opacity:.45; }\r\n.track .range-body { position:absolute; top:40px; height:10px; min-height:10px; min-width:24px; transform:translateX(-50%); border-radius:3px; padding:0; background:color-mix(in srgb,var(--focus) 22%,transparent); cursor:grab; touch-action:none; z-index:2; }\r\n.track .range-body:hover,.track .range-body[data-dragging] { background:color-mix(in srgb,var(--focus) 45%,transparent); }\r\n.track .range-body::after { content:""; display:block; width:8px; height:2px; border-radius:2px; margin:auto; background:var(--focus); opacity:.65; }\r\n.track .range-body[data-dragging] { cursor:grabbing; }\r\n.time-bubble { position:absolute; bottom:54px; padding:3px 6px; white-space:nowrap; border-radius:4px; background:var(--text); color:var(--surface); font-size:11px; line-height:16px; font-variant-numeric:tabular-nums; pointer-events:none; z-index:7; }\r\n.track-times { display:flex; justify-content:space-between; gap:8px; height:14px; color:var(--muted); font-size:10px; line-height:14px; font-variant-numeric:tabular-nums; white-space:nowrap; }\r\n.time { min-width:0; overflow:hidden; text-overflow:ellipsis; }\r\n.duration,.buffering { flex:none; }\r\n.duration:empty,.buffering:empty { display:none; }\r\n.control-row,.tools,.actions { display:flex; align-items:center; gap:6px; min-width:0; }\r\n.control-row { justify-content:space-between; margin-top:6px; }\r\n.icon { position:relative; width:32px; height:32px; min-height:32px; padding:0; display:grid; place-items:center; flex:none; background:transparent; color:var(--muted); }\r\n.icon svg { width:16px; height:16px; }\r\n.icon[data-action=marker][aria-pressed=true] { color:var(--focus); background:color-mix(in srgb,var(--focus) 12%,transparent); }\r\nbutton[data-tip]::after { content:attr(data-tip); position:absolute; bottom:calc(100% + 6px); left:50%; transform:translateX(-50%); width:max-content; max-width:160px; padding:3px 6px; border-radius:4px; background:var(--text); color:var(--surface); font-size:11px; line-height:16px; white-space:nowrap; pointer-events:none; opacity:0; transition:opacity 80ms ease-out; z-index:8; }\r\nbutton[data-tip]:hover::after,button[data-tip]:focus-visible::after { opacity:1; }\r\n.tools > :first-child::after { left:0; transform:none; }\r\n.actions > :last-child::after { left:auto; right:0; transform:none; }\r\n.submit { width:auto; display:flex; align-items:center; justify-content:center; gap:6px; padding:0 12px; border-radius:999px; background:var(--text); color:var(--surface); }\r\n.submit:not([data-status]) svg,.submit:not([data-status]) path { fill:currentColor; stroke:none; }\r\n.submit:not(:disabled):hover { opacity:.85; background:var(--text); }\r\n.submit[data-status=accepted] { background:var(--success); color:#fff; }\r\n.precision { width:64px; display:flex; justify-content:center; gap:4px; border-radius:999px; color:var(--muted); font-size:13px; line-height:20px; }\r\n.precision svg { width:16px; height:16px; stroke-width:1.5; }\r\n.precision-check { opacity:0; }\r\n.precision[aria-pressed=true] { color:var(--text); background:var(--control); }\r\n.precision[aria-pressed=true] rect { fill:var(--text); }\r\n.precision[aria-pressed=true] .precision-check { opacity:1; stroke:var(--surface); }\r\n.precision[data-tip]::after { width:220px; max-width:calc(100vw - 32px); white-space:normal; text-align:left; left:auto; right:0; transform:none; }\r\n.shortcuts { position:fixed; inset:auto; margin:0; padding:12px; width:300px; max-width:calc(100vw - 24px); max-height:calc(100vh - 24px); overflow:auto; border:1px solid var(--line); border-radius:8px; background:var(--surface); color:var(--text); box-shadow:0 3px 12px #0003; font:13px/1.5 "Segoe UI","Microsoft YaHei UI",sans-serif; }\r\n.shortcuts:focus { outline:none; }\r\n.shortcuts header { display:flex; align-items:center; justify-content:space-between; gap:8px; }\r\n.shortcuts strong { font-size:13px; font-weight:600; }\r\n.shortcuts header button { display:grid; place-items:center; min-height:28px; width:28px; padding:0; background:transparent; }\r\n.shortcuts header button:hover { background:var(--hover); }\r\n.shortcuts header svg { width:14px; height:14px; }\r\n.shortcuts dl { display:grid; grid-template-columns:max-content minmax(0,1fr); align-items:baseline; gap:10px 12px; margin:12px 0 0; }\r\n.shortcuts dt,.shortcuts dd { margin:0; }\r\n.shortcuts dd { color:var(--muted); }\r\n.shortcuts kbd { font:11px/1.5 "Segoe UI",sans-serif; white-space:nowrap; border:1px solid var(--line); border-radius:3px; padding:2px 4px; background:var(--control); }\r\n:host(:has(.shortcuts:popover-open)) button[data-tip]::after { opacity:0; }\r\n.status { margin:8px 0 0; color:var(--error); }\r\n.status:empty { display:none; }\r\n::selection { background:var(--focus); color:#fff; }\r\n@media(prefers-color-scheme:dark) { :host { --surface:#232427; --text:#e4e5e7; --muted:#a5a8ad; --control:#2b2c2f; --hover:#36383c; --line:#2e3033; --focus:#3d9aff; --success:#3cbb72; --error:#ee5c61; } }\r\n@media(max-width:420px) { .controls { -webkit-user-select:none; user-select:none; padding:8px; } .control-row,.tools,.actions { gap:2px; } .tools .icon { width:28px; } .precision { width:auto; padding:0 4px; font-size:12px; } .submit { padding:0 6px; font-size:12px; gap:4px; } }\r\n@media(prefers-reduced-motion:reduce) { button > svg,button > img,.download-icon,.download-icon svg,.download-label,.toolbar,.toolbar .download,.toolbar .select { transition:none!important; } .toolbar .select { transform:none!important; } .band { transition-duration:60ms; } }\r\n';
 
   // ../assets/brand/tray/macos/ameow-menu-bar-white.svg
   var ameow_menu_bar_white_default = '<svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">\r\n<path d="M14.3649 4.58407C14.6302 4.48206 14.9167 4.44176 15.1208 4.64559C15.5697 5.09463 15.753 6.13568 15.8347 7.09481C15.9339 8.14652 15.8567 9.13938 15.5524 9.88778C15.7592 10.2041 15.9204 10.5184 16.0388 10.8097V10.8145C16.1573 10.8402 16.2746 10.8731 16.3864 10.9122C16.9371 11.0958 17.304 11.4022 17.447 11.8917C17.5898 12.3815 17.4269 12.9122 17.1208 13.1163C16.7943 13.3203 16.4066 13.2185 16.1413 12.9737C15.8351 13.2594 15.2223 13.1774 14.9978 12.8917C14.6712 13.0547 14.2428 12.9323 14.0388 12.6671C13.9634 12.5809 13.905 12.4839 13.862 12.3819H4.03096C3.98819 12.5312 3.91609 12.6667 3.81318 12.7696C3.56826 12.9941 3.2409 12.9524 3.03681 12.7891C2.996 13.1157 2.32288 13.2388 1.89424 12.9532C1.71044 13.2387 1.11848 13.2592 0.832713 12.9737C0.547192 12.7084 0.424261 12.2588 0.54658 11.8712C0.62827 11.4019 1.01671 11.0754 1.48603 10.8917C1.63765 10.8297 1.78949 10.7864 1.94111 10.7608C2.03821 10.5036 2.19666 10.203 2.41279 9.88973C2.01959 8.91402 2.0463 7.31603 2.26142 6.29891C2.38389 5.70707 2.60832 5.07393 2.85322 4.78817C3.07751 4.48232 3.3635 4.48217 3.62861 4.56356C4.85318 4.8697 6.0987 6.05401 6.99678 7.11532V7.13485C8.2009 6.88996 9.63005 6.89097 10.9362 7.13583C10.9436 7.13711 10.9513 7.13843 10.9587 7.13973L10.9567 7.13583C11.8751 6.09499 13.2424 5.0332 14.3649 4.58407ZM12.2019 9.05966C11.5081 9.05973 11.0185 9.49168 10.8347 10.0548C10.7122 10.4491 10.7329 10.7874 10.8962 11.0128C11.2843 11.4069 12.8555 11.4068 13.3249 11.0313C13.4675 10.9374 13.5087 10.7687 13.5495 10.5811C13.8148 10.1117 13.6105 9.64166 13.2839 9.39755C12.9777 9.11599 12.5692 9.04088 12.2019 9.05966ZM5.73213 9.05966C5.36472 9.0221 4.95617 9.1161 4.62959 9.37899C4.30312 9.64194 4.11917 10.1677 4.38447 10.6182C4.42529 10.8246 4.48679 10.9558 4.62959 11.0684C5.13987 11.4065 6.65008 11.3874 7.0583 11.0118C7.2214 10.8052 7.24215 10.4114 7.11982 10.0548C6.93616 9.51031 6.44629 9.05983 5.73213 9.05966Z" fill-rule="evenodd" clip-rule="evenodd" fill="white"/>\r\n</svg>\r\n';
@@ -35,14 +27,16 @@
   var marker_range_out_default = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M7 1.4875h3.2426a0.6485 0.6485 0 0 1 0.6486 0.6485v6.4853L7 12.5125Z" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>\r\n';
 
   // src/page.mjs
+  var english = (navigator.language || "").toLowerCase().startsWith("en");
+  var t = (zh, en) => english ? en : zh;
   var icons = {
     select: scissors_default,
     markerIn: marker_range_in_default,
     markerOut: marker_range_out_default,
     marker: '<svg viewBox="0 0 24 24"><path d="M7 3h10a1 1 0 0 1 1 1v10l-6 6-6-6V4a1 1 0 0 1 1-1Z"/></svg>',
-    edit: '<svg viewBox="0 0 24 24"><path d="m15 4 5 5M4 20l5-1L21 7a2 2 0 0 0-5-5L4 14Z"/></svg>',
     focus: '<svg viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/><path d="M9 9h6v6H9Z"/></svg>',
     whole: '<svg viewBox="0 0 24 24"><path d="M3 8V3h5m8 0h5v5M3 16v5h5m13-5v5h-5"/></svg>',
+    keyboard: '<svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M6 12h.01M10 12h.01M14 12h.01M18 12h.01M7 16h10"/></svg>',
     download: ameow_menu_bar_white_default,
     waiting: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
     play: '<svg viewBox="0 0 24 24"><path d="m8 5 11 7-11 7Z"/></svg>',
@@ -83,10 +77,10 @@
     return button;
   }
   function mediaForPage(boundVideo) {
-    const selector = location.hostname === "www.youtube.com" ? "#movie_player" : ".bpx-player-container";
-    const roots = [...document.querySelectorAll(selector)].filter((el) => el.getBoundingClientRect().width > 120);
+    const selector = location.hostname === "www.youtube.com" ? "#movie_player" : location.hostname === "www.xiaohongshu.com" ? "#noteContainer .player-el.xhsplayer-skin-default, .ameow-peek .player-el.xhsplayer-skin-default" : ".bpx-player-container";
+    const roots = [...document.querySelectorAll(selector)].filter((el) => el.getBoundingClientRect().width > 120 && el.checkVisibility({ checkVisibilityCSS: true, checkOpacity: true }));
     if (roots.length !== 1) return null;
-    const media = [...roots[0].querySelectorAll("video, bwp-video")].filter((el) => el.getBoundingClientRect().width > 120 && el.getBoundingClientRect().height > 60);
+    const media = [...roots[0].querySelectorAll("video, bwp-video")].filter((el) => el.getBoundingClientRect().width > 120 && el.getBoundingClientRect().height > 60 && el.checkVisibility({ checkVisibilityCSS: true, checkOpacity: true }));
     const video = media[0];
     const ready = video && (video.readyState >= 2 || video === boundVideo && video.readyState >= 1);
     return media.length === 1 && ready && Number.isFinite(video.duration) && video.duration > 0 ? { player: roots[0], video } : null;
@@ -250,6 +244,7 @@
       }
       if (this.precisionButton) this.precisionButton.disabled = true;
       this.status("");
+      this.updateFields();
       try {
         await request("page-submit", { key: bound.key, url: bound.url, clip: range, request_id: crypto.randomUUID() });
         if (this.binding?.key !== bound.key || this.stopped) return;
@@ -292,7 +287,7 @@
       this.returnFocus = this.root.activeElement || document.activeElement;
       this.savedScroll = { left: window.scrollX, top: window.scrollY, behavior: "instant" };
       const from = this.player.getBoundingClientRect();
-      this.sourceAspect = from.width / from.height;
+      this.sourceAspect = location.hostname === "www.xiaohongshu.com" && this.video.videoWidth > 0 && this.video.videoHeight > 0 ? this.video.videoWidth / this.video.videoHeight : from.width / from.height;
       this.placeholder = document.createElement("div");
       this.placeholder.style.cssText = "width:" + from.width + "px;height:" + from.height + "px;pointer-events:none";
       this.player.before(this.placeholder);
@@ -304,7 +299,7 @@
       this.dialog = document.createElement("dialog");
       this.dialog.className = "ameow-peek";
       this.restoreNativeFeedback();
-      this.dialog.setAttribute("aria-label", "Ameow \u9009\u62E9\u7247\u6BB5");
+      this.dialog.setAttribute("aria-label", t("Ameow \u9009\u62E9\u7247\u6BB5", "Ameow select a clip"));
       this.stage = document.createElement("div");
       this.stage.className = "ameow-peek-stage";
       this.dialog.append(this.stage);
@@ -315,7 +310,7 @@
       this.video.controls = false;
       const host = document.createElement("ameow-peek-controls");
       this.dialog.append(host);
-      this.controls = shadow(host, '<div class="controls"><div class="timeline"><div class="track"><div class="ticks" aria-hidden="true"></div><div class="rail"></div><div class="buffered" aria-hidden="true"></div><div class="band"></div><input type="range" min="0" step="0.001" aria-label="\u64AD\u653E\u4F4D\u7F6E"><button type="button" class="handle in" role="slider" aria-label="\u62D6\u52A8\u5165\u70B9" aria-valuemin="0"></button><button type="button" class="handle out" role="slider" aria-label="\u62D6\u52A8\u51FA\u70B9" aria-valuemin="0"></button><div class="playhead" aria-hidden="true"></div><button type="button" class="range-body" role="slider" aria-label="\u5E73\u79FB\u9009\u533A" aria-valuemin="0" hidden></button><output class="time-bubble" id="marker-time" role="tooltip" hidden></output></div><div class="track-times"><span class="time"></span><span class="buffering" role="status"></span><span class="duration" aria-live="polite"></span></div></div><div class="control-row"><div class="tools"></div><div class="actions"></div></div><div class="time-editor" hidden><label class="field">I<input id="clip-in" inputmode="decimal" placeholder="\u5165\u70B9" aria-label="\u5165\u70B9\u65F6\u95F4" autocomplete="off" spellcheck="false"></label><label class="field">O<input id="clip-out" inputmode="decimal" placeholder="\u51FA\u70B9" aria-label="\u51FA\u70B9\u65F6\u95F4" autocomplete="off" spellcheck="false"></label></div><p class="status" role="status" aria-live="polite"></p></div>');
+      this.controls = shadow(host, '<div class="controls"><div class="timeline"><div class="track"><div class="ticks" aria-hidden="true"></div><div class="rail"></div><div class="buffered" aria-hidden="true"></div><div class="band"></div><input type="range" min="0" step="0.001" aria-label="\u64AD\u653E\u4F4D\u7F6E"><button type="button" class="handle in" role="slider" aria-label="\u62D6\u52A8\u5165\u70B9" aria-valuemin="0"></button><button type="button" class="handle out" role="slider" aria-label="\u62D6\u52A8\u51FA\u70B9" aria-valuemin="0"></button><div class="playhead" aria-hidden="true"></div><button type="button" class="range-body" role="slider" aria-label="\u5E73\u79FB\u9009\u533A" aria-valuemin="0" hidden></button><output class="time-bubble" id="marker-time" role="tooltip" hidden></output></div><div class="track-times"><span class="time"></span><span class="buffering" role="status"></span><span class="duration" aria-live="polite"></span></div></div><div class="control-row"><div class="tools"></div><div class="actions"></div></div><p class="status" role="status" aria-live="polite"></p></div>');
       for (const event of ["click", "pointerdown"]) this.controls.addEventListener(event, (e) => e.stopPropagation());
       const tools = this.controls.querySelector(".tools"), actions = this.controls.querySelector(".actions");
       const tool = (root, action, label, svg, className = "icon") => {
@@ -323,50 +318,31 @@
         button.dataset.tip = label;
         return button;
       };
-      this.playButton = tool(tools, "play", "\u64AD\u653E", icons.play);
+      this.playButton = tool(tools, "play", t("\u64AD\u653E", "Play"), icons.play);
       this.playButton.onclick = () => this.togglePlayback();
-      this.markerButton = tool(tools, "marker", "\u6DFB\u52A0\u6807\u8BB0", icons.marker);
+      this.markerButton = tool(tools, "marker", t("\u6DFB\u52A0\u6807\u8BB0", "Add marker"), icons.marker);
       this.markerButton.onclick = () => this.markCurrent();
-      const edit = tool(tools, "edit", "\u7F16\u8F91\u9009\u533A\u65F6\u95F4", icons.edit);
-      edit.setAttribute("aria-expanded", "false");
-      edit.onclick = () => {
-        const editor = this.controls.querySelector(".time-editor");
-        editor.hidden = !editor.hidden;
-        edit.setAttribute("aria-expanded", String(!editor.hidden));
-        this.fitPeek();
-        if (!editor.hidden) this.inputs[0].focus({ preventScroll: true });
-        else edit.focus({ preventScroll: true });
-      };
-      tool(tools, "view", "\u805A\u7126\u9009\u533A", icons.focus, "icon view-toggle");
-      this.precisionButton = iconButton(actions, "precise", "\u7CBE\u786E\u5207\u5206", icons.precision + "<span>\u7CBE\u786E</span>", "icon precision");
+      tool(tools, "view", t("\u805A\u7126\u9009\u533A", "Focus selection"), icons.focus, "icon view-toggle");
+      this.setupShortcuts(tools, tool);
+      this.precisionButton = iconButton(actions, "precise", t("\u7CBE\u786E\u5207\u5206", "Precise cutting"), icons.precision + "<span>" + t("\u7CBE\u786E", "Precise") + "</span>", "icon precision");
       this.precisionButton.onclick = () => {
         if (this.pending) return;
         this.precise = !this.precise;
         this.updateFields();
         this.status("");
       };
-      this.submitButton = tool(actions, "submit", "\u4E0B\u8F7D\u7247\u6BB5", icons.download + '<span aria-hidden="true">\u4E0B\u8F7D</span>', "icon submit");
+      this.submitButton = tool(actions, "submit", t("\u4E0B\u8F7D\u7247\u6BB5", "Download clip"), icons.download + '<span aria-hidden="true">' + t("\u4E0B\u8F7D", "Download") + "</span>", "icon submit");
       this.submitButton.onclick = () => void this.submit({ ...this.draft, ...this.precise ? { precise: true } : {} });
       this.seek = this.controls.querySelector(".track input");
       this.seek.max = this.video.duration;
+      this.seek.setAttribute("aria-label", t("\u64AD\u653E\u4F4D\u7F6E", "Playback position"));
+      this.seek.setAttribute("aria-description", t("\u65B9\u5411\u952E\u8C03\u6574\u64AD\u653E\u4F4D\u7F6E", "Use arrow keys to adjust playback position"));
+      this.seek.onfocus = () => this.showTrackTime(this.video.currentTime * 1e3);
       this.seek.oninput = () => {
         this.video.currentTime = Number(this.seek.value);
         this.updatePlayback();
       };
-      this.inputs = [this.controls.querySelector("#clip-in"), this.controls.querySelector("#clip-out")];
       this.sliders = [...this.controls.querySelectorAll(".handle")];
-      for (const [index, key] of ["start_ms", "end_ms"].entries()) {
-        const input = this.inputs[index];
-        input.value = formatTime(this.draft[key]);
-        input.oninput = () => {
-          this.draft[key] = parseTime(input.value);
-          this.updateFields();
-          this.status("");
-        };
-        input.onchange = () => {
-          if (this.draft[key] !== null) input.value = formatTime(this.draft[key]);
-        };
-      }
       this.setupMarkerHandles();
       this.setupTimeline();
       this.controls.addEventListener("keydown", (e) => {
@@ -374,9 +350,19 @@
       });
       this.handledKeys = /* @__PURE__ */ new Set();
       this.keydown = (e) => {
-        if (!this.controls) return;
+        if (!this.controls || !this.dialog?.open || this.closing || e.isComposing) return;
         const path = e.composedPath(), editing = path.some((n) => n instanceof Element && n.matches("input:not([type=range]),textarea,select,[contenteditable]:not([contenteditable='false']),[role='textbox']"));
         const interactive = path.some((n) => n instanceof Element && n.matches("input,button,select,textarea,a[href],[contenteditable]:not([contenteditable='false']),[role='button'],[role='slider']"));
+        if (this.shortcuts.matches(":popover-open")) {
+          this.handledKeys.add(e.code);
+          e.stopImmediatePropagation();
+          if (e.key === "Escape") {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            this.closeShortcuts();
+          }
+          return;
+        }
         if (e.key === "Escape") {
           e.preventDefault();
           e.stopImmediatePropagation();
@@ -386,6 +372,11 @@
           e.preventDefault();
           e.stopImmediatePropagation();
           this.setMark(e.key.toLowerCase() === "i" ? "start_ms" : "end_ms");
+        } else if (!editing && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "f") {
+          this.handledKeys.add(e.code);
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          this.toggleView();
         } else if (!interactive && e.key === " " && !e.ctrlKey && !e.metaKey && !e.altKey) {
           this.handledKeys.add(e.code);
           e.preventDefault();
@@ -432,32 +423,83 @@
       if (!this.submitButton) return;
       if (state) this.submitButton.dataset.status = state;
       else delete this.submitButton.dataset.status;
-      const label = state === "pending" ? "\u7B49\u5F85 Ameow \u53D7\u7406\u2026" : state === "accepted" ? "\u5DF2\u52A0\u5165\u961F\u5217" : "\u4E0B\u8F7D\u7247\u6BB5";
+      const label = state === "pending" ? t("\u7B49\u5F85 Ameow \u53D7\u7406\u2026", "Waiting for Ameow to accept\u2026") : state === "accepted" ? t("\u5DF2\u52A0\u5165\u961F\u5217", "Added to queue") : t("\u4E0B\u8F7D\u7247\u6BB5", "Download clip");
       this.submitButton.setAttribute("aria-label", label);
       this.submitButton.dataset.tip = label;
-      this.submitButton.innerHTML = (state === "pending" ? icons.waiting : state === "accepted" ? icons.check : icons.download) + '<span aria-hidden="true">\u4E0B\u8F7D</span>';
+      this.submitButton.innerHTML = (state === "pending" ? icons.waiting : state === "accepted" ? icons.check : icons.download) + '<span aria-hidden="true">' + t("\u4E0B\u8F7D", "Download") + "</span>";
     }
     markCurrent() {
       if (this.draft.start_ms !== null || this.draft.end_ms !== null) this.clearSelection();
       else this.setDraft(Math.round(this.video.currentTime * 1e3), null);
     }
+    setupShortcuts(tools, tool) {
+      const label = t("\u5FEB\u6377\u952E", "Keyboard shortcuts");
+      const button = this.shortcutsButton = tool(tools, "shortcuts", label, icons.keyboard);
+      button.setAttribute("aria-expanded", "false");
+      button.setAttribute("aria-controls", "peek-shortcuts");
+      const panel = this.shortcuts = document.createElement("section");
+      panel.id = "peek-shortcuts";
+      panel.className = "shortcuts";
+      panel.popover = "auto";
+      panel.tabIndex = -1;
+      panel.setAttribute("role", "dialog");
+      panel.setAttribute("aria-labelledby", "shortcuts-title");
+      panel.innerHTML = '<header><strong id="shortcuts-title">' + label + '</strong><button type="button" aria-label="' + t("\u5173\u95ED\u5FEB\u6377\u952E\u5E2E\u52A9", "Close keyboard shortcuts") + '"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button></header><dl></dl>';
+      for (const [key, description] of [
+        ["Space", t("\u64AD\u653E / \u6682\u505C", "Play / pause")],
+        ["I / O", t("\u8BBE\u7F6E\u5165\u70B9 / \u51FA\u70B9", "Set in / out point")],
+        ["F", t("\u805A\u7126 / \u8FD4\u56DE\u5B8C\u6574\u65F6\u95F4\u8F74", "Focus / full timeline")],
+        ["\u2190 / \u2192", t("\u5FAE\u8C03\u7126\u70B9\u6807\u8BB0\u6216\u9009\u533A 1 ms", "Move focused marker or selection by 1 ms")],
+        ["Shift + \u2190 / \u2192", t("\u5FAE\u8C03\u7126\u70B9\u6807\u8BB0\u6216\u9009\u533A 1 s", "Move focused marker or selection by 1 s")],
+        ["Home / End", t("\u7126\u70B9\u6807\u8BB0\u6216\u9009\u533A\u79FB\u5230\u8FB9\u754C", "Move focused marker or selection to an edge")],
+        ["Esc", t("\u5173\u95ED\u5E2E\u52A9 / \u5173\u95ED\u6D6E\u7A97", "Close help / close Peek")]
+      ]) {
+        const term = document.createElement("dt"), text = document.createElement("dd"), kbd = document.createElement("kbd");
+        kbd.textContent = key;
+        term.append(kbd);
+        text.textContent = description;
+        panel.querySelector("dl").append(term, text);
+      }
+      this.controls.append(panel);
+      panel.querySelector("button").onclick = () => this.closeShortcuts();
+      panel.addEventListener("beforetoggle", (event) => button.setAttribute("aria-expanded", String(event.newState === "open")));
+      button.onclick = () => {
+        if (panel.matches(":popover-open")) this.closeShortcuts();
+        else {
+          panel.showPopover();
+          this.positionShortcuts();
+          panel.focus({ preventScroll: true });
+          this.hideTrackTime();
+        }
+      };
+    }
+    positionShortcuts() {
+      const panel = this.shortcuts;
+      if (!panel?.matches(":popover-open")) return;
+      const anchor = this.shortcutsButton.getBoundingClientRect(), bounds = panel.getBoundingClientRect();
+      panel.style.left = Math.max(12, Math.min(innerWidth - bounds.width - 12, anchor.left)) + "px";
+      const top = anchor.top - bounds.height - 8;
+      panel.style.top = Math.max(12, Math.min(innerHeight - bounds.height - 12, top >= 12 ? top : anchor.bottom + 8)) + "px";
+    }
+    closeShortcuts() {
+      this.shortcuts.hidePopover();
+      this.shortcutsButton.setAttribute("aria-expanded", "false");
+      this.shortcutsButton.focus({ preventScroll: true });
+    }
     setDraft(start, end) {
       this.draft = { start_ms: start, end_ms: end };
       this.status("");
-      if (this.inputs) {
-        this.inputs[0].value = formatTime(start);
-        this.inputs[1].value = formatTime(end);
-      }
       this.updateFields();
     }
     setupMarkerHandles() {
       const keys = ["start_ms", "end_ms"];
       for (const [index, handle] of this.sliders.entries()) {
         handle.innerHTML = icons.marker;
+        handle.setAttribute("aria-label", index ? t("\u62D6\u52A8\u51FA\u70B9", "Move out point") : t("\u62D6\u52A8\u5165\u70B9", "Move in point"));
         handle.setAttribute("aria-describedby", "marker-time");
         const time = () => this.draft[keys[index]];
         const tip = () => {
-          if (time() !== null) this.showTrackTime(time(), (index ? "\u51FA\u70B9 " : "\u5165\u70B9 ") + formatTime(time()));
+          if (time() !== null) this.showTrackTime(time(), (index ? t("\u51FA\u70B9 ", "Out ") : t("\u5165\u70B9 ", "In ")) + formatTime(time()));
         };
         handle.onfocus = tip;
         handle.onpointerenter = handle.onpointermove = (e) => {
@@ -477,7 +519,7 @@
           const selected = single ? e.clientX < rect.left + rect.width / 2 ? 0 : 1 : index;
           const from = this.draft[keys[index]], other = this.draft[keys[1 - index]], origin = e.clientX;
           const width = this.controls.querySelector(".track").clientWidth, span = this.timeWindow().span * 1e3;
-          const show = (value) => this.showTrackTime(value, (selected ? "\u51FA\u70B9 " : "\u5165\u70B9 ") + formatTime(value));
+          const show = (value) => this.showTrackTime(value, (selected ? t("\u51FA\u70B9 ", "Out ") : t("\u5165\u70B9 ", "In ")) + formatTime(value));
           handle.dataset.side = selected ? "out" : "in";
           this.draggingTrack = true;
           handle.dataset.dragging = "";
@@ -509,7 +551,7 @@
               const edited = this.draft[keys[selected]] === null ? index : selected;
               this.sliders[edited].focus({ preventScroll: true });
               const value = this.draft[keys[edited]];
-              this.showTrackTime(value, (edited ? "\u51FA\u70B9 " : "\u5165\u70B9 ") + formatTime(value));
+              this.showTrackTime(value, (edited ? t("\u51FA\u70B9 ", "Out ") : t("\u5165\u70B9 ", "In ")) + formatTime(value));
             } else this.hideTrackTime();
           };
           handle.onpointerup = handle.onpointercancel = handle.onlostpointercapture = finish;
@@ -531,6 +573,7 @@
     }
     setupTimeline() {
       const track = this.controls.querySelector(".track"), body = this.controls.querySelector(".range-body");
+      body.setAttribute("aria-label", t("\u5E73\u79FB\u9009\u533A", "Move selection"));
       const at = (x) => Math.max(0, Math.min(this.video.duration * 1e3, (this.timeWindow().start + (x - track.getBoundingClientRect().left) / track.clientWidth * this.timeWindow().span) * 1e3));
       track.addEventListener("pointermove", (e) => {
         if (!this.draggingTrack && !e.target.closest(".handle")) this.showTrackTime(at(e.clientX));
@@ -539,17 +582,9 @@
         if (!this.draggingTrack) this.hideTrackTime();
       });
       track.addEventListener("pointerdown", (e) => {
-        if (e.target === track || e.target.matches(".ticks,.ticks span")) {
-          this.video.currentTime = at(e.clientX) / 1e3;
-          this.updatePlayback();
-        }
-      });
-      const head = this.controls.querySelector(".playhead");
-      head.onpointerdown = (e) => {
-        if (e.button !== 0) return;
+        if (e.button !== 0 || !(e.target === track || e.target.closest(".ticks"))) return;
         e.preventDefault();
-        e.stopPropagation();
-        head.setPointerCapture(e.pointerId);
+        track.setPointerCapture(e.pointerId);
         this.seek.focus({ preventScroll: true });
         const seekTo = (x) => {
           this.seek.value = at(x) / 1e3;
@@ -559,19 +594,17 @@
         };
         this.draggingTrack = true;
         seekTo(e.clientX);
-        head.onpointermove = (event) => seekTo(event.clientX);
-        head.onpointerup = head.onpointercancel = head.onlostpointercapture = () => {
-          head.onpointermove = null;
+        track.onpointermove = (event) => seekTo(event.clientX);
+        track.onpointerup = track.onpointercancel = track.onlostpointercapture = () => {
+          track.onpointermove = track.onpointerup = track.onpointercancel = track.onlostpointercapture = null;
           this.draggingTrack = false;
           this.hideTrackTime();
         };
-      };
+      });
       const shift = (delta, start = this.draft.start_ms, end = this.draft.end_ms) => {
         if (start === null || end === null || end <= start) return;
         delta = Math.max(-start, Math.min(Math.round(this.video.duration * 1e3) - end, Math.round(delta)));
         this.draft = { start_ms: start + delta, end_ms: end + delta };
-        this.inputs[0].value = formatTime(this.draft.start_ms);
-        this.inputs[1].value = formatTime(this.draft.end_ms);
         this.updateFields();
         this.showTrackTime((this.draft.start_ms + this.draft.end_ms) / 2, formatTime(this.draft.start_ms) + " \u2013 " + formatTime(this.draft.end_ms));
       };
@@ -601,24 +634,26 @@
           shift(move);
         }
       };
-      this.controls.querySelector(".view-toggle").onclick = () => {
-        if (this.view) this.view = null;
-        else {
-          const single = this.draft.start_ms === null || this.draft.end_ms === null;
-          const anchor = (this.draft.start_ms ?? this.draft.end_ms) / 1e3;
-          const length = single ? 0 : (this.draft.end_ms - this.draft.start_ms) / 1e3, padding = single ? 4 : Math.max(0.75, length * 0.6);
-          const span = Math.min(this.video.duration, length + padding * 2);
-          const start = Math.max(0, Math.min(this.video.duration - span, anchor - padding));
-          this.view = { start, end: start + span };
-        }
-        this.hideTrackTime();
-        this.updateFields();
-        this.updatePlayback();
-      };
+      this.controls.querySelector(".view-toggle").onclick = () => this.toggleView();
       this.seek.addEventListener("input", () => this.showTrackTime(Number(this.seek.value) * 1e3));
       this.seek.addEventListener("change", () => this.hideTrackTime());
       this.controls.addEventListener("focusout", () => queueMicrotask(() => this.hideTrackTime()));
       this.renderTicks();
+    }
+    toggleView() {
+      if (!this.controls || this.controls.querySelector(".view-toggle").disabled) return;
+      if (this.view) this.view = null;
+      else {
+        const single = this.draft.start_ms === null || this.draft.end_ms === null;
+        const anchor = (this.draft.start_ms ?? this.draft.end_ms) / 1e3;
+        const length = single ? 0 : (this.draft.end_ms - this.draft.start_ms) / 1e3, padding = single ? 4 : Math.max(0.75, length * 0.6);
+        const span = Math.min(this.video.duration, length + padding * 2);
+        const start = Math.max(0, Math.min(this.video.duration - span, anchor - padding));
+        this.view = { start, end: start + span };
+      }
+      this.hideTrackTime();
+      this.updateFields();
+      this.updatePlayback();
     }
     timeWindow() {
       const start = this.view?.start ?? 0, end = this.view?.end ?? this.video.duration;
@@ -663,7 +698,7 @@
       const active = this.controls?.activeElement;
       if (active?.matches(".handle") && !active.hidden && !this.closing) {
         const out = active.classList.contains("out"), value = this.draft[out ? "end_ms" : "start_ms"];
-        this.showTrackTime(value, (out ? "\u51FA\u70B9 " : "\u5165\u70B9 ") + formatTime(value));
+        this.showTrackTime(value, (out ? t("\u51FA\u70B9 ", "Out ") : t("\u5165\u70B9 ", "In ")) + formatTime(value));
         return;
       }
       const bubble = this.controls?.querySelector(".time-bubble");
@@ -689,6 +724,7 @@
         this.dialog.style.setProperty("height", height + footer + "px", "important");
       }
       this.renderTicks();
+      this.positionShortcuts();
     }
     closePeek(immediate = false) {
       if (!this.dialog || this.closing && !immediate) return;
@@ -732,6 +768,8 @@
       this.dialog.remove();
       this.dialog = null;
       this.controls = null;
+      this.shortcuts = null;
+      this.shortcutsButton = null;
       this.submitButton = null;
       this.closing = false;
       this.syncNativeFeedback();
@@ -755,13 +793,11 @@
     setMark(key, value = Math.round(this.video.currentTime * 1e3)) {
       this.draft[key] = value;
       this.status("");
-      if (this.inputs) this.inputs[key === "start_ms" ? 0 : 1].value = formatTime(value);
       this.updateFields();
     }
     clearSelection() {
       this.view = null;
       this.draft = { start_ms: null, end_ms: null };
-      for (const input of this.inputs) input.value = "";
       this.updateFields();
       this.updatePlayback();
       this.hideTrackTime();
@@ -778,12 +814,13 @@
       this.submitButton.disabled = !valid || this.pending || this.submitButton.dataset.status === "accepted";
       this.precisionButton.disabled = this.pending;
       this.precisionButton.setAttribute("aria-pressed", String(this.precise));
-      this.precisionButton.dataset.tip = this.precise ? "\u7CBE\u786E\u5207\u5206\uFF0C\u6309\u6240\u9009\u65F6\u95F4\u5904\u7406\uFF0C\u53EF\u80FD\u9700\u8981\u91CD\u65B0\u7F16\u7801\uFF0C\u8017\u65F6\u66F4\u957F\u3002" : "\u5FEB\u901F\u5207\u5206\uFF0C\u8FB9\u754C\u53EF\u80FD\u504F\u79FB\u5230\u9644\u8FD1\u5173\u952E\u5E27\u3002";
+      this.precisionButton.dataset.tip = this.precise ? t("\u5173\u95ED\u7CBE\u786E\u5207\u5206\uFF0C\u6539\u7528\u5FEB\u901F\u5207\u5206\uFF0C\u8FB9\u754C\u53EF\u80FD\u7565\u6709\u504F\u79FB\u3002", "Turn off precise cutting and use fast cutting; boundaries may shift slightly.") : t("\u5F00\u542F\u7CBE\u786E\u5207\u5206\uFF0C\u6309\u6240\u9009\u65F6\u95F4\u91CD\u65B0\u7F16\u7801\uFF0C\u53EF\u80FD\u8017\u65F6\u66F4\u957F\u3002", "Turn on precise cutting to re-encode the selected times; this may take longer.");
+      if (this.pending) this.precisionButton.dataset.tip = t("\u6B63\u5728\u7B49\u5F85 Ameow \u53D7\u7406\uFF0C\u6682\u65F6\u65E0\u6CD5\u66F4\u6539\u5207\u5206\u6A21\u5F0F\u3002", "Waiting for Ameow to accept; the cutting mode cannot be changed yet.");
       this.precisionButton.setAttribute("aria-description", this.precisionButton.dataset.tip);
       const marked = this.draft.start_ms !== null || this.draft.end_ms !== null;
       this.markerButton.setAttribute("aria-pressed", String(marked));
-      this.markerButton.setAttribute("aria-label", marked ? "\u6E05\u9664\u6807\u8BB0" : "\u6DFB\u52A0\u6807\u8BB0");
-      this.markerButton.dataset.tip = marked ? "\u6E05\u9664\u6807\u8BB0" : "\u6DFB\u52A0\u6807\u8BB0";
+      this.markerButton.setAttribute("aria-label", marked ? t("\u6E05\u9664\u6807\u8BB0", "Clear markers") : t("\u6DFB\u52A0\u6807\u8BB0", "Add marker"));
+      this.markerButton.dataset.tip = marked ? t("\u6E05\u9664\u6807\u8BB0", "Clear markers") : t("\u6DFB\u52A0\u6807\u8BB0", "Add marker");
       const duration = this.controls.querySelector(".duration");
       duration.textContent = valid ? formatTime(this.draft.end_ms - this.draft.start_ms) : "";
       for (const [index, key] of ["start_ms", "end_ms"].entries()) {
@@ -800,19 +837,17 @@
         handle.classList.toggle("single", this.draft.start_ms === null || this.draft.end_ms === null);
         handle.setAttribute("aria-valuemax", Math.round(this.video.duration * 1e3));
         handle.setAttribute("aria-valuenow", ms);
-        handle.setAttribute("aria-valuetext", this.draft[key] === null ? "\u672A\u8BBE\u7F6E" : formatTime(ms));
+        handle.setAttribute("aria-valuetext", this.draft[key] === null ? t("\u672A\u8BBE\u7F6E", "Not set") : formatTime(ms));
         handle.toggleAttribute("data-unset", this.draft[key] === null);
-        const value = this.draft[key];
-        const reversed = this.draft.start_ms !== null && this.draft.end_ms !== null && this.draft.end_ms <= this.draft.start_ms;
-        this.inputs[index].setAttribute("aria-invalid", this.inputs[index].value && (value === null || value > this.video.duration * 1e3 || reversed) ? "true" : "false");
       }
       const toggle = this.controls.querySelector(".view-toggle");
-      toggle.disabled = this.draft.start_ms === null && this.draft.end_ms === null;
-      const label = this.view ? "\u663E\u793A\u5168\u7247" : valid ? "\u805A\u7126\u9009\u533A" : "\u805A\u7126\u6807\u8BB0";
+      toggle.disabled = !this.view && (!marked || this.draft.start_ms !== null && this.draft.end_ms !== null && !valid);
+      const label = this.view ? t("\u8FD4\u56DE\u5B8C\u6574\u65F6\u95F4\u8F74", "Return to full timeline") : valid ? t("\u805A\u7126\u9009\u533A", "Focus selection") : t("\u805A\u7126\u6807\u8BB0", "Focus marker");
       toggle.innerHTML = this.view ? icons.whole : icons.focus;
       toggle.setAttribute("aria-label", label);
-      toggle.dataset.tip = label;
+      toggle.dataset.tip = toggle.disabled ? marked ? t("\u5148\u8BBE\u7F6E\u6709\u6548\u9009\u533A", "Set a valid selection first") : t("\u5148\u6DFB\u52A0\u6807\u8BB0", "Add a marker first") : label;
       toggle.setAttribute("aria-pressed", String(Boolean(this.view)));
+      toggle.setAttribute("aria-keyshortcuts", "F");
       const window2 = this.timeWindow();
       this.seek.min = window2.start;
       this.seek.max = window2.end;
@@ -838,15 +873,16 @@
     updatePlayback() {
       if (!this.controls) return;
       if (this.controls.activeElement !== this.seek) this.seek.value = this.video.currentTime;
+      this.seek.setAttribute("aria-valuetext", formatTime(this.video.currentTime * 1e3));
       this.playButton.innerHTML = this.video.paused ? icons.play : icons.pause;
-      this.playButton.setAttribute("aria-label", this.video.paused ? "\u64AD\u653E" : "\u6682\u505C");
-      this.playButton.dataset.tip = this.video.paused ? "\u64AD\u653E" : "\u6682\u505C";
+      this.playButton.setAttribute("aria-label", this.video.paused ? t("\u64AD\u653E", "Play") : t("\u6682\u505C", "Pause"));
+      this.playButton.dataset.tip = this.video.paused ? t("\u64AD\u653E", "Play") : t("\u6682\u505C", "Pause");
       this.renderTicks();
       const position = this.trackPercent(this.video.currentTime * 1e3), head = this.controls.querySelector(".playhead");
       head.hidden = position < 0 || position > 100;
       head.style.left = position + "%";
       const waiting = this.video.seeking || !this.video.paused && this.video.readyState < 3;
-      this.controls.querySelector(".buffering").textContent = waiting ? "\u7F13\u51B2\u4E2D\u2026" : "";
+      this.controls.querySelector(".buffering").textContent = waiting ? t("\u7F13\u51B2\u4E2D\u2026", "Buffering\u2026") : "";
       const buffered = this.controls.querySelector(".buffered");
       buffered.replaceChildren();
       for (let i = 0; i < this.video.buffered.length; i++) {
@@ -859,7 +895,7 @@
       }
       const time = this.controls.querySelector(".time");
       time.textContent = (position < 0 ? "\u25C0 " : position > 100 ? "\u25B6 " : "") + formatTime(this.video.currentTime * 1e3) + " / " + formatTime(this.video.duration * 1e3);
-      time.setAttribute("aria-label", position < 0 ? "\u64AD\u653E\u4F4D\u7F6E\u5728\u89C6\u7A97\u4E4B\u524D" : position > 100 ? "\u64AD\u653E\u4F4D\u7F6E\u5728\u89C6\u7A97\u4E4B\u540E" : "\u64AD\u653E\u4F4D\u7F6E");
+      time.setAttribute("aria-label", position < 0 ? t("\u64AD\u653E\u4F4D\u7F6E\u5728\u89C6\u7A97\u4E4B\u524D", "Playback position is before the view") : position > 100 ? t("\u64AD\u653E\u4F4D\u7F6E\u5728\u89C6\u7A97\u4E4B\u540E", "Playback position is after the view") : t("\u64AD\u653E\u4F4D\u7F6E", "Playback position"));
     }
     unbind() {
       this.closePeek(true);

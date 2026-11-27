@@ -17,10 +17,28 @@ Read the queue message and check the stage:
 | Link rejected | Use a [supported public media entry](../supported-sites/). Remove video playlist or series parameters. |
 | Component preparation failed | Open [Components](../desktop/settings/#components) and follow the retry or recommended-version recovery prompt. |
 | Request rejected or rate-limited (403 / 429) | Wait before retrying. A status code alone does not establish the cause; site, permission, or network changes can affect results. |
+| No format | The site offers no video format matching the selected quality. Change quality and submit the link again; retrying the original task retains its quality and does not resize the source. |
 | Saving failed | Check that the task's original folder exists, is writable, and has enough space. Submit a new task to use a different folder. |
 | Cleanup problem while quitting | Follow the app's wait or cleanup-retry prompt. Collapsing the view does not cancel quitting. |
 
 Retry a failed or partial task when offered; its original quality and folder are retained. Content requiring login or regional access may be unavailable even if it plays in a browser.
+
+<span id="component-updates"></span>
+
+## Component update problems
+
+A failed update check means no usable result was obtained for that check. If downloading or activating a newer component fails, that update has not completed. Check the actual version on the affected component’s row to see which version is currently in use.
+
+Video resolution, extraction, or download failures in the queue happen while a downloader handles media and need separate troubleshooting.
+
+<Steps>
+1. Open [Components](../desktop/settings/#components) and read the **actual version** on the affected component’s row. The update button’s tooltip names the target version. Finding an update or successfully updating another component does not mean this one has switched.
+2. Follow the error message and check the network or proxy before checking or updating manually again. For 403 / 429, wait for any retry time supplied by the service; otherwise try later. Different services can return these codes, so they alone do not establish GitHub rate limiting. Repeated clicks do not resolve a refusal.
+3. If it still fails, use the page’s existing copy-diagnostics button. Diagnostics can include the component, target and actual versions, and available failure stage, service, and HTTP status; unavailable information stays unknown. Include the time and steps, without adding cookies, tokens, or raw private responses.
+4. If the problem started after selecting a newer version, choose **Restore recommended** from that component’s more menu. This restores only that component and preserves the other downloader’s selection. A healthy recommended cache can be reused; missing files still need to be obtained and verified. If recovery fails, keep the diagnostics instead of clearing app data or replacing programs from unknown sources.
+</Steps>
+
+If the component has the expected version but media still fails, return to [Download problems](#downloads). Updating a component does not guarantee access past site login, regional, or content restrictions.
 
 <span id="files"></span>
 
@@ -36,7 +54,7 @@ Retry a failed or partial task when offered; its original quality and folder are
 
 ## No sound in an editor
 
-If a player has sound but an editor detects no audio track, keep the original and check the editor version, container, and codecs. In one Windows Resolve Studio case, an H.264 + Opus MKV had audio after remuxing to MP4 without re-encoding. Results vary with the file and editor version; Ameow does not perform this conversion automatically.
+If a player has sound but an editor detects no audio track, keep the original and check the editor version, container, and audio and video codecs; changing only the file extension does not convert the media. Standard SDR videos use MP4, H.264, and AAC for their default compatible output. HDR and older files may use other formats. Import support still depends on the actual file and editor version.
 
 <span id="mac"></span>
 

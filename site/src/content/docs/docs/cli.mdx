@@ -66,10 +66,10 @@ ameow-cli --help
 <TabItem label="Windows">
 <div>
 
-PowerShell 会询问链接：
+将 `$Url` 替换为实际媒体链接，再运行：
 
 ~~~powershell
-$Url = Read-Host '公开媒体 URL'
+$Url = 'https://example.com/media' # 换成实际媒体 URL
 $Receipt = & $Cli --json submit $Url | ConvertFrom-Json
 $Receipt
 ~~~
@@ -107,7 +107,7 @@ task='INSTANCE:JOB'
 </TabItem>
 </Tabs>
 
-`submit` 在没有可连接实例时会启动相邻的普通应用，Windows 经过 Launcher；仍是桌面实例持有任务。其他任务和状态命令不启动应用。`--no-start` 可禁止提交时自动启动。
+在 0.5.2 中，`submit` 在没有可连接实例时会启动相邻的普通应用，Windows 经过稳定启动入口；仍是桌面实例持有任务。其他任务和状态命令不启动应用。`--no-start` 可禁止提交时自动启动。
 
 | 命令 | 用途 |
 | --- | --- |
@@ -127,6 +127,125 @@ task='INSTANCE:JOB'
 
 ## 更新与源码构建
 
-Windows 单 EXE 自动更新只更新桌面应用，CLI 随完整安装包或便携包更新。Mac CLI 随完整应用包更新并参与包签名校验。请使用同一版本的应用与 CLI；协议不兼容会明确报错。
+0.5.2 起 Windows 完整便携包也作为应用内更新载荷，CLI 随完整应用更新。Mac CLI 随完整应用包更新并参与包签名校验。请使用同一版本的应用与 CLI；协议不兼容会明确报错。
 
 现在需要源码构建时，按[开发资料中的 CLI 入口](../developer/#cli)使用独立目录。普通控制 CLI 不要求 `dev-tools`；`ameow-cli dev` 是另一种仅 debug + `--features dev-tools` 可用的开发入口，release 构建明确拒绝该特性，正式包没有可开启它的设置开关。
+
+
+## 0.5.3 开发版：Agent 工作流
+
+以下示例需要包含这些功能的 0.5.3 开发构建；已发布的 0.5.2 包尚不支持媒体查询、精确切片及维护命令。使用匹配版本的桌面应用和 CLI，并把示例路径、URL 换成实际值。
+
+~~~powershell
+$Cli = 'D:/Apps/Ameow/ameow-cli.exe'
+$Url = 'https://example.com/media'
+$Output = 'D:/Downloads' # 已存在且可写的目录
+$Info = & $Cli --json inspect $Url --quality balanced | ConvertFrom-Json
+if (-not $Info.ok) { throw $Info.error.message }
+& $Cli --json wait $Info.result.task_id --timeout 300
+if ($LASTEXITCODE -ne 0) { throw "媒体查询未成功结算" }
+$Job = & $Cli --json submit $Url --quality balanced --output $Output --start-ms 10000 --end-ms 30000 --precise | ConvertFrom-Json
+if (-not $Job.ok) { throw $Job.error.message }
+& $Cli --json wait $Job.result.task_id --timeout 300
+~~~
+
+Mac 安装 jq 后，可在 zsh/bash 中无交互地读取任务 ID：
+
+~~~sh
+cli='/Applications/Ameow.app/Contents/MacOS/ameow-cli'
+url='https://example.com/media' # 换成实际可访问的作品链接
+output="$HOME/Downloads"
+info=$("$cli" --json inspect "$url" --quality balanced)
+printf '%s\n' "$info" | jq -e '.ok' >/dev/null || exit 1
+task=$(printf '%s\n' "$info" | jq -r '.result.task_id')
+"$cli" --json wait "$task" --timeout 300 || exit 1
+job=$("$cli" --json submit "$url" --quality balanced --output "$output" --start-ms 10000 --end-ms 30000 --precise)
+printf '%s\n' "$job" | jq -e '.ok' >/dev/null || exit 1
+task=$(printf '%s\n' "$job" | jq -r '.result.task_id')
+"$cli" --json wait "$task" --timeout 300
+~~~
+
+成功提交回执包含以下字段，实际身份各不相同：
+
+~~~json
+{"ok":true,"result":{"task_id":"INSTANCE:1","job_id":1}}
+~~~
+
+查询只读取媒体信息，不下载文件。`inspect` 默认使用 highest；选择 `balanced` 或 `saver` 可查看相应预设。提交两个毫秒端点默认快切；上例的 `--precise` 显式选择精确切片。终态任务结果中 `files` 提供实际路径、字节数和 SHA-256；检查退出码和 `resources_released` 后再使用文件。
+
+通过 `owner.capabilities` 核对支持情况。查询中未知的时长和规格字段为 `null`；`selected` 是按对应画质预设选中的来源规格摘要。`video_codec` 是来源编码，`bytes` / `size_source` 是来源大小或估计；最终成品的路径、字节数和 SHA-256 读取结算后的 `files`。快切可能包含附近关键帧边界，需要更贴合指定时间时使用 `--precise`。
+
+~~~powershell
+& $Cli --json list
+& $Cli --json cancel $Job.result.task_id
+& $Cli --json wait $Job.result.task_id --timeout 300
+& $Cli --json retry $Job.result.task_id # 符合重试条件时读取新回执的 task_id
+~~~
+
+先读取偏好与会话状态；`settings set` 仅在需要修改默认值时单独执行：
+
+~~~powershell
+& $Cli --json settings
+& $Cli --json sessions
+~~~
+
+~~~powershell
+& $Cli --json settings set quality balanced
+~~~
+
+画质等同步偏好保存返回 `saved: true` 即已完成；无需等待 operation。
+
+组件先检查并等待，读取每项真实检查结果：
+
+~~~powershell
+& $Cli --json components check
+& $Cli --json components wait --timeout 60
+& $Cli --json components
+~~~
+
+仅在检查成功、存在可安装的新版本时更新对应组件：
+
+~~~powershell
+& $Cli --json components update yt-dlp
+& $Cli --json components wait --timeout 300
+~~~
+
+恢复推荐版本用于恢复场景，按需要单独执行：
+
+~~~powershell
+& $Cli --json components restore yt-dlp
+& $Cli --json components wait --timeout 300
+~~~
+
+应用也先检查、等待并读取状态：
+
+~~~powershell
+& $Cli --json app status
+& $Cli --json app check
+& $Cli --json app wait --timeout 60
+& $Cli --json app status
+~~~
+
+仅当检查结果提供可安装的新版本时下载；下载完成后再次读取阶段：
+
+~~~powershell
+& $Cli --json app download
+& $Cli --json app wait --timeout 300
+& $Cli --json app status
+~~~
+
+只有应用更新阶段为 `Ready` 时安装。安装会正常重启应用，保留回执身份来等待实际结果：
+
+~~~powershell
+$Install = & $Cli --json app install | ConvertFrom-Json
+if (-not $Install.ok) { throw $Install.error.message }
+& $Cli --json --instance-id $Install.instance_id --operation-id $Install.result.operation.id app wait --timeout 300
+~~~
+
+这些维护命令可能改变偏好、下载或安装组件及应用，请按需要逐项执行。`settings set` 保存默认值；提交选项只改变单次任务。`sessions` 只显示状态和缺失条件，站点授权仍在浏览器完成。组件可指定 `yt-dlp` 或 `gallery-dl`；再次运行 `components` 查看每项真实结果，运行 `app status` 查看应用更新阶段。`app quit` 和 `app restart` 遵循桌面停止规则，进行中的任务不会被强杀。受理或失联不代表操作已完成。
+
+查看 `ameow-cli --help`、`ameow-cli help submit` 和 `ameow-cli components --help` 以发现完整参数、结果及恢复方式。
+
+应用更新偏好返回异步 operation 时，使用 `settings wait --timeout 30` 确认保存。维护回执包含 `operation.id`、`action`、`phase`、`done`、`success` 和 `error`；只有 `done: true` 且 `success: true` 才表示完成。等待失败退出 4，超时退出 6，操作继续。
+
+`app install`、`app quit` 和 `app restart` 需保留原回执的 `instance_id` 与 `operation.id`；原 owner 退出后，用 `--instance-id ORIGINAL_INSTANCE --operation-id OPERATION_ID app status` 查询，或配合 `app wait --timeout 300` 等待。安装核对实际接受的安装版本，重启核对新 owner 握手，退出核对进程结束。安装和退出/重启分别仅保留最近一份回执，新操作替换旧回执；超时或缺失回执仍表示结果未确认。

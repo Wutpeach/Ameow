@@ -5,13 +5,15 @@ function apply(){const tools=globalThis.ameowPageTools;if(!ready)return;if(!tool
 const held=new Set();
 function interact(phase,id){parent.postMessage({kind:'manual-clip-interact',phase,id},location.origin);}
 for(const name of['pointerup','pointercancel','keyup'])addEventListener(name,event=>{const id=name==='keyup'?'key:'+event.code:'pointer:'+event.pointerId;if(held.delete(id))interact('end',id);},true);
+// Observe trusted keyboard interaction before the product handles I/O or F in capture.
+addEventListener('keydown',event=>{if(!event.isTrusted||!globalThis.ameowPageTools?.controls)return;const id='key:'+event.code;held.add(id);interact('start',id);},true);
 addEventListener('blur',()=>{for(const id of held)interact('end',id);held.clear();});
 function protect(tools){
  tools.submit=async()=>{};
  const update=tools.updateFields.bind(tools);
  tools.updateFields=()=>{update();if(tools.submitButton){tools.submitButton.disabled=true;tools.submitButton.title='交互图中不提交下载';}};
  tools.updateFields();
- for(const name of['pointerdown','keydown'])tools.controls.addEventListener(name,event=>{
+ for(const name of['pointerdown'])tools.controls.addEventListener(name,event=>{
   if(!event.isTrusted)return;const id=name==='keydown'?'key:'+event.code:'pointer:'+event.pointerId;
   held.add(id);interact('start',id);
  },true);

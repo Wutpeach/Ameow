@@ -852,7 +852,8 @@ function getDomain2(url, options) {
 // src/page-core.mjs
 var PAGE_ORIGINS = {
   "www.youtube.com": "https://www.youtube.com/*",
-  "www.bilibili.com": "https://www.bilibili.com/*"
+  "www.bilibili.com": "https://www.bilibili.com/*",
+  "www.xiaohongshu.com": "https://www.xiaohongshu.com/*"
 };
 function pageHost(value) {
   try {
@@ -896,10 +897,10 @@ var copy_default = '<!-- Lucide copy, rendered at 10px with a 1.2px stroke. ISC 
 var check_default = '<!-- Lucide check, copy feedback rendered at 10px with a 1.2px stroke. ISC license. -->\r\n<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="white" stroke-width="1.92" stroke-linecap="round" stroke-linejoin="round"><path d="m13.333 4-7.333 7.333-3.333-3.333"/></svg>\r\n';
 
 // ../assets/rotate-ccw.svg
-var rotate_ccw_default = `<!-- Lucide rotate-ccw; ISC. Stroke matches Ameow's existing 16px icons. -->\r
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">\r
-  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5"/>\r
-</svg>\r
+var rotate_ccw_default = `<!-- Lucide rotate-ccw; ISC. Stroke matches Ameow's existing 16px icons. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5"/>
+</svg>
 `;
 
 // ../assets/circle-alert.svg
