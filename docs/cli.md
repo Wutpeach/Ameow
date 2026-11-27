@@ -112,7 +112,7 @@ $Url = 'https://example.com/media' # 换成实际媒体 URL
 
 以下能力属于 0.5.3 开发版，需要匹配的 CLI 和桌面 owner；已发布的 0.5.2 包不提供这些新增命令。正式发布前请使用本树帮助和构建确认实际能力。
 
-以连接结果中的 `owner.capabilities` 判断支持情况。查询结果的 `duration_seconds` 和 `selected` 中的测量字段在未知时为 `null`；`selected` 是对应画质预设选中的有限规格摘要。快速切片可能包含附近关键帧边界，需要更贴合指定时间时使用 `--precise`。
+以连接结果中的 `owner.capabilities` 判断支持情况。查询结果的 `duration_seconds` 和 `selected` 中的测量字段在未知时为 `null`；`selected` 是对应画质预设选中的来源规格摘要，其中 `video_codec` 表示来源编码，`bytes` / `size_source` 表示来源大小或估计。最终成品的路径、字节数和 SHA-256 读取结算后的 `files`。快速切片可能包含附近关键帧边界，需要更贴合指定时间时使用 `--precise`。
 
 ~~~powershell
 $Cli = 'D:/Apps/Ameow/ameow-cli.exe'
@@ -129,22 +129,60 @@ $Job = & $Cli --json submit $Url --quality balanced --output 'D:/Downloads' --st
 
 ## 偏好与维护（0.5.3 开发版）
 
+先读取当前偏好和会话状态；仅在需要修改默认值时执行 `settings set`：
+
 ~~~powershell
 & $Cli --json settings
-& $Cli --json settings set quality balanced
 & $Cli --json sessions
+~~~
+
+~~~powershell
+& $Cli --json settings set quality balanced
+& $Cli --json settings wait --timeout 30
+~~~
+
+组件先检查并等待，读取每项真实检查结果：
+
+~~~powershell
 & $Cli --json components check
 & $Cli --json components wait --timeout 60
 & $Cli --json components
+~~~
+
+仅在检查成功、存在可安装的新版本时更新对应组件：
+
+~~~powershell
 & $Cli --json components update yt-dlp
 & $Cli --json components wait --timeout 300
+~~~
+
+恢复推荐版本用于恢复场景，按需要单独执行：
+
+~~~powershell
 & $Cli --json components restore yt-dlp
 & $Cli --json components wait --timeout 300
+~~~
+
+应用也先检查、等待并读取状态：
+
+~~~powershell
 & $Cli --json app status
 & $Cli --json app check
 & $Cli --json app wait --timeout 60
+& $Cli --json app status
+~~~
+
+仅当检查结果提供可安装的新版本时下载；下载完成后再次读取阶段：
+
+~~~powershell
 & $Cli --json app download
 & $Cli --json app wait --timeout 300
+& $Cli --json app status
+~~~
+
+只有应用更新阶段为 `Ready` 时安装。安装会正常重启应用，保留回执身份来等待实际结果：
+
+~~~powershell
 $Install = & $Cli --json app install | ConvertFrom-Json
 if (-not $Install.ok) { throw $Install.error.message }
 & $Cli --json --instance-id $Install.instance_id --operation-id $Install.result.operation.id app wait --timeout 300
