@@ -4,7 +4,7 @@
   "sources": [
     {
       "path": "distribution/notices/rust-dependency-inventory.json",
-      "sha256": "6fee26a2bd8c5a24126e96067c02171ce632891d727a16fe48d1b6c1ad4884de"
+      "sha256": "218722e66c0a761c800b7b03c5a8502418e084163449a43b9570f4bfe19fe587"
     },
     {
       "path": "distribution/notices/rust-dependency-licenses.txt",
@@ -21,6 +21,18 @@
     {
       "path": "distribution/notices/rust-standard-library-Apache-2.0.txt",
       "sha256": "c5c933dd7fd534150d42e86f3755921644aeee9df2adde2d5a912c83c3c35647"
+    },
+    {
+      "path": "distribution/notices/upstream/mac-0.1.1-Cargo.toml",
+      "sha256": "6d465c5e5a4b3e197049e9fb7393b2f996c1c654e6ded700afce046fac2f7969"
+    },
+    {
+      "path": "distribution/notices/upstream/mac-0.1.1-README.md",
+      "sha256": "8edb7a912d295acf1e1cfeafdd19a6813a63b301c7bbfda3c67f65509bd8d8cc"
+    },
+    {
+      "path": "distribution/notices/upstream/seahash-LICENSE-supplement.txt",
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
     }
   ]
 }

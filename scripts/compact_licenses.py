@@ -136,11 +136,14 @@ def generate(root=ROOT):
     refs = {digest: texts.add(body) for digest, body in sorted(bodies.items())}
     lines = ['Rust dependency and standard-library licenses', '',
              'Complete applicable wording is retained below. Identical full texts are shared;',
-             'each component maps to a complete license text with its original copyright.',
+             'each component maps to complete license terms; supplied copyright notices are retained.',
+             'Upstream omissions and supplemental license sources are identified per component.',
              'Source hashes and full engineering provenance remain in the matching source tree.', '',
              'Rust packages (Windows normal/build graph; build-only packages retained conservatively):', '']
     for package in packages:
         lines.append(f"{package['name']}@{package['version']} — {package['licenseExpression']}")
+        if package.get('distributionNotice'):
+            lines.append('  ' + package['distributionNotice'])
         if not package['texts']:
             lines.append('  Exact license-text source remains unresolved.')
         for text in package['texts']:

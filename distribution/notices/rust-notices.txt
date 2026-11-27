@@ -1,7 +1,8 @@
 Rust dependency and standard-library licenses
 
 Complete applicable wording is retained below. Identical full texts are shared;
-each component maps to a complete license text with its original copyright.
+each component maps to complete license terms; supplied copyright notices are retained.
+Upstream omissions and supplemental license sources are identified per component.
 Source hashes and full engineering provenance remain in the matching source tree.
 
 Rust packages (Windows normal/build graph; build-only packages retained conservatively):
@@ -505,7 +506,8 @@ lyon_tessellation@1.0.22 — MIT OR Apache-2.0
   LICENSE-MIT: T133
   LICENSE-APACHE: T38
 mac@0.1.1 — MIT/Apache-2.0
-  Exact license-text source remains unresolved.
+  Locked source declares MIT/Apache-2.0 without a LICENSE file. This distribution uses the declared Apache-2.0 option and includes the ASF standard text. No upstream copyright notice was supplied or invented.
+  Apache-2.0 (declared option; ASF standard text): T24
 markdown@1.0.0 — MIT
   license: T226
 markup5ever@0.12.1 — MIT OR Apache-2.0
@@ -804,7 +806,8 @@ scopeguard@1.2.0 — MIT OR Apache-2.0
   LICENSE-APACHE: T24
   LICENSE-MIT: T244
 seahash@4.1.0 — MIT
-  Exact license-text source remains unresolved.
+  The locked source declares MIT but omits a LICENSE file. The complete text is supplied from upstream corrective follow-up 3088c5c9, not represented as a file in the locked release. No copyright notice was supplied or invented.
+  LICENSE (upstream corrective follow-up): T43
 semver@1.0.28 — MIT OR Apache-2.0
   LICENSE-APACHE: T20
   LICENSE-MIT: T43

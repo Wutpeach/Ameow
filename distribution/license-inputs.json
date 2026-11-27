@@ -6,7 +6,7 @@
       "obligation": "Preserve the versioned source and checked local full texts.",
       "source": "THIRD_PARTY_NOTICES.md",
       "destination": "licenses/THIRD_PARTY_NOTICES.md",
-      "sha256": "BF66F11C87A02314B40833847D39A4A099033D7998511078DC79B7F6297EA3F1"
+      "sha256": "70124FC86AA3B3335AC2EF0A86210960B2900FB95C19EFE213889F1A6E767E70"
     },
     {
       "kind": "Ameow-owned code",
@@ -34,7 +34,7 @@
       "obligation": "Preserve all component/copyright/NOTICE mappings and complete shared license texts offline; original sources and source hashes remain versioned in the repository.",
       "source": "distribution/notices/rust-notices.txt",
       "destination": "licenses/rust-notices.txt",
-      "sha256": "4D98A6DD37A9509964EACB214F3BCF184FA9C0D0F53E6E9377B82C9EAF24917C"
+      "sha256": "8AA763847AC9263C2B5C0F64D3E71A60BBA3AB75C2DEE132BBCB4CE7D697A4E2"
     }
   ],
   "notes": [

@@ -41,9 +41,14 @@ distribution/notices/runtime-acquisition.md.
 
 ## Source review limits
 
-Exact package license-text sources remain unresolved for mac@0.1.1 and
-seahash@4.1.0. Their declared licenses and source attributions are retained; no
-replacement copyright text has been invented. Exact historical tags for three
+mac@0.1.1 declares MIT/Apache-2.0 in its locked source but did not include a
+LICENSE file. This distribution uses its declared Apache-2.0 option and supplies
+the ASF's complete standard text, retaining the original declaration in the source audit.
+seahash@4.1.0 declares MIT; its upstream directly following commit adds the missing
+MIT license text, which is supplied here and identified as a later supplement.
+Neither locked source supplied a copyright notice; no replacement was invented.
+The source inventory records these upstream omissions separately from supplied texts.
+Exact historical tags for three
 icons, brand redistribution rights, applicable MSVC terms and separately acquired
 runtime/source obligations remain in the source audit. These notices do not
 constitute legal approval or claim that those open questions have been resolved.

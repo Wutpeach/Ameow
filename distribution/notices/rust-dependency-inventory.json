@@ -6,10 +6,7 @@
   "textBodyCount": 320,
   "cargoLockHashMode": "crlf-to-lf",
   "cargoLockSha256": "f51353b74f8317aca3ef659d6cab030357ef6d97d6c58b4e63070d6f7d37a1a8",
-  "packageTextGaps": [
-    "mac@0.1.1",
-    "seahash@4.1.0"
-  ],
+  "packageTextGaps": [],
   "packages": [
     {
       "name": "accesskit",
@@ -5754,15 +5751,33 @@
       "licenseExpression": "MIT/Apache-2.0",
       "registrySource": "registry+https://github.com/rust-lang/crates.io-index",
       "cargoLockChecksum": "c41e0c4fef86961ac6d6f8a82609f55f31b05e4fce149ac5710e439df7619ba4",
-      "texts": [],
+      "texts": [
+        {
+          "name": "Apache-2.0 (declared option; ASF standard text)",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+          "bytes": 11358,
+          "bodyAnchor": "SHA256 cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+          "source": {
+            "kind": "declared-license-standard-text",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+            "declarationCommit": "66afc663b68a65633ea165c742b5a9c6734581c2",
+            "declarationUrl": "https://github.com/reem/rust-mac/blob/66afc663b68a65633ea165c742b5a9c6734581c2/README.md",
+            "declarationFile": "distribution/notices/upstream/mac-0.1.1-README.md",
+            "declarationSha256": "8edb7a912d295acf1e1cfeafdd19a6813a63b301c7bbfda3c67f65509bd8d8cc",
+            "versionEvidence": "The exact locked source and Cargo.toml declare MIT/Apache-2.0; standard Apache-2.0 text is supplied without inventing a package copyright notice."
+          }
+        }
+      ],
       "sourceEvidence": {
         "repository": "https://github.com/reem/rust-mac",
         "commit": "66afc663b68a65633ea165c742b5a9c6734581c2",
         "versionTag": "0.1.1",
         "cratePathInVcs": ""
       },
-      "exactTextStatus": "not found in examined pinned archive/source; no copyright text invented",
-      "graphRole": "normal/runtime-reachable graph path; no final linked claim"
+      "exactTextStatus": "Locked package license-file omission retained; declared Apache-2.0 option supplied from the official standard text.",
+      "graphRole": "normal/runtime-reachable graph path; no final linked claim",
+      "distributionLicense": "Apache-2.0",
+      "distributionNotice": "Locked source declares MIT/Apache-2.0 without a LICENSE file. This distribution uses the declared Apache-2.0 option and includes the ASF standard text. No upstream copyright notice was supplied or invented."
     },
     {
       "name": "markdown",
@@ -9229,15 +9244,33 @@
       "licenseExpression": "MIT",
       "registrySource": "registry+https://github.com/rust-lang/crates.io-index",
       "cargoLockChecksum": "1c107b6f4780854c8b126e228ea8869f4d7b71260f962fefb57b996b8959ba6b",
-      "texts": [],
+      "texts": [
+        {
+          "name": "LICENSE (upstream corrective follow-up)",
+          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+          "bytes": 1023,
+          "bodyAnchor": "SHA256 23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+          "source": {
+            "kind": "upstream-license-supplement",
+            "url": "https://gitlab.redox-os.org/redox-os/seahash/-/raw/3088c5c912b70b586d27bf553fbe964e025a2c89/LICENSE",
+            "commit": "3088c5c912b70b586d27bf553fbe964e025a2c89",
+            "repository": "https://gitlab.redox-os.org/redox-os/seahash",
+            "path": "LICENSE",
+            "lockedSourceCommit": "94b632aeac099031c373599313d5b5f0acbbaec0",
+            "localSource": "distribution/notices/upstream/seahash-LICENSE-supplement.txt",
+            "versionEvidence": "Upstream corrective follow-up adds the missing MIT text; the locked 4.1.0 source already declares MIT. The supplement has no copyright line."
+          }
+        }
+      ],
       "sourceEvidence": {
         "repository": "https://gitlab.redox-os.org/redox-os/seahash",
         "commit": "94b632aeac099031c373599313d5b5f0acbbaec0",
         "versionTag": null,
         "cratePathInVcs": ""
       },
-      "exactTextStatus": "not found in examined pinned archive/source; no copyright text invented",
-      "graphRole": "normal/runtime-reachable graph path; no final linked claim"
+      "exactTextStatus": "Locked package license-file omission retained; complete MIT terms supplied from upstream corrective follow-up.",
+      "graphRole": "normal/runtime-reachable graph path; no final linked claim",
+      "distributionNotice": "The locked source declares MIT but omits a LICENSE file. The complete text is supplied from upstream corrective follow-up 3088c5c9, not represented as a file in the locked release. No copyright notice was supplied or invented."
     },
     {
       "name": "semver",
@@ -14488,5 +14521,9 @@
         }
       ]
     }
+  ],
+  "upstreamLicenseFileOmissions": [
+    "mac@0.1.1",
+    "seahash@4.1.0"
   ]
 }
