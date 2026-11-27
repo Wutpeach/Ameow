@@ -133,6 +133,6 @@ impl DownloaderAdapter for FixtureAdapter {
             .find(|name| context.workspace().join(name).is_file()).ok_or_else(|| failed(FailureCode::Media))?;
         Ok(ProducedArtifact { relative_path: path.into(), identity, kind: MediaKind::Video,
             verification: VerificationRequirements::Video(VideoExpectation { height: None, codec: None,
-                requires_audio: false, height_cap: request.accepted.intent.quality.cap() }) })
+                requires_audio: false, height_cap: request.accepted.intent.quality.cap(), output: None }) })
     }
 }

@@ -1,9 +1,10 @@
-//! One application-embedded native postprocessor; ambient plugin discovery stays disabled.
+//! Application-embedded output and bounded HTTP processors; ambient discovery stays disabled.
 use crate::download::request::ClipRange;
 use serde_json::Value;
 use std::{fs::{self, File, OpenOptions}, io::Write, path::Path};
 
 const SOURCE: &[u8] = include_bytes!("bounded_http.py");
+const OUTPUT_SOURCE: &[u8] = include_bytes!("compatible_mp4.py");
 
 /// Keep the source handle alive through execution. Windows permits import reads,
 /// while denying replacement/writes to the application-authored module.
@@ -12,12 +13,8 @@ pub(super) fn prepare(
     workspace: &Path,
     range: Option<ClipRange>,
     resolved: &Value,
-) -> Result<Option<File>, String> {
-    if range.is_none()
-        || resolved["extractor_key"].as_str() != Some("Youtube")
-    {
-        return Ok(None);
-    }
+) -> Result<Vec<File>, String> {
+    let bounded = range.is_some() && resolved["extractor_key"].as_str() == Some("Youtube");
     // This resolve check only avoids loading the helper for unrelated requests.
     // The native before_dl processor gates every actual transfer input again.
     let root = workspace.join("managed-plugins");
@@ -25,7 +22,7 @@ pub(super) fn prepare(
     let namespace = package.join("yt_dlp_plugins");
     let postprocessors = namespace.join("postprocessor");
     for directory in [&root, &package, &namespace, &postprocessors] {
-        fs::create_dir(directory).map_err(|e| format!("Managed HTTP postprocessor directory: {e}"))?;
+        fs::create_dir(directory).map_err(|e| format!("Managed postprocessor directory: {e}"))?;
     }
     let mut options = OpenOptions::new();
     options.read(true).write(true).create_new(true);
@@ -34,15 +31,24 @@ pub(super) fn prepare(
         use std::os::windows::fs::OpenOptionsExt;
         options.share_mode(windows_sys::Win32::Storage::FileSystem::FILE_SHARE_READ);
     }
-    let mut source = options.open(postprocessors.join("ameow_bounded_http.py"))
-        .map_err(|e| format!("Managed HTTP postprocessor source: {e}"))?;
-    source.write_all(SOURCE).map_err(|e| format!("Managed HTTP postprocessor source: {e}"))?;
-    source.flush().map_err(|e| format!("Managed HTTP postprocessor source: {e}"))?;
+    let mut source = options.open(postprocessors.join("ameow_compatible_mp4.py"))
+        .map_err(|e| format!("Managed output postprocessor source: {e}"))?;
+    source.write_all(OUTPUT_SOURCE).map_err(|e| format!("Managed output postprocessor source: {e}"))?;
+    source.flush().map_err(|e| format!("Managed output postprocessor source: {e}"))?;
     args.extend([
         "--plugin-dirs".into(), root.display().to_string(),
-        "--use-postprocessor".into(), "AmeowBoundedHttp:when=before_dl".into(),
+        "--use-postprocessor".into(), "AmeowOutputPolicy:when=before_dl".into(),
+        "--use-postprocessor".into(), "AmeowCompatibleMP4:when=post_process".into(),
     ]);
-    Ok(Some(source))
+    let mut guards = vec![source];
+    if bounded {
+        let mut source = options.open(postprocessors.join("ameow_bounded_http.py"))
+            .map_err(|e| format!("Managed HTTP postprocessor source: {e}"))?;
+        source.write_all(SOURCE).and_then(|_| source.flush()).map_err(|e| e.to_string())?;
+        guards.push(source);
+        args.extend(["--use-postprocessor".into(), "AmeowBoundedHttp:when=before_dl".into()]);
+    }
+    Ok(guards)
 }
 
 #[cfg(test)]
@@ -61,8 +67,8 @@ mod tests {
             let workspace = tempfile::tempdir().unwrap();
             let mut args = vec!["--ignore-config".into(), "--no-plugin-dirs".into()];
             let guard = prepare(&mut args, workspace.path(), range, &json!({"extractor_key":extractor})).unwrap();
-            assert_eq!(guard.is_some(), enabled);
-            assert_eq!(workspace.path().join("managed-plugins").exists(), enabled);
+            assert_eq!(guard.len(), if enabled { 2 } else { 1 });
+            assert!(workspace.path().join("managed-plugins").exists());
             assert!(args.iter().any(|arg| arg == "--no-plugin-dirs"));
             if enabled {
                 assert_eq!(fs::read(workspace.path().join("managed-plugins/ameow/yt_dlp_plugins/postprocessor/ameow_bounded_http.py")).unwrap(), SOURCE);

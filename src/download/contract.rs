@@ -77,13 +77,22 @@ pub enum VideoCodec {
     Av1,
     Other(String),
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct VideoExpectation {
     pub height: Option<u64>,
     pub codec: Option<VideoCodec>,
     // Reflect native selection; a video without a selected audio stream is valid.
     pub requires_audio: bool,
     pub height_cap: u64,
+    pub output: Option<VideoOutputExpectation>,
+}
+#[derive(Clone, Debug, PartialEq)]
+pub struct VideoOutputExpectation {
+    pub compatible_mp4: bool,
+    pub width: u64,
+    pub height: u64,
+    pub fps: Option<f64>,
+    pub audio_channels: Vec<u64>,
 }
 #[derive(Clone, Debug)]
 pub enum VerificationRequirements {

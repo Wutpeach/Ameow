@@ -52,7 +52,7 @@ const TRANSFER_INFO_FILE: &str = "media.info.json";
 const SELECTION_FILE: &str = "selection.txt";
 const SELECTION_PREFIX: &str = "AMEOW_SELECTION=";
 // Native output-template projection excludes request headers, URLs and downloader Cookie data.
-const SAFE_METADATA: &str = "%(.{id,extractor_key,_type,_old_archive_ids,width,height,vcodec,acodec,format_id,fps,tbr,duration,ext,protocol,is_live,live_status,playlist_index,section_start,section_end})j";
+const SAFE_METADATA: &str = "%(.{id,extractor_key,_type,_old_archive_ids,width,height,vcodec,acodec,format_id,fps,tbr,duration,ext,protocol,is_live,live_status,playlist_index,section_start,section_end,_ameow_output})j";
 // Progress needs each native selected stream, rather than the merged format ID.
 const SAFE_SELECTION: &str = r#"{"id":%(id)j,"extractor_key":%(extractor_key)j,"_type":%(_type)j,"_old_archive_ids":%(_old_archive_ids)j,"width":%(width)j,"height":%(height)j,"vcodec":%(vcodec)j,"acodec":%(acodec)j,"format_id":%(format_id)j,"protocol":%(protocol)j,"_ameow_selected_formats":%(requested_formats.:.{format_id,protocol,vcodec,acodec})j}"#;
 
@@ -136,13 +136,11 @@ impl DownloaderAdapter for YtDlpAdapter {
             }
             let mut args = engine_args(context, &route, accepted.intent.quality)?;
             generic_args(&mut args, accepted, false);
-            let _bounded_http_source = bounded_http::prepare(&mut args, working, accepted.intent.clip, &metadata)?;
+            let _managed_sources = bounded_http::prepare(&mut args, working, accepted.intent.clip, &metadata)?;
             if let Some(range) = accepted.intent.clip {
                 // Precision is opt-in; the ordinary section path keeps native stream copy.
                 args.extend(["--download-sections".into(), range.section(), "--downloader-args".into(), "ffmpeg_i:-seekable 1 -xerror".into(),
-                    "--downloader-args".into(), if range.precise {
-                        "ffmpeg_o:-c:v libx264 -preset faster -crf 18 -c:a aac -b:a 192k -f matroska -progress pipe:1 -stats_period 0.2 -nostats"
-                    } else { "ffmpeg_o:-progress pipe:1 -stats_period 0.2 -nostats" }.into()]);
+                    "--downloader-args".into(), "ffmpeg_o:-progress pipe:1 -stats_period 0.2 -nostats".into()]);
                 if range.precise { args.push("--force-keyframes-at-cuts".into()); }
             }
             #[cfg(all(feature = "app-update-fixture", debug_assertions))]
@@ -151,11 +149,9 @@ impl DownloaderAdapter for YtDlpAdapter {
                 "--no-simulate".into(),
                 "--merge-output-format".into(),
                 "mkv".into(),
-                "--remux-video".into(),
-                "mkv".into(),
                 "--output".into(),
                 working.join("media.%(ext)s").display().to_string(),
-                if context.authentication.is_some() || attempt_input.is_some() { "--no-write-info-json" } else { "--write-info-json" }.into(),
+                "--no-write-info-json".into(),
                 "--no-overwrites".into(),
                 "--newline".into(),
                 "--progress".into(),
@@ -174,9 +170,7 @@ impl DownloaderAdapter for YtDlpAdapter {
                 "after_move:AMEOW_FINAL=%(filepath)j".into(),
                 working.join("final-object.txt").display().to_string(),
             ]);
-            if context.authentication.is_some() || attempt_input.is_some() {
-                args.extend(["--print-to-file".into(), format!("after_move:{}", if context.authentication.is_some() { SAFE_METADATA } else { "%()j" }), working.join(TRANSFER_INFO_FILE).display().to_string()]);
-            }
+            args.extend(["--print-to-file".into(), format!("after_move:{}", if context.authentication.is_some() { SAFE_METADATA } else { "%()j" }), working.join(TRANSFER_INFO_FILE).display().to_string()]);
             attempt_resolution::append_input(&mut args, attempt_input.as_ref(), &canonical);
             let timeline = progress::Timeline::from_args();
             let feed = Mutex::new((0, progress::ProgressFeed::selected(&Value::Null).with_timeline(timeline.clone())));
@@ -245,6 +239,10 @@ impl DownloaderAdapter for YtDlpAdapter {
             }
             let before = selections.as_ref().and_then(|rows| rows.last());
             let mut video = transfer_expectation(&actual, before, accepted.intent.quality)?;
+            video.output = Some(output_expectation(&actual)?);
+            if video.output.as_ref().is_some_and(|output| output.compatible_mp4) {
+                video.codec = Some(crate::download::contract::VideoCodec::H264);
+            }
             let verification = if let Some(range) = accepted.intent.clip {
                 if range.precise { video.codec = Some(crate::download::contract::VideoCodec::H264); }
                 check_clip_source(&actual, range)?;
@@ -400,6 +398,24 @@ fn transfer_expectation(actual: &Value, before: Option<&Value>, quality: crate::
         video.requires_audio |= observed.requires_audio;
     }
     Ok(video)
+}
+fn output_expectation(actual: &Value) -> Result<crate::download::contract::VideoOutputExpectation, String> {
+    use crate::download::contract::VideoOutputExpectation;
+    let value = &actual["_ameow_output"];
+    let missing = || "E_MEDIA_UNVERIFIED: output policy facts missing/invalid".to_string();
+    let dimension = |key: &str| value[key].as_u64().filter(|n| *n > 0).ok_or_else(missing);
+    let audio = value["audio_channels"].as_array().filter(|items| items.len() <= 64).ok_or_else(missing)?;
+    let audio_channels = audio.iter().map(|v| v.as_u64().filter(|n| *n > 0 && *n <= 64).ok_or_else(missing))
+        .collect::<Result<Vec<_>, _>>()?;
+    let source_video = selection::chosen(actual).into_iter().find(|v| v["vcodec"].as_str().is_some_and(|c| c != "none"));
+    let width = dimension("width")?;
+    let height = dimension("height")?;
+    if source_video.is_some_and(|v| v["width"].as_u64().is_some_and(|n| n > 0 && n != width)
+        || v["height"].as_u64().is_some_and(|n| n > 0 && n != height)) {
+        return Err("E_MEDIA_INVALID: output policy differs from selected dimensions".into());
+    }
+    let fps = value["fps"].as_f64().filter(|n| n.is_finite() && *n > 0.);
+    Ok(VideoOutputExpectation { compatible_mp4: value["compatible_mp4"].as_bool().ok_or_else(missing)?, width, height, fps, audio_channels })
 }
 fn check_selection_identities(accepted: &Accepted, resolved: &Value, selections: &[Value]) -> Result<(), String> {
     let expected = identity::proof(accepted, resolved).map_err(|error| format!("E_IDENTITY: {error}"))?.identity.canonical_key();
@@ -809,6 +825,8 @@ use crate::download::{request::{self, Accepted, DownloadIntent}};
 
 #[cfg(test)]
 mod selection_record_tests;
+#[cfg(all(test, windows))]
+mod compatible_mp4_tests;
 
 #[cfg(test)]
 mod generic_tests {

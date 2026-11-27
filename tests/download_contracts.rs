@@ -391,6 +391,7 @@ fn pinned_ffprobe_verifies_real_video_audio_and_rejects_wrong_plan() -> Result<(
         codec: Some(VideoCodec::H264),
         height_cap: 1080,
         requires_audio: true,
+        output: None,
     };
     let verified = ameow_next::download::verification::video::verify(
         &media,
@@ -442,7 +443,7 @@ fn pinned_ffprobe_verifies_real_video_audio_and_rejects_wrong_plan() -> Result<(
         &silent, workspace.path(), &plan, &lease, &Control::default(), Arc::new(|_| {}), "ffprobe.exe",
     )?;
     assert!(!silent_verified.facts.audio_present);
-    let unknown = VideoExpectation { height: None, codec: None, requires_audio: false, height_cap: 1080 };
+    let unknown = VideoExpectation { height: None, codec: None, requires_audio: false, height_cap: 1080, output: None };
     let unknown_verified = ameow_next::download::verification::video::verify(
         &silent, workspace.path(), &unknown, &lease, &Control::default(), Arc::new(|_| {}), "ffprobe.exe",
     )?;

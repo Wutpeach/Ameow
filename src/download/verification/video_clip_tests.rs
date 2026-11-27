@@ -29,7 +29,7 @@ fn offline_clip_verifier_checks_duration_modes_and_media_integrity() -> Result<(
         assert_eq!(result.exit_code, 0, "{}", String::from_utf8_lossy(&result.stderr));
         Ok::<_, String>(result.stdout)
     };
-    let plan = VideoExpectation { height: Some(48), codec: Some(VideoCodec::H264), height_cap: 1080, requires_audio: true };
+    let plan = VideoExpectation { height: Some(48), codec: Some(VideoCodec::H264), height_cap: 1080, requires_audio: true, output: None };
     for (name, generated, requested_ms, precise, source, passes) in [
         ("short", "3", 3000, false, Some(600.), true),
         ("long", "125", 125000, false, Some(600.), true),

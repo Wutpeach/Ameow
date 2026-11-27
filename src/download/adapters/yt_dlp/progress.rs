@@ -308,7 +308,7 @@ impl ProgressFeed {
                         || object
                             .keys()
                             .any(|key| !matches!(key.as_str(), "postprocessor" | "status"))
-                }) || value["postprocessor"] != "Merger"
+                }) || !matches!(value["postprocessor"].as_str(), Some("Merger" | "AmeowCompatibleMP4"))
                 {
                     continue;
                 }
@@ -316,6 +316,7 @@ impl ProgressFeed {
                     continue;
                 }
                 self.postprocessing = true;
+                let merging = value["postprocessor"] == "Merger" && value["status"] == "started";
                 self.latest = Some(TransferProgress {
                     downloaded_bytes: 0,
                     exact_total_bytes: None,
@@ -323,11 +324,11 @@ impl ProgressFeed {
                     media_speed: None,
                     fraction: None,
                     observed_at_ms: now,
-                    merging: value["status"] == "started",
+                    merging,
                     phase: TransferPhase::Processing,
                     estimated_total_bytes: None,
                 });
-                self.timeline.record(serde_json::json!({"observed_at_ms":now,"phase":"Processing","merging":value["status"] == "started","fraction":null}));
+                self.timeline.record(serde_json::json!({"observed_at_ms":now,"phase":"Processing","merging":merging,"fraction":null}));
                 changed = true;
                 urgent = true;
             } else if let Some(raw) = line.strip_prefix(b"AMEOW_PROGRESS=") {
@@ -797,5 +798,9 @@ mod tests {
             .unwrap();
         assert!(sample.merging);
         assert_eq!(sample.speed_at(301), None);
+        let sample = parser.push(true, 5, "AMEOW_PP={\"postprocessor\":\"AmeowCompatibleMP4\",\"status\":\"started\"}\n", 302).unwrap();
+        assert!(!sample.merging);
+        assert_eq!(sample.phase, TransferPhase::Processing);
+        assert_eq!(sample.fraction_at(302), None);
     }
 }

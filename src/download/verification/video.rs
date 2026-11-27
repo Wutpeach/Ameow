@@ -119,6 +119,7 @@ pub(super) fn verify_media(
             codec: None,
             requires_audio: false,
             height_cap: cap,
+            output: None,
         },
         true,
         lease,
@@ -267,6 +268,28 @@ pub(super) fn facts(info: &Value, expected: &VideoExpectation) -> Result<Verifie
         .any(|s| s["codec_type"] == "audio" && s["channels"].as_u64() != Some(0));
     if expected.requires_audio && !audio_present {
         return Err("E_MEDIA_INVALID: delivered media missing selected audio".into());
+    }
+    if let Some(output) = &expected.output {
+        let audio: Vec<_> = streams.iter().filter(|s| s["codec_type"] == "audio").collect();
+        if width != output.width || height != output.height
+            || audio.len() != output.audio_channels.len()
+            || audio.iter().zip(&output.audio_channels).any(|(s, channels)| s["channels"].as_u64() != Some(*channels)) {
+            return Err("E_MEDIA_INVALID: output dimensions or selected audio tracks/channels differ".into());
+        }
+        if let Some(fps) = output.fps {
+            let actual = ratio(&video["avg_frame_rate"]).or_else(|| ratio(&video["r_frame_rate"]));
+            if actual.is_none_or(|actual| (actual - fps).abs() > (fps * 0.01).max(0.02)) {
+                return Err("E_MEDIA_INVALID: output frame rate differs from selected video".into());
+            }
+        }
+        let mp4_brand = info["format"]["tags"]["major_brand"].as_str()
+            .is_some_and(|brand| !brand.trim().is_empty() && brand.trim() != "qt");
+        if output.compatible_mp4 && (actual_extension(info).as_deref() != Some("mp4") || !mp4_brand
+            || codec != "h264" || video["pix_fmt"] != "yuv420p"
+            || !matches!(video["profile"].as_str(), Some("Baseline" | "Constrained Baseline" | "Main" | "High"))
+            || audio.iter().any(|s| s["codec_name"] != "aac" || s["profile"] != "LC")) {
+            return Err("E_MEDIA_INVALID: delivered media does not satisfy compatible MP4".into());
+        }
     }
     let duration = positive(&info["format"]["duration"])
         .or_else(|| positive(&video["duration"]))
@@ -421,6 +444,7 @@ mod tests {
             codec: None,
             requires_audio: false,
             height_cap: 1080,
+            output: None,
         }
     }
     fn video() -> Value {
@@ -494,5 +518,42 @@ mod tests {
         ));
         assert!(!is_image(&video()));
         assert!(!is_image(&json!({"format":{"format_name":"mov,mp4"}})));
+    }
+    #[test]
+    fn compatible_output_checks_actual_tracks_pixels_dimensions_and_fps() {
+        let mut info = video();
+        info["format"]["format_name"] = json!("mov,mp4,m4a,3gp,3g2,mj2");
+        info["format"]["tags"]["major_brand"] = json!("isom");
+        info["streams"][0]["pix_fmt"] = json!("yuv420p");
+        info["streams"][0]["profile"] = json!("High");
+        info["streams"][0]["avg_frame_rate"] = json!("60000/1001");
+        info["streams"].as_array_mut().unwrap().push(json!({"codec_type":"audio","codec_name":"aac","profile":"LC","channels":6}));
+        let mut plan = expected();
+        plan.output = Some(crate::download::contract::VideoOutputExpectation {
+            compatible_mp4: true, width: 64, height: 48, fps: Some(60000. / 1001.), audio_channels: vec![6],
+        });
+        assert!(facts(&info, &plan).is_ok());
+        for (key, value) in [("codec_name", json!("vp9")), ("pix_fmt", json!("yuv420p10le")),
+            ("profile", json!("High 4:4:4 Predictive")), ("width", json!(32)), ("avg_frame_rate", json!("30/1"))] {
+            let mut invalid = info.clone();
+            invalid["streams"][0][key] = value;
+            assert!(facts(&invalid, &plan).is_err(), "{key}");
+        }
+        for (key, value) in [("codec_name", json!("opus")), ("profile", json!("HE-AAC")), ("channels", json!(2))] {
+            let mut invalid = info.clone(); invalid["streams"][1][key] = value;
+            assert!(facts(&invalid, &plan).is_err(), "{key}");
+        }
+        let mut missing = info.clone(); missing["streams"].as_array_mut().unwrap().pop();
+        assert!(facts(&missing, &plan).is_err());
+        let mut extra = info.clone(); extra["streams"].as_array_mut().unwrap().push(info["streams"][1].clone());
+        assert!(facts(&extra, &plan).is_err());
+        let mut mkv = info.clone(); mkv["format"]["format_name"] = json!("matroska,webm");
+        assert!(facts(&mkv, &plan).is_err());
+        let mut quicktime = info.clone(); quicktime["format"]["tags"]["major_brand"] = json!("qt  ");
+        assert!(facts(&quicktime, &plan).is_err());
+        plan.output.as_mut().unwrap().compatible_mp4 = false;
+        assert!(facts(&mkv, &plan).is_ok());
+        plan.output.as_mut().unwrap().audio_channels.clear();
+        assert!(facts(&missing, &plan).is_ok());
     }
 }

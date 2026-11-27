@@ -73,6 +73,7 @@ pub fn expectation(metadata: &Value, quality: Quality) -> VideoExpectation {
                 .is_some_and(|s| !matches!(s, "" | "none" | "unknown" | "N/A" | "?"))
         }),
         height_cap: quality.cap(),
+        output: None,
     }
 }
 
