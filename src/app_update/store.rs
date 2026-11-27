@@ -275,6 +275,7 @@ impl Install {
         plain(&path)?;
         Ok(path)
     }
+    #[cfg(target_os = "macos")]
     pub(crate) fn release_manifest(&self, release: &Release) -> Result<Manifest, String> {
         let dir = self.release_dir(&release.version)?;
         let envelope: SignedManifest = read_json(&dir.join("manifest.json"))?;
@@ -338,7 +339,7 @@ impl Install {
         }
         Ok((app.ok_or("E_APP_UPDATE_BUNDLE_INCOMPLETE")?, selected))
     }
-    #[cfg(windows)]
+    #[cfg(all(test, windows))]
     pub(crate) fn component_release(&self) -> Result<(Release, File), String> {
         let release = self.selected_component_release()?;
         let guard = self.verify_release(&release)?;
@@ -359,7 +360,7 @@ impl Install {
         let (app, component) = self.verify_windows_release(&release, Some(name))?;
         Ok((release, app, component.ok_or("E_APP_UPDATE_BUNDLE_INCOMPLETE")?))
     }
-    #[cfg(windows)]
+    #[cfg(all(test, windows))]
     pub(crate) fn verify_component(&self, release: &Release, name: &str) -> Result<File, String> {
         let bundle = self.windows_bundle(release)?;
         let record = bundle.files.iter().find(|f| f.path == name).ok_or("E_APP_UPDATE_BUNDLE_INCOMPLETE")?;
